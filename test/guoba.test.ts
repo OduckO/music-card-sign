@@ -6,12 +6,13 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import YAML from 'yaml'
+import { Trapper } from 'triptrap'
 import type { Result } from 'trss-yunzai/guoba'
 import type { supportGuoba } from '../src/modules/guoba'
 import type ConfigModule from '../src/config'
 import type { Config } from '../src/types'
 import { fixture, command } from './helpers/plugin'
-import type { FixtureResponse } from './helpers/plugin'
+import type { FixtureReply, FixtureResponse } from './helpers/plugin'
 
 class GuobaResult<T> implements Result<T> {
   constructor(
@@ -64,6 +65,76 @@ async function guobaFixture(t: TestContext) {
     configPath: join(host.hostRoot, 'config/music-card-sign.yaml')
   }
 }
+
+test('锅巴保存取消 triptrap 等待请求，只释放插件自己的监听并能继续签名', async (t) => {
+  const { guoba, bot, instance, stack, configPath } = await guobaFixture(t)
+  const events = new Trapper()
+  let hostEvents = 0
+  const hostListener = () => hostEvents++
+  const disposeHost = events.trap('sync.message', hostListener)
+  t.after(disposeHost)
+  Object.assign(bot, {
+    on: events.trap.bind(events),
+    removeListener: undefined,
+    emit: (event: string, ...args: unknown[]) => {
+      events.trip(event, ...args)
+      return true
+    }
+  })
+  const originalPick = bot.pickFriend
+  const submitted = Promise.withResolvers<void>()
+  bot.pickFriend = () => ({ share: async () => submitted.resolve() })
+  const request = instance
+    .signCard(
+      {},
+      {
+        type: 'custom',
+        title: '等待保存配置',
+        url: 'https://example.com/song',
+        audio: 'https://example.com/audio.mp3'
+      },
+      (message) => {
+        throw new Error(message)
+      }
+    )
+    .then(
+      () => assert.fail('配置重载应取消当前等待请求'),
+      (error: unknown) => error
+    )
+  await submitted.promise
+  assert.equal(events.listeners('sync.message').length, 2)
+  const saved = await guoba.configInfo.setConfigData(
+    { path: '/triptrap/music', timeoutMs: 100 },
+    context
+  )
+  assert.equal(saved.isOk, true, saved.message)
+  assert.match(String(await request), /服务已关闭/)
+  assert.deepEqual(events.listeners('sync.message'), [hostListener])
+  assert.equal(events.listeners('message.private').length, 0)
+  assert.equal(stack.length, 3)
+  assert.equal(stack[1].path, '/triptrap/music')
+  const yaml: Config = YAML.parse(await readFile(configPath, 'utf8'))
+  assert.equal(yaml.path, '/triptrap/music')
+  bot.pickFriend = originalPick
+  await instance.probe(command('#音之测测'))
+  assert.equal(hostEvents, 1)
+  assert.deepEqual(events.listeners('sync.message'), [hostListener])
+  assert.equal(events.listeners('message.private').length, 0)
+  bot.pickFriend = () => ({ share: async () => {} })
+  const replies: FixtureReply[] = []
+  await instance.probe({
+    msg: '#音之测测',
+    reply: async (message) => {
+      replies.push(message)
+      return true
+    }
+  })
+  assert.match(String(replies.at(-1)), /生成\/回传.*超时/)
+  assert.deepEqual(events.listeners('sync.message'), [hostListener])
+  assert.equal(events.listeners('message.private').length, 0)
+  assert.equal((await guoba.configInfo.setConfigData({ enabled: false }, context)).isOk, true)
+  assert.equal(stack.length, 0)
+})
 
 test('锅巴根入口导出九项配置，JSON 编辑字段保持完整内容', async (t) => {
   const { guoba } = await guobaFixture(t)

@@ -486,9 +486,8 @@ export class MusicSigner {
   unlisten(bot: IcqqBot) {
     const subscription = this.listeners.get(bot)
     if (!subscription) return
-    bot.removeListener('message.private', subscription.listener)
-    bot.removeListener('sync.message', subscription.listener)
     this.listeners.delete(bot)
+    for (const dispose of subscription.disposers) dispose()
   }
 
   listen(bot: IcqqBot): Subscription {
@@ -496,6 +495,7 @@ export class MusicSigner {
     const targetId = this.targetId || String(bot.uin)
     const subscription: Subscription = {
       items: new Set(),
+      disposers: [],
       listener: (event) => {
         if (event.group_id || (event.message_type && event.message_type !== 'private')) return
         if (event.self_id !== undefined && String(event.self_id) !== String(bot.uin)) return
@@ -518,8 +518,22 @@ export class MusicSigner {
         }
       }
     }
-    bot.on('message.private', subscription.listener)
-    bot.on('sync.message', subscription.listener)
+    try {
+      for (const event of ['message.private', 'sync.message']) {
+        const dispose = bot.on(event, subscription.listener)
+        // icqq 的 triptrap 返回取消函数；旧 EventEmitter 按 listener 单独移除。
+        if (typeof dispose === 'function') subscription.disposers.push(() => dispose())
+        else {
+          const remove = bot.removeListener
+          if (typeof remove !== 'function')
+            throw new MusicSignError('icqq SDK 未提供取消监听能力', 503)
+          subscription.disposers.push(() => remove.call(bot, event, subscription.listener))
+        }
+      }
+    } catch (error) {
+      for (const dispose of subscription.disposers) dispose()
+      throw error
+    }
     this.listeners.set(bot, subscription)
     return subscription
   }

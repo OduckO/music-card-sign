@@ -1,5 +1,45 @@
 import type { BotAdapter, CommandEvent } from '@/types'
 import { errorMessage } from '@/utils'
+import config from '@/config'
+
+async function waitForReply<T>(send: () => Promise<T>) {
+  const timeoutMs = config.config.timeoutMs
+  let timer: NodeJS.Timeout | undefined
+  try {
+    return await Promise.race([
+      Promise.resolve().then(send),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`等待协议端发送回执超时（${timeoutMs} ms）`)),
+          timeoutMs
+        )
+      })
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function checkReply(result: unknown) {
+  const errors =
+    result && typeof result === 'object' && 'error' in result ? result.error : undefined
+  if (!result || (Array.isArray(errors) ? errors.length : errors)) {
+    const detail = Array.isArray(errors)
+      ? errors.map(errorMessage).join('；')
+      : errorMessage(errors)
+    throw new Error(errors ? detail : '协议端未返回发送结果')
+  }
+}
+
+export async function replyNotice(e: CommandEvent, message: string) {
+  try {
+    checkReply(await waitForReply(() => e.reply(message)))
+  } catch (error) {
+    logger.warn(
+      `[音卡通知] Bot=${e.self_id ?? '未知'} 适配器=${adapterName(e)} 通知失败：${errorMessage(error)}`
+    )
+  }
+}
 
 export function adapterName(e: Pick<CommandEvent, 'bot' | 'self_id'>) {
   return (
@@ -33,16 +73,14 @@ export async function replyCard(e: CommandEvent, raw: string) {
       if (!sdk || typeof send !== 'function')
         throw new Error('当前 ICQQ 会话没有可用的原生 SDK 发送方法')
       logger.info(`${context} 使用原生 SDK，${e.group_id !== undefined ? '群' : 'QQ'}=${targetId}`)
-      result = await send.call(sdk, targetId, { type: 'json', data: raw })
+      result = await waitForReply(() => send.call(sdk, targetId, { type: 'json', data: raw }))
     } else {
-      result = await e.reply(message)
+      result = await waitForReply(() => e.reply(message))
     }
-    const errors = result?.error
-    if (!result || (Array.isArray(errors) ? errors.length : errors)) {
-      const detail = Array.isArray(errors)
-        ? errors.map(errorMessage).join('；')
-        : errorMessage(errors)
-      throw new Error(`当前会话音卡发送失败：${errors ? detail : '协议端未返回发送结果'}`)
+    try {
+      checkReply(result)
+    } catch (error) {
+      throw new Error(`当前会话音卡发送失败：${errorMessage(error)}`, { cause: error })
     }
     logger.info(`${context} 发送成功，${Math.round(performance.now() - started)} ms`)
   } catch (error) {

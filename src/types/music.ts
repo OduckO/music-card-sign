@@ -1,5 +1,4 @@
 import type { IncomingMessage } from 'node:http'
-import type { EventEmitter } from 'node:events'
 import type { CustomEvent } from 'trss-yunzai'
 
 export interface AppPlatform {
@@ -95,8 +94,10 @@ export interface MusicEvent {
   time?: number
 }
 
-export interface IcqqBot extends EventEmitter {
+export interface IcqqBot {
   uin: number
+  on: (event: string, listener: (event: MusicEvent) => void) => unknown
+  removeListener?: (event: string, listener: (event: MusicEvent) => void) => unknown
   isOnline?: () => boolean
   online?: boolean
   pickFriend: (id: number) => {
@@ -185,6 +186,7 @@ export interface PendingRequest {
 export interface Subscription {
   items: Set<PendingRequest>
   listener: (event: MusicEvent) => void
+  disposers: Array<() => void>
 }
 
 export interface HttpSigner {

@@ -11,6 +11,20 @@ import { fixture, command } from './helpers/plugin'
 import type { FixtureCommandEvent, FixtureReply, FixtureResponse } from './helpers/plugin'
 import YAML from 'yaml'
 
+async function finishedWithin(promise: Promise<unknown>, timeoutMs = 1000) {
+  let timer: NodeJS.Timeout | undefined
+  try {
+    return await Promise.race([
+      promise.then(() => true),
+      new Promise<false>((resolve) => {
+        timer = setTimeout(() => resolve(false), timeoutMs)
+      })
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 test('云崽 init 挂载服务，主人音卡命令直接发送捕获 JSON，卸载释放资源', async (t) => {
   const { instance, bot, stack, cards } = await fixture(t)
   const replies: FixtureReply[] = []
@@ -403,6 +417,124 @@ test('音之测测在等待回传前响应，并记录超时和释放等待项',
   const reply = replies.at(-1)
   assert.ok(typeof reply === 'string')
   assert.match(reply, /生成\/回传.*超时/)
+})
+
+test('OneBot 开始通知没有回执时仍进入签名并发送音卡', async (t) => {
+  const { instance, cards, logs } = await fixture(t, { timeoutMs: 25 })
+  const replies: FixtureReply[] = []
+  const notice = Promise.withResolvers<true>()
+  const sending = instance.probe({
+    bot: { adapter: { name: 'OneBotv11' } },
+    msg: '#音之测测',
+    reply: async (message) => {
+      replies.push(message)
+      if (typeof message === 'string' && message.includes('音之测测开始')) return notice.promise
+      return { message_id: [1], error: [] }
+    }
+  })
+  const finished = await finishedWithin(sending)
+  const completed = cards.length === 1 && replies.some((message) => typeof message === 'object')
+  notice.resolve(true)
+  assert.equal(await sending, true)
+  assert.equal(finished, true)
+  assert.equal(completed, true, '开始通知回执不应阻塞签名或发卡')
+  assert.ok(logs.some(({ message }) => /Handler 收到请求/.test(message)))
+  assert.ok(logs.some(({ message }) => /读取测试配置/.test(message)))
+})
+
+test('测试开始通知抛错时仍签名，错误写入通知日志', async (t) => {
+  const { instance, cards, logs } = await fixture(t)
+  await instance.probe({
+    msg: '#音之测测',
+    reply: async (message) => {
+      if (typeof message === 'string' && message.includes('音之测测开始'))
+        throw new Error('开始通知发送失败')
+      return true
+    }
+  })
+  assert.equal(cards.length, 1)
+  assert.ok(logs.some(({ level, message }) => level === 'warn' && /开始通知发送失败/.test(message)))
+  assert.ok(logs.some(({ message }) => /发送成功/.test(message)))
+})
+
+test('音卡发送及失败通知无回执时有等待上限，迟到的失败不会误报通过', async (t) => {
+  const { instance, logs } = await fixture(t, { timeoutMs: 25 })
+  const cardReply = Promise.withResolvers<true>()
+  const failureReply = Promise.withResolvers<true>()
+  const replies: FixtureReply[] = []
+  const sending = instance.probe({
+    bot: { adapter: { name: 'OneBotv11' } },
+    msg: '#音之测测',
+    reply: async (message) => {
+      replies.push(message)
+      if (typeof message === 'object') return cardReply.promise
+      if (message.includes('音之测测失败')) return failureReply.promise
+      return true
+    }
+  })
+  const finished = await finishedWithin(sending)
+  const reported = logs.some(({ message }) => /发送失败.*回执.*超时/.test(message))
+  const noticeTimedOut = logs.some(({ message }) => /通知.*回执.*超时/.test(message))
+  cardReply.reject(new Error('迟到的协议错误'))
+  failureReply.resolve(true)
+  assert.equal(await sending, true)
+  assert.equal(finished, true)
+  assert.equal(reported, true)
+  assert.equal(noticeTimedOut, true)
+  assert.ok(!logs.some(({ message }) => /发送成功/.test(message)))
+  assert.ok(!replies.some((message) => typeof message === 'string' && message.includes('通过')))
+})
+
+test('测试成功通知无回执时也能结束，保留成功日志', async (t) => {
+  const { instance, logs } = await fixture(t, { timeoutMs: 25 })
+  const notice = Promise.withResolvers<true>()
+  const sending = instance.probe({
+    msg: '#音之测测',
+    reply: async (message) => {
+      if (typeof message === 'string' && message.includes('音之测测通过')) return notice.promise
+      return true
+    }
+  })
+  const finished = await finishedWithin(sending)
+  const timedOut = logs.some(({ message }) => /通知.*回执.*超时/.test(message))
+  notice.resolve(true)
+  assert.equal(await sending, true)
+  assert.equal(finished, true)
+  assert.equal(timedOut, true)
+  assert.ok(logs.some(({ message }) => /音之测测通过/.test(message)))
+})
+
+test('ICQQ 原生 SDK 发卡没有回执时同样报告发送超时', async (t) => {
+  const { instance, bot, logs } = await fixture(t, { timeoutMs: 25 })
+  const cardReply = Promise.withResolvers<{ message_id: string }>()
+  let submissions = 0
+  Object.assign(bot, {
+    sendPrivateMsg: () => {
+      submissions++
+      return cardReply.promise
+    }
+  })
+  const replies: FixtureReply[] = []
+  const sending = instance.probe({
+    self_id: bot.uin,
+    user_id: '234567890',
+    msg: '#音之测测',
+    reply: async (message) => {
+      replies.push(message)
+      return true
+    }
+  })
+  const finished = await finishedWithin(sending)
+  const reported = replies.some(
+    (message) => typeof message === 'string' && /当前会话发送.*回执.*超时/.test(message)
+  )
+  cardReply.resolve({ message_id: 'late:1' })
+  assert.equal(await sending, true)
+  assert.equal(finished, true)
+  assert.equal(reported, true)
+  assert.equal(submissions, 1)
+  assert.ok(!logs.some(({ message }) => /发送成功/.test(message)))
+  assert.ok(!replies.some((message) => typeof message === 'object'))
 })
 
 test('发送失败记录协议端原始错误，失败回复包含详情', async (t) => {

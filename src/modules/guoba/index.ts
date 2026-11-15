@@ -27,7 +27,7 @@ const schemas: Schemas<FormConfig> = [
   },
   {
     field: 'timeoutMs',
-    label: '查询与回传超时（毫秒）',
+    label: '查询、回传与发送超时（毫秒）',
     component: 'InputNumber',
     componentProps: { min: 1, max: 2147483647, step: 1000 }
   },

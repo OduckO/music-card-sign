@@ -9,7 +9,7 @@ import {
   updateSettings,
   signCard
 } from './service'
-import { adapterName, replyCard } from './send'
+import { adapterName, replyCard, replyNotice } from './send'
 
 export async function status(e: CommandEvent) {
   const serviceStatus = await getServiceStatus()
@@ -86,20 +86,23 @@ export async function forwardCard(e: CommandEvent) {
     await replyCard(e, raw)
   } catch (error) {
     logger.error(`[音卡指令] 签名音卡失败：${errorMessage(error)}`, error)
-    await e.reply(`音卡签名失败：${errorMessage(error)}`)
+    await replyNotice(e, `音卡签名失败：${errorMessage(error)}`)
   }
   return true
 }
 
 export async function probe(e: CommandEvent) {
   const started = performance.now()
-  let phase = '生成/回传'
+  let phase = '读取测试配置'
   logger.info(`[音卡指令] 音之测测开始 Bot=${e.self_id ?? '未知'} 适配器=${adapterName(e)}`)
+  const progress = replyNotice(e, '音之测测开始，正在检查 icqq 签名与 JSON 回传，请稍候。')
   try {
-    await e.reply('音之测测开始，正在检查 icqq 签名与 JSON 回传，请稍候。')
+    logger.info('[音卡指令] 正在读取测试配置')
     const defaultMusic = await getTestMusic()
     const supplied = e.msg.replace(/^#?音之测测/, '').trim()
     const data = supplied ? JSON.parse(supplied) : defaultMusic
+    phase = '生成/回传'
+    logger.info('[音卡指令] 测试配置已读取，开始签名与 JSON 回传')
     const raw = await signCard(
       e,
       data,
@@ -110,15 +113,17 @@ export async function probe(e: CommandEvent) {
     )
     phase = '当前会话发送'
     await replyCard(e, raw)
+    const message = `音之测测通过，耗时 ${Math.round(performance.now() - started)} ms。\n已捕获签名 Bot 发出的音卡 JSON，并发送到当前会话。`
+    logger.info(`[音卡指令] ${message}`)
+    await replyNotice(e, message)
   } catch (error) {
     logger.error(`[音卡指令] 音之测测失败（${phase}）：${errorMessage(error)}`, error)
-    await e.reply(
+    await replyNotice(
+      e,
       `音之测测失败（${phase}，${Math.round(performance.now() - started)} ms）：${errorMessage(error)}`
     )
-    return true
+  } finally {
+    await progress
   }
-  await e.reply(
-    `音之测测通过，耗时 ${Math.round(performance.now() - started)} ms。\n已捕获签名 Bot 发出的音卡 JSON，并发送到当前会话。`
-  )
   return true
 }

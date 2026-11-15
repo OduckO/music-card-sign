@@ -36,6 +36,9 @@ importers:
       oxlint:
         specifier: 1.93.0
         version: 1.93.0
+      triptrap:
+        specifier: 0.0.17
+        version: 0.0.17
       tsc-alias:
         specifier: ^1.8.16
         version: 1.9.10

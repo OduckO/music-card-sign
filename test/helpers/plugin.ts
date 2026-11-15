@@ -62,7 +62,7 @@ export interface FixtureRouterLayer {
 
 export interface PluginFixture {
   instance: FixturePlugin
-  bot: IcqqBot
+  bot: IcqqBot & EventEmitter
   stack: FixtureRouterLayer[]
   cards: string[]
   targets: number[]
@@ -154,7 +154,7 @@ export default async function makeConfig(name, config) {
   if (persisted.noAddCleanup) Reflect.deleteProperty(plugin.prototype, 'addCleanup')
   const cards: string[] = []
   const targets: number[] = []
-  const bot: IcqqBot = Object.assign(new EventEmitter(), {
+  const bot: IcqqBot & EventEmitter = Object.assign(new EventEmitter(), {
     uin: 123456789,
     isOnline: () => true,
     pickFriend: (id: number) => ({
