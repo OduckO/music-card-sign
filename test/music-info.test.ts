@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import type { MusicFetch, MusicInfo, MusicResolver, ResolveMusic } from '../src/types'
 
-async function resolve(...args) {
+async function resolve(...args: Parameters<ResolveMusic>) {
   let module
   try {
-    module = await import('../lib/models/music-info.js')
+    module = await import('../src/models/music-info')
   } catch (error) {
-    if (error.code === 'ERR_MODULE_NOT_FOUND') {
+    if ((error as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND') {
       assert.fail('music-info.js must implement resolveMusicInfo before these fixtures can pass')
     }
     throw error
@@ -15,10 +16,16 @@ async function resolve(...args) {
   return module.resolveMusicInfo(...args)
 }
 
-function fixtures(steps) {
+interface FixtureStep<Data = unknown> {
+  check: (url: URL, options: RequestInit) => void
+  data: Data
+  status?: number
+}
+
+function fixtures(steps: readonly FixtureStep[]) {
   const pending = [...steps]
   return {
-    fetchImpl: async (input, options = {}) => {
+    fetchImpl: async (input: string | URL, options: RequestInit = {}) => {
       const step = pending.shift()
       assert.ok(step, `Unexpected network request: ${input}`)
       const url = new URL(input)
@@ -34,7 +41,12 @@ function fixtures(steps) {
   }
 }
 
-function get(host, pathname, params, data) {
+function get<Data>(
+  host: string,
+  pathname: string,
+  params: Record<string, string>,
+  data: Data
+): FixtureStep<Data> {
   return {
     check: (url, options) => {
       assert.equal(options.method ?? 'GET', 'GET')
@@ -59,7 +71,7 @@ const qqTrack = {
   album: { id: 5, mid: '00Album9', title: '离线专辑' }
 }
 
-function qqSteps(id, audio = 'C40000Track9.m4a?vkey=fixture') {
+function qqSteps(id: string, audio = 'C40000Track9.m4a?vkey=fixture') {
   const key = /^\d+$/.test(id) ? 'songid' : 'songmid'
   return [
     get(
@@ -75,7 +87,8 @@ function qqSteps(id, audio = 'C40000Track9.m4a?vkey=fixture') {
       check: (url, options) => {
         assert.equal(url.href, 'https://u.y.qq.com/cgi-bin/musicu.fcg')
         assert.equal(options.method, 'POST')
-        const body = JSON.parse(options.body)
+        assert.equal(typeof options.body, 'string')
+        const body = JSON.parse(options.body as string)
         assert.equal(body.req_0.module, 'vkey.GetVkeyServer')
         assert.equal(body.req_0.method, 'CgiGetVkey')
         assert.deepEqual(body.req_0.param.songmid, ['00Track9'])
@@ -96,11 +109,11 @@ function qqSteps(id, audio = 'C40000Track9.m4a?vkey=fixture') {
           }
         }
       }
-    }
-  ]
+    } satisfies FixtureStep
+  ] as const
 }
 
-function neteaseSteps(audio = 'https://audio.example.test/163.mp3') {
+function neteaseSteps(audio: string | null = 'https://audio.example.test/163.mp3') {
   return [
     get(
       'music.163.com',
@@ -137,10 +150,10 @@ function neteaseSteps(audio = 'https://audio.example.test/163.mp3') {
         ]
       }
     )
-  ]
+  ] as const
 }
 
-function kugouSteps(audio = 'https://audio.example.test/kugou.mp3') {
+function kugouSteps(audio: string | null = 'https://audio.example.test/kugou.mp3') {
   return [
     get(
       'm.kugou.com',
@@ -161,7 +174,7 @@ function kugouSteps(audio = 'https://audio.example.test/kugou.mp3') {
   ]
 }
 
-function kuwoSteps(audio = 'https://audio.example.test/kuwo.mp3') {
+function kuwoSteps(audio: string | null = 'https://audio.example.test/kuwo.mp3') {
   return [
     get(
       'www.kuwo.cn',
@@ -190,7 +203,7 @@ function kuwoSteps(audio = 'https://audio.example.test/kuwo.mp3') {
   ]
 }
 
-function miguSteps(audio = 'https://audio.example.test/migu.mp3') {
+function miguSteps(audio: string | null = 'https://audio.example.test/migu.mp3') {
   return [
     get(
       'music.migu.cn',
@@ -273,7 +286,12 @@ const cases = [
       image: 'https://image.example.test/migu.jpg'
     }
   }
-]
+] satisfies Array<{
+  type: string
+  id: string
+  steps: (audio?: string | null) => readonly FixtureStep[]
+  want: MusicInfo
+}>
 
 for (const entry of cases) {
   test(`${entry.type}: official response chain returns real metadata and audio`, async () => {
@@ -345,7 +363,7 @@ test('invalid types and IDs fail before any network access', async () => {
     Infinity,
     Number.MAX_SAFE_INTEGER + 1
   ]) {
-    await assert.rejects(resolve('163', id, options), { code: 'ERR_MUSIC_ID' })
+    await assert.rejects(resolve('163', id as string | number, options), { code: 'ERR_MUSIC_ID' })
   }
   await assert.rejects(resolve('migu', '00Ab9', options), { code: 'ERR_MUSIC_ID' })
   await assert.rejects(resolve('qq', '00_a', options), { code: 'ERR_MUSIC_ID' })
@@ -432,37 +450,37 @@ test('network rejection preserves its cause', async () => {
         throw cause
       }
     }),
-    (error) => error.code === 'ERR_MUSIC_NETWORK' && error.cause === cause
+    (error: NodeJS.ErrnoException) => error.code === 'ERR_MUSIC_NETWORK' && error.cause === cause
   )
 })
 
 test('timeout aborts fetch and does not depend on fetch observing the abort', async () => {
-  let signal
+  let signal: AbortSignal | null | undefined
   await assert.rejects(
     resolve('163', '00123', {
       timeoutMs: 15,
       fetchImpl: async (_, options) => {
-        signal = options.signal
-        return new Promise(() => {})
+        signal = options?.signal
+        return new Promise<Response>(() => {})
       }
     }),
     { code: 'ERR_MUSIC_TIMEOUT' }
   )
-  assert.equal(signal.aborted, true)
+  assert.equal(signal?.aborted, true)
 })
 
 test('timeout also bounds response-body reads and custom resolvers', async () => {
   await assert.rejects(
     resolve('163', '00123', {
       timeoutMs: 15,
-      fetchImpl: async () => ({ ok: true, json: () => new Promise(() => {}) })
+      fetchImpl: async () => ({ ok: true, json: () => new Promise(() => {}) }) as Response
     }),
     { code: 'ERR_MUSIC_TIMEOUT' }
   )
   await assert.rejects(
     resolve('migu', '00123', {
       timeoutMs: 15,
-      resolvers: { migu: async () => new Promise(() => {}) }
+      resolvers: { migu: async () => new Promise<MusicInfo>(() => {}) }
     }),
     { code: 'ERR_MUSIC_TIMEOUT' }
   )
@@ -481,13 +499,13 @@ test('custom resolver requests use the same timeout and URL restrictions', async
     }),
     { code: 'ERR_MUSIC_URL' }
   )
-  let signal
+  let signal: AbortSignal | null | undefined
   await assert.rejects(
     resolve('163', '00123', {
       timeoutMs: 15,
       fetchImpl: async (_, options) => {
-        signal = options.signal
-        return new Promise(() => {})
+        signal = options?.signal
+        return new Promise<Response>(() => {})
       },
       resolvers: {
         163: async (id, { fetchImpl }) => {
@@ -498,21 +516,28 @@ test('custom resolver requests use the same timeout and URL restrictions', async
     }),
     { code: 'ERR_MUSIC_TIMEOUT' }
   )
-  assert.equal(signal.aborted, true)
+  assert.equal(signal?.aborted, true)
 })
 
 test('invalid options fail explicitly instead of disabling timeouts or overrides', async () => {
   for (const timeoutMs of [0, -1, Infinity, NaN, '8000', 2147483648]) {
-    await assert.rejects(resolve('163', '00123', { timeoutMs }), { code: 'ERR_MUSIC_OPTIONS' })
+    await assert.rejects(resolve('163', '00123', { timeoutMs: timeoutMs as number }), {
+      code: 'ERR_MUSIC_OPTIONS'
+    })
   }
-  await assert.rejects(resolve('qq', '00Track9', { resolvers: { qq: null } }), {
+  await assert.rejects(
+    resolve('qq', '00Track9', { resolvers: { qq: null as unknown as MusicResolver } }),
+    {
+      code: 'ERR_MUSIC_OPTIONS'
+    }
+  )
+  await assert.rejects(resolve('163', '00123', { fetchImpl: null as unknown as MusicFetch }), {
     code: 'ERR_MUSIC_OPTIONS'
   })
-  await assert.rejects(resolve('163', '00123', { fetchImpl: null }), { code: 'ERR_MUSIC_OPTIONS' })
 })
 
 test('插件注册自己的歌曲来源，接收原始 ID 和超时上下文', async (t) => {
-  const { registerMusicResolver } = await import('../lib/models/music-info.js')
+  const { registerMusicResolver } = await import('../src/models/music-info')
   assert.equal(typeof registerMusicResolver, 'function')
   const dispose = registerMusicResolver('my-music', async (id, context) => {
     assert.equal(id, 'track:00012/a')
@@ -528,7 +553,7 @@ test('插件注册自己的歌曲来源，接收原始 ID 和超时上下文', a
 })
 
 test('旧插件的注销函数不会移除后来注册的解析器，内置来源也可覆盖', async (t) => {
-  const { registerMusicResolver } = await import('../lib/models/music-info.js')
+  const { registerMusicResolver } = await import('../src/models/music-info')
   assert.equal(typeof registerMusicResolver, 'function')
   const old = registerMusicResolver('163', async () => assert.fail('旧解析器应被替换'))
   const current = registerMusicResolver('163', async () => cases[1].want)
@@ -538,32 +563,36 @@ test('旧插件的注销函数不会移除后来注册的解析器，内置来�
 })
 
 test('注册解析器仍检查完整歌曲信息，并在超时后中止信号', async (t) => {
-  const { registerMusicResolver } = await import('../lib/models/music-info.js')
+  const { registerMusicResolver } = await import('../src/models/music-info')
   assert.equal(typeof registerMusicResolver, 'function')
-  let signal
+  let signal: AbortSignal | undefined
   const slow = registerMusicResolver('slow-plugin', async (id, context) => {
     signal = context.signal
-    return new Promise(() => {})
+    return new Promise<MusicInfo>(() => {})
   })
-  const incomplete = registerMusicResolver('incomplete-plugin', async () => ({ title: '仅有标题' }))
+  const incomplete = registerMusicResolver(
+    'incomplete-plugin',
+    async () => ({ title: '仅有标题' }) as MusicInfo
+  )
   t.after(slow)
   t.after(incomplete)
   await assert.rejects(resolve('incomplete-plugin', '00123'), { code: 'ERR_MUSIC_METADATA' })
   await assert.rejects(resolve('slow-plugin', '00123', { timeoutMs: 15 }), {
     code: 'ERR_MUSIC_TIMEOUT'
   })
-  assert.equal(signal.aborted, true)
+  assert.equal(signal?.aborted, true)
 })
 
 test('自定义解析器竞速返回成功后取消剩余 API 请求', async () => {
-  let slowSignal
+  let slowSignal: AbortSignal | undefined
   let slowStopped = false
   const info = await resolve('163', '00123', {
     timeoutMs: 100,
-    fetchImpl: async (input, { signal }) => {
+    fetchImpl: async (input, { signal } = {}) => {
       if (new URL(input).pathname === '/fast') return new Response(JSON.stringify(cases[1].want))
+      assert.ok(signal)
       slowSignal = signal
-      return new Promise((_, reject) => {
+      return new Promise<Response>((_, reject) => {
         signal.addEventListener(
           'abort',
           () => {
@@ -576,10 +605,13 @@ test('自定义解析器竞速返回成功后取消剩余 API 请求', async () 
     },
     resolvers: {
       163: async (id, { json }) =>
-        Promise.race([json('https://example.test/fast'), json('https://example.test/slow')])
+        Promise.race([
+          json('https://example.test/fast'),
+          json('https://example.test/slow')
+        ]) as Promise<MusicInfo>
     }
   })
   assert.deepEqual(info, cases[1].want)
-  assert.equal(slowSignal.aborted, true)
+  assert.equal(slowSignal?.aborted, true)
   assert.equal(slowStopped, true)
 })

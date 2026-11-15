@@ -92,6 +92,12 @@ http://127.0.0.1:<云崽端口>/music_card/card
 
 从旧 JS 版升级时，若用户 YAML 尚不存在，会迁移插件中的 `config/config/config.json` 并保留旧文件；已有 YAML 时以 YAML 为准。
 
+### 锅巴配置
+
+已安装 [Guoba-Plugin](https://gitee.com/guoba-yunzai/guoba-plugin) 时，在锅巴的插件配置中选择「本地 icqq 音卡签名」。可编辑上表全部设置；测试歌曲和平台映射使用 JSON 文本框，API Key 使用密码输入框。
+
+点击保存后写入同一份用户 YAML，并立即重新加载音卡服务。平台的 `appsign` / `app_sign` 可为空；Bot 号留空恢复自动选择。参数错误或新端口无法使用时，会提示失败并恢复旧配置和服务。
+
 ## 缓存
 
 音卡长期保存在插件的 `data/music-card-cache/`，重启后可继续复用。命中要求签名账号、实际平台信息和完整请求字段全部相同，只忽略 JSON 对象键顺序和 JSON 文本排版。

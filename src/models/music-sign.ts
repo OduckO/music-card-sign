@@ -121,7 +121,7 @@ function webUrl(value: unknown, field: string, required = false) {
   return result
 }
 
-function selectPlatform(
+export function selectPlatform(
   data: MusicRequest,
   customPlatforms: Record<string, PlatformInput>
 ): AppPlatform {

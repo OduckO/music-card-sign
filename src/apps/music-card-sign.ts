@@ -1,7 +1,7 @@
 import config from '@/config'
 import { PluginPath } from '@/dir'
 import path from 'node:path'
-import type { BotCandidate, CommandEvent, MusicRequest, SignOptions } from '@/types'
+import type { BotCandidate, CommandEvent, Config, MusicRequest, SignOptions } from '@/types'
 import type { ExpressHost } from '@/models/http'
 import { errorMessage } from '@/utils'
 import { MusicSigner, cardText } from '@/models/music-sign'
@@ -61,6 +61,23 @@ async function stop() {
   if (!current) return
   await current.signer.close()
   await current.unmount()
+}
+
+export function updateSettings(patch: Partial<Config>) {
+  return serialize(async () => {
+    const previous = { ...settings }
+    Object.assign(settings, patch)
+    try {
+      await stop()
+      await start()
+      await saveSettings()
+    } catch (error) {
+      Object.assign(settings, previous)
+      await stop()
+      await start()
+      throw error
+    }
+  })
 }
 
 async function replyCard(e: Pick<CommandEvent, 'reply'>, raw: string) {

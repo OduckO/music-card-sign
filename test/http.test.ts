@@ -1,24 +1,33 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
-import { createHandler, mountService } from '../lib/models/http.js'
+import type { TestContext } from 'node:test'
+import { createHandler, mountService } from '../src/models/http'
+import type { ExpressHost } from '../src/models/http'
+import type { HttpOptions, HttpSigner, MusicCard } from '../src/types'
 
-async function localApi(t, signer, options = {}) {
+async function localApi(t: TestContext, signer: HttpSigner, options: HttpOptions = {}) {
   const handler = createHandler(signer, options)
   const server = http.createServer(handler)
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   t.after(
     () =>
-      new Promise((resolve) => {
+      new Promise<void>((resolve, reject) => {
         server.closeAllConnections()
-        server.close(resolve)
+        server.close((error) => (error ? reject(error) : resolve()))
       })
   )
-  return `http://127.0.0.1:${server.address().port}`
+  const address = server.address()
+  assert.ok(address && typeof address !== 'string')
+  return `http://127.0.0.1:${address.port}`
 }
 
-test('LuckyLillia POST 的响应为卡片 JSON 正文，不带 data 包装', async (t) => {
-  const ark = { app: 'com.tencent.structmsg', view: 'music', meta: { music: { title: '测试' } } }
+test('POST 的响应为卡片 JSON 正文，不带 data 包装', async (t) => {
+  const ark: MusicCard = {
+    app: 'com.tencent.structmsg',
+    view: 'music',
+    meta: { music: { title: '测试' } }
+  }
   const api = await localApi(t, {
     sign: async (input) => {
       assert.deepEqual(input, { type: 'custom', title: '测试', _platform: '163' })
@@ -34,7 +43,7 @@ test('LuckyLillia POST 的响应为卡片 JSON 正文，不带 data 包装', asy
   assert.deepEqual(await response.json(), ark)
 })
 
-test('请求错误与签名超时使用非 2xx，使 sign.ts 可以抛错', async (t) => {
+test('请求错误与签名超时使用非 2xx，调用方可以按状态抛错', async (t) => {
   const api = await localApi(t, {
     sign: async () => {
       throw Object.assign(new Error('等待回传超时'), { status: 504 })
@@ -57,8 +66,8 @@ test('可选 API 鉴权保护调用，健康检查不触发签名', async (t) =>
   const api = await localApi(
     t,
     {
-      sign: async () => ({ view: 'music' }),
-      status: () => ({ enabled: true, pending: 0 })
+      sign: async () => ({ view: 'music', meta: { music: {} } }),
+      status: () => ({ enabled: true, bots: [], pending: 0 })
     },
     { apiKey: 'offline-test-key' }
   )
@@ -75,22 +84,25 @@ test('可选 API 鉴权保护调用，健康检查不触发签名', async (t) =>
 })
 
 test('复用已有 Express app，卸载删除自己的路由和 quiet 前缀', async () => {
-  const stack = []
-  const app = {
+  const stack: Array<{ path: string; handle: http.RequestListener }> = []
+  const app: ExpressHost = {
     router: { stack },
     quiet: [],
     use(path, handle) {
       stack.push({ path, handle })
     }
   }
-  const signer = { status: () => ({ enabled: true }) }
+  const signer: HttpSigner = {
+    sign: async () => ({ view: 'music', meta: { music: {} } }),
+    status: () => ({ enabled: true, bots: [], pending: 0 })
+  }
   const unmount = await mountService(app, signer, { path: '/music_card/card' })
   assert.equal(stack.length, 1)
   assert.equal(stack[0].path, '/music_card/card')
-  assert.equal(app.quiet.length, 1)
+  assert.equal(app.quiet?.length, 1)
   await unmount()
   assert.equal(stack.length, 0)
-  assert.equal(app.quiet.length, 0)
+  assert.equal(app.quiet?.length, 0)
 })
 
 test('非对象 JSON 与过大请求不进入签名流程', async (t) => {
@@ -117,7 +129,7 @@ test('非对象 JSON 与过大请求不进入签名流程', async (t) => {
 test('独立 HTTP handler 接受配置的自定义签名路径', async (t) => {
   const api = await localApi(
     t,
-    { sign: async () => ({ view: 'music' }) },
+    { sign: async () => ({ view: 'music', meta: { music: {} } }) },
     { path: '/custom/music' }
   )
   const response = await fetch(`${api}/custom/music`, { method: 'POST', body: '{}' })

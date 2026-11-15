@@ -10,7 +10,7 @@ interface RouterLayer {
   route?: unknown
   name?: string
   slash?: boolean
-  regexp?: { fast_slash?: boolean }
+  regexp?: RegExp & { fast_slash?: boolean }
 }
 
 export interface ExpressHost {

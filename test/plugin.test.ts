@@ -1,128 +1,19 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { EventEmitter } from 'node:events'
-import { mkdtemp, cp, rm, readFile, writeFile, readdir, mkdir, symlink } from 'node:fs/promises'
+import { readFile, writeFile, readdir } from 'node:fs/promises'
 import fs from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join, resolve as resolvePath, sep } from 'node:path'
-import { pathToFileURL, fileURLToPath } from 'node:url'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import type { CacheRecord, Config, MusicCard, MusicRequest } from '../src/types'
+import type * as MusicInfoModule from '../src/models/music-info'
+import { fixture, command } from './helpers/plugin'
+import type { FixtureCommandEvent, FixtureReply, FixtureResponse } from './helpers/plugin'
 import YAML from 'yaml'
-
-const command = (msg) => ({ msg, reply: async () => ({ message_id: [1] }) })
-
-async function fixture(t, settings = {}, persisted = {}) {
-  const hostRoot = await mkdtemp(join(tmpdir(), 'music-card-plugin-'))
-  const directory = join(hostRoot, 'plugins/music-card-sign')
-  const previousCwd = process.cwd()
-  await mkdir(directory, { recursive: true })
-  await mkdir(join(hostRoot, 'lib/plugins'), { recursive: true })
-  await mkdir(join(hostRoot, 'config'), { recursive: true })
-  await symlink(
-    fileURLToPath(new URL('../node_modules', import.meta.url)),
-    join(hostRoot, 'node_modules'),
-    'junction'
-  )
-  await writeFile(join(hostRoot, 'package.json'), '{"type":"module"}')
-  await writeFile(
-    join(hostRoot, 'lib/plugins/config.js'),
-    `import fs from 'node:fs/promises'
-import YAML from 'yaml'
-import _ from 'lodash'
-export default async function makeConfig(name, config) {
-  const filename = 'config/' + name + '.yaml'
-  try { _.merge(config, YAML.parse(await fs.readFile(filename, 'utf8'))) }
-  catch (error) { if (error.code !== 'ENOENT') throw error }
-  const configSave = () => fs.writeFile(filename, YAML.stringify(config))
-  await configSave()
-  return { config, configSave }
-}
-`
-  )
-  process.chdir(hostRoot)
-  t.after(() => {
-    process.chdir(previousCwd)
-    assert.ok(resolvePath(hostRoot).startsWith(resolvePath(tmpdir()) + sep))
-    return rm(hostRoot, { recursive: true, force: true })
-  })
-  for (const file of ['index.js', 'package.json', 'lib', 'resources'])
-    await cp(new URL('../' + file, import.meta.url), join(directory, file), { recursive: true })
-  const defaultsPath = join(directory, 'resources/config/config.yaml')
-  const defaults = YAML.parse(await readFile(defaultsPath, 'utf8'))
-  await writeFile(defaultsPath, YAML.stringify({ ...defaults, ...settings }))
-  if (persisted.legacy) {
-    await mkdir(join(directory, 'config/config'), { recursive: true })
-    await writeFile(join(directory, 'config/config/config.json'), JSON.stringify(persisted.legacy))
-  }
-  if (persisted.yaml)
-    await writeFile(join(hostRoot, 'config/music-card-sign.yaml'), YAML.stringify(persisted.yaml))
-  const old = { plugin: globalThis.plugin, Bot: globalThis.Bot, logger: globalThis.logger }
-  t.after(() => Object.assign(globalThis, old))
-  globalThis.plugin = class {
-    constructor(options) {
-      Object.assign(this, options)
-      this.cleanup = []
-    }
-    addCleanup(dispose, restore) {
-      this.cleanup.push({ dispose, restore })
-    }
-  }
-  const bot = new EventEmitter()
-  bot.uin = 123456789
-  bot.isOnline = () => true
-  const cards = []
-  bot.pickFriend = (id) => ({
-    share: async (content, platform) => {
-      assert.equal(id, bot.uin)
-      const raw = JSON.stringify(
-        {
-          app: 'com.tencent.structmsg',
-          view: 'music',
-          prompt: content.content,
-          extra: 'original-extra',
-          meta: {
-            music: {
-              appid: platform.appid,
-              title: content.title,
-              desc: content.summary,
-              jumpUrl: content.url,
-              musicUrl: content.audio,
-              preview: content.image
-            }
-          }
-        },
-        null,
-        2
-      )
-      cards.push(raw)
-      bot.emit('sync.message', { from_id: id, to_id: id, message: [{ type: 'json', data: raw }] })
-    }
-  })
-  const stack = []
-  globalThis.Bot = {
-    uin: [bot.uin],
-    [bot.uin]: { adapter: { name: 'ICQQ' }, sdk: bot },
-    express: {
-      router: { stack },
-      quiet: [],
-      use(path, handle) {
-        stack.push({ path, handle })
-      }
-    }
-  }
-  globalThis.logger = { mark() {}, info() {}, error() {}, warn() {} }
-  const { apps } = await import(pathToFileURL(join(directory, 'index.js')))
-  const instance = new apps.MusicCardSign()
-  await instance.init()
-  t.after(async () => {
-    for (const cleanup of instance.cleanup) await cleanup.dispose()
-  })
-  return { instance, bot, stack, cards, directory }
-}
 
 test('云崽 init 挂载服务，主人音卡命令直接发送捕获 JSON，卸载释放资源', async (t) => {
   const { instance, bot, stack, cards } = await fixture(t)
-  const replies = []
-  const e = {
+  const replies: FixtureReply[] = []
+  const e: FixtureCommandEvent = {
     self_id: bot.uin,
     msg:
       '#签名音卡 ' +
@@ -160,9 +51,10 @@ test('音之测测使用默认歌曲，发送完整回包并报告耗时，命�
   const { instance, bot, cards, directory } = await fixture(t)
   const rule = instance.rule.find((entry) => entry.fnc === 'probe')
   assert.equal(rule?.permission, 'master')
+  assert.ok(rule)
   assert.ok(new RegExp(rule.reg).test('#音之测测'))
   assert.ok(new RegExp(rule.reg).test('音之测测'))
-  const replies = []
+  const replies: FixtureReply[] = []
   assert.equal(
     await instance.probe({
       self_id: bot.uin,
@@ -177,8 +69,9 @@ test('音之测测使用默认歌曲，发送完整回包并报告耗时，命�
   assert.equal(JSON.parse(cards[0]).meta.music.title, '晴天')
   assert.equal(JSON.parse(cards[0]).meta.music.appid, 100497308)
   assert.deepEqual(replies[0], { type: 'json', data: cards[0] })
+  assert.ok(typeof replies[1] === 'string')
   assert.match(replies[1], /音之测测通过.*\d+ ms/)
-  const userConfig = YAML.parse(
+  const userConfig: Config = YAML.parse(
     await readFile(join(directory, '../../config/music-card-sign.yaml'), 'utf8')
   )
   assert.equal(userConfig.testMusic.title, '晴天')
@@ -193,7 +86,7 @@ test('音之测测支持自定义测试歌曲和隐藏平台字段', async (t) =
     url: 'https://example.com/test',
     audio: 'https://example.com/test.mp3'
   }
-  const replies = []
+  const replies: FixtureReply[] = []
   await instance.probe({
     self_id: bot.uin,
     msg: '#音之测测 ' + JSON.stringify(data),
@@ -204,13 +97,15 @@ test('音之测测支持自定义测试歌曲和隐藏平台字段', async (t) =
   })
   assert.equal(JSON.parse(cards[0]).meta.music.appid, 100495085)
   assert.equal(JSON.parse(cards[0]).meta.music.title, '其它测试')
-  assert.match(replies.at(-1), /音之测测通过/)
+  const result = replies.at(-1)
+  assert.ok(typeof result === 'string')
+  assert.match(result, /音之测测通过/)
 })
 
 test('音之测测在服务关闭或无在线 icqq 时报告生成失败', async (t) => {
   const { instance, bot, cards } = await fixture(t)
-  const replies = []
-  const e = {
+  const replies: FixtureReply[] = []
+  const e: FixtureCommandEvent = {
     self_id: bot.uin,
     msg: '#音之测测',
     reply: async (data) => {
@@ -220,19 +115,23 @@ test('音之测测在服务关闭或无在线 icqq 时报告生成失败', async
   }
   bot.isOnline = () => false
   await instance.probe(e)
-  assert.match(replies.at(-1), /音之测测失败.*生成\/回传.*在线 icqq/)
+  const offlineReply = replies.at(-1)
+  assert.ok(typeof offlineReply === 'string')
+  assert.match(offlineReply, /音之测测失败.*生成\/回传.*在线 icqq/)
   await instance.toggle({ msg: '#关闭音乐签名服务', reply: async () => true })
   await instance.probe(e)
-  assert.match(replies.at(-1), /音之测测失败.*未开启/)
+  const disabledReply = replies.at(-1)
+  assert.ok(typeof disabledReply === 'string')
+  assert.match(disabledReply, /音之测测失败.*未开启/)
   assert.equal(cards.length, 0)
 })
 
 test('音之测测报告回传超时，等待项释放后仍可继续测试', async (t) => {
   const { instance, bot } = await fixture(t, { timeoutMs: 25 })
-  const replies = []
+  const replies: FixtureReply[] = []
   const normal = bot.pickFriend
   bot.pickFriend = () => ({ share: async () => {} })
-  const e = {
+  const e: FixtureCommandEvent = {
     self_id: bot.uin,
     msg: '#音之测测',
     reply: async (data) => {
@@ -241,17 +140,23 @@ test('音之测测报告回传超时，等待项释放后仍可继续测试', as
     }
   }
   await instance.probe(e)
-  assert.match(replies.at(-1), /音之测测失败.*生成\/回传.*超时/)
+  const timeoutReply = replies.at(-1)
+  assert.ok(typeof timeoutReply === 'string')
+  assert.match(timeoutReply, /音之测测失败.*生成\/回传.*超时/)
   await instance.status(e)
-  assert.match(replies.at(-1), /等待请求：0/)
+  const statusReply = replies.at(-1)
+  assert.ok(typeof statusReply === 'string')
+  assert.match(statusReply, /等待请求：0/)
   bot.pickFriend = normal
   await instance.probe(e)
-  assert.match(replies.at(-1), /音之测测通过/)
+  const successReply = replies.at(-1)
+  assert.ok(typeof successReply === 'string')
+  assert.match(successReply, /音之测测通过/)
 })
 
 test('音之测测区分当前会话 JSON 发送失败，不误报通过', async (t) => {
   const { instance, bot } = await fixture(t)
-  const replies = []
+  const replies: FixtureReply[] = []
   await instance.probe({
     self_id: bot.uin,
     msg: '#音之测测',
@@ -260,12 +165,14 @@ test('音之测测区分当前会话 JSON 发送失败，不误报通过', async
       return typeof data === 'object' ? { error: ['JSON unsupported'] } : true
     }
   })
+  assert.ok(typeof replies[0] === 'object')
   assert.equal(replies[0].type, 'json')
+  assert.ok(typeof replies[1] === 'string')
   assert.match(replies[1], /音之测测失败.*当前会话发送.*发送失败/)
   assert.ok(!replies.some((data) => typeof data === 'string' && data.includes('通过')))
 })
 
-const cachedInput = {
+const cachedInput: MusicRequest = {
   type: 'custom',
   title: '缓存测试',
   singer: '',
@@ -274,7 +181,7 @@ const cachedInput = {
   image: '',
   tags: { list: ['a', 'b'], count: '1' }
 }
-const rejectSign = (message) => {
+const rejectSign = (message: string): never => {
   throw new Error(message)
 }
 
@@ -295,7 +202,7 @@ test('相同请求保存完整原文，键顺序改变和服务重新创建后�
   assert.equal(await instance.signCard(e, cachedInput, rejectSign), raw)
   const files = await readdir(join(directory, 'data/music-card-cache'))
   assert.equal(files.length, 1)
-  const stored = JSON.parse(
+  const stored: CacheRecord = JSON.parse(
     await readFile(join(directory, 'data/music-card-cache', files[0]), 'utf8')
   )
   assert.equal(stored.raw, raw)
@@ -307,7 +214,7 @@ test('只有完全相同的请求才命中：空白、URL、平台、类型、�
   await instance.signCard(e, cachedInput, rejectSign)
   const withoutSinger = { ...cachedInput }
   delete withoutSinger.singer
-  const variants = [
+  const variants: MusicRequest[] = [
     { ...cachedInput, title: '缓存测试 ' },
     { ...cachedInput, singer: ' ' },
     { ...cachedInput, url: 'https://example.com/song?b=2&a=1' },
@@ -336,8 +243,8 @@ test('损坏缓存不返回错误卡片，重新签成功后修复文件', async
   const cacheDirectory = join(directory, 'data/music-card-cache')
   const [filename] = await readdir(cacheDirectory)
   const path = join(cacheDirectory, filename)
-  const stored = JSON.parse(await readFile(path, 'utf8'))
-  const wrong = JSON.parse(stored.raw)
+  const stored: CacheRecord = JSON.parse(await readFile(path, 'utf8'))
+  const wrong: MusicCard = JSON.parse(stored.raw)
   wrong.meta.music.title = '另一首歌'
   await writeFile(path, JSON.stringify({ ...stored, raw: JSON.stringify(wrong) }))
   const repaired = await instance.signCard(e, cachedInput, rejectSign)
@@ -350,15 +257,17 @@ test('损坏缓存不返回错误卡片，重新签成功后修复文件', async
 
 test('云崽清理与恢复按顺序等待上一轮缓存写入', async (t) => {
   const { instance, bot } = await fixture(t)
-  const entered = Promise.withResolvers()
-  const release = Promise.withResolvers()
+  const entered = Promise.withResolvers<void>()
+  const release = Promise.withResolvers<void>()
   const rename = fs.rename
   fs.rename = async (...args) => {
     entered.resolve()
     await release.promise
     return rename(...args)
   }
-  let request, stopping, restarting
+  let request: Promise<string> | undefined
+  let stopping: Promise<void> | undefined
+  let restarting: Promise<void> | undefined
   try {
     request = instance.signCard({ self_id: bot.uin }, cachedInput, rejectSign)
     request.catch(() => {})
@@ -369,7 +278,7 @@ test('云崽清理与恢复按顺序等待上一轮缓存写入', async (t) => {
     restarting = cleanup.restore().then(() => {
       restored = true
     })
-    await new Promise((resolve) => setImmediate(resolve))
+    await new Promise<void>((resolve) => setImmediate(resolve))
     assert.equal(restored, false)
     release.resolve()
     await Promise.all([request, stopping, restarting])
@@ -383,9 +292,9 @@ test('云崽清理与恢复按顺序等待上一轮缓存写入', async (t) => {
 
 test('开发者注册 ID 来源后通过音卡 Handler 查询，精确缓存命中不重复调用插件 API', async (t) => {
   const { instance, bot, cards, directory } = await fixture(t)
-  const { registerMusicResolver } = await import(
-    pathToFileURL(join(directory, 'lib/models/music-info.js'))
-  )
+  const { registerMusicResolver } = (await import(
+    pathToFileURL(join(directory, 'lib/models/music-info.js')).href
+  )) as typeof MusicInfoModule
   assert.equal(typeof registerMusicResolver, 'function')
   let queries = 0
   const dispose = registerMusicResolver('my-plugin', async (id) => {
@@ -419,13 +328,15 @@ test('回传失败不写入缓存，音之测测绕过已有缓存检测当前�
   const normal = bot.pickFriend
   bot.pickFriend = () => ({ share: async () => {} })
   await assert.rejects(instance.signCard({ self_id: bot.uin }, cachedInput, rejectSign), /超时/)
-  const files = await readdir(join(directory, 'data/music-card-cache')).catch((error) => {
-    if (error.code === 'ENOENT') return []
-    throw error
-  })
+  const files = await readdir(join(directory, 'data/music-card-cache')).catch(
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return []
+      throw error
+    }
+  )
   assert.equal(files.length, 0)
   bot.pickFriend = normal
-  const defaults = YAML.parse(
+  const defaults: Config = YAML.parse(
     await readFile(join(directory, 'resources/config/config.yaml'), 'utf8')
   )
   await instance.signCard({ self_id: bot.uin }, defaults.testMusic, rejectSign)
@@ -436,7 +347,7 @@ test('回传失败不写入缓存，音之测测绕过已有缓存检测当前�
       throw new Error('当前回传不可用')
     }
   })
-  const replies = []
+  const replies: FixtureReply[] = []
   await instance.probe({
     self_id: bot.uin,
     msg: '#音之测测',
@@ -445,26 +356,31 @@ test('回传失败不写入缓存，音之测测绕过已有缓存检测当前�
       return true
     }
   })
-  assert.match(replies.at(-1), /音之测测失败.*当前回传不可用/)
+  const result = replies.at(-1)
+  assert.ok(typeof result === 'string')
+  assert.match(result, /音之测测失败.*当前回传不可用/)
 })
 
 test('主人设置签名 Bot 后配置持久保存，HTTP 和 Handler 立即使用新账号', async (t) => {
   const { instance, bot, stack, directory } = await fixture(t, { botId: '234567890' })
   const rule = instance.rule.find((entry) => entry.fnc === 'setBot')
   assert.equal(rule?.permission, 'master')
+  assert.ok(rule)
   assert.ok(new RegExp(rule.reg).test('#设置音乐签名Bot 123456789'))
   assert.ok(new RegExp(rule.reg).test('#设置音乐签名bot 自动'))
-  const replies = []
-  const reply = async (message) => {
+  const replies: string[] = []
+  const reply = async (message: string) => {
     replies.push(message)
     return true
   }
   await instance.setBot({ msg: '#设置音乐签名Bot 123456789', reply })
-  const saved = YAML.parse(
+  const saved: Config = YAML.parse(
     await readFile(join(directory, '../../config/music-card-sign.yaml'), 'utf8')
   )
   assert.equal(saved.botId, String(bot.uin))
-  const res = {
+  const res: FixtureResponse = {
+    statusCode: 0,
+    body: '',
     writeHead(code) {
       this.statusCode = code
     },
@@ -477,36 +393,36 @@ test('主人设置签名 Bot 后配置持久保存，HTTP 和 Handler 立即使�
   assert.equal(JSON.parse(res.body).meta.music.title, cachedInput.title)
   await instance.signCard({ self_id: 987654321 }, cachedInput, rejectSign)
   await instance.status({ reply })
-  assert.match(replies.at(-1), /签名 Bot：123456789/)
+  assert.match(replies.at(-1)!, /签名 Bot：123456789/)
   await instance.setBot({ msg: '#设置音乐签名bot 自动', reply })
   assert.equal(
     YAML.parse(await readFile(join(directory, '../../config/music-card-sign.yaml'), 'utf8')).botId,
     ''
   )
   await instance.status({ reply })
-  assert.match(replies.at(-1), /签名 Bot：自动选择/)
+  assert.match(replies.at(-1)!, /签名 Bot：自动选择/)
 })
 
 test('签名 Bot 指令提示用法，参数或保存失败时保留原账号', async (t) => {
   const { instance, directory } = await fixture(t, { botId: '123456789' })
-  const replies = []
-  const reply = async (message) => {
+  const replies: string[] = []
+  const reply = async (message: string) => {
     replies.push(message)
     return true
   }
   await instance.setBot({ msg: '#设置音乐签名Bot', reply })
-  assert.match(replies.at(-1), /用法/)
+  assert.match(replies.at(-1)!, /用法/)
   await instance.setBot({ msg: '#设置音乐签名Bot abc', reply })
-  assert.match(replies.at(-1), /Bot 号/)
+  assert.match(replies.at(-1)!, /Bot 号/)
   const write = fs.writeFile
   fs.writeFile = async () => {
     throw new Error('保存失败')
   }
   try {
     await instance.setBot({ msg: '#设置音乐签名Bot 234567890', reply })
-    assert.match(replies.at(-1), /保存失败/)
+    assert.match(replies.at(-1)!, /保存失败/)
     await instance.status({ reply })
-    assert.match(replies.at(-1), /签名 Bot：123456789/)
+    assert.match(replies.at(-1)!, /签名 Bot：123456789/)
   } finally {
     fs.writeFile = write
   }
@@ -530,7 +446,7 @@ test('首次升级迁移旧 JSON 配置并保留原文件', async (t) => {
     }
   }
   const { instance, directory, stack } = await fixture(t, {}, { legacy })
-  const saved = YAML.parse(
+  const saved: Config = YAML.parse(
     await readFile(join(directory, '../../config/music-card-sign.yaml'), 'utf8')
   )
   assert.equal(saved.botId, legacy.botId)
@@ -541,7 +457,7 @@ test('首次升级迁移旧 JSON 配置并保留原文件', async (t) => {
     JSON.parse(await readFile(join(directory, 'config/config/config.json'), 'utf8')),
     legacy
   )
-  const replies = []
+  const replies: string[] = []
   await instance.status({
     reply: async (message) => {
       replies.push(message)
@@ -559,7 +475,7 @@ test('已有 YAML 时以 YAML 为准，不用旧 JSON 覆盖', async (t) => {
       yaml: { botId: '123456789', timeoutMs: 15000 }
     }
   )
-  const saved = YAML.parse(
+  const saved: Config = YAML.parse(
     await readFile(join(directory, '../../config/music-card-sign.yaml'), 'utf8')
   )
   assert.equal(saved.botId, '123456789')

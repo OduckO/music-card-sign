@@ -22,13 +22,13 @@
   },
   "overrides": [
     {
-      "files": ["test/**/*.js"],
+      "files": ["test/**/*.ts"],
       "rules": {
         "eslint/no-await-in-loop": "off"
       }
     },
     {
-      "files": ["src/**/*.ts"],
+      "files": ["src/**/*.ts", "test/**/*.ts"],
       "rules": {
         "eslint/no-restricted-imports": [
           "error",

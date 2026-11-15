@@ -1,12 +1,21 @@
-import { test } from 'node:test'
+import { test, type TestContext } from 'node:test'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve as resolvePath, sep } from 'node:path'
-import { MusicSigner, normalizeRequest, cardText } from '../lib/models/music-sign.js'
-import { MusicCardCache } from '../lib/models/music-cache.js'
+import { MusicSigner, normalizeRequest, cardText } from '../src/models/music-sign'
+import { MusicCardCache } from '../src/models/music-cache'
+import type {
+  AppPlatform,
+  CacheRecord,
+  IcqqBot,
+  MusicCard,
+  MusicInfo,
+  MusicRequest,
+  ShareContent
+} from '../src/types'
 
 const input = {
   title: '晴天',
@@ -14,10 +23,10 @@ const input = {
   url: 'https://example.com/song/1',
   audio: 'https://example.com/audio/1.mp3',
   image: 'https://example.com/cover/1.jpg'
-}
+} satisfies MusicInfo
 
 // 字段形状按 icqq 接收 JSON 和 QQ 音卡格式构造，非真实账号抓包。
-function card(overrides = {}) {
+function card(overrides: Partial<MusicCard['meta']['music']> = {}): MusicCard {
   return {
     app: 'com.tencent.music.lua',
     view: 'music',
@@ -40,20 +49,21 @@ function card(overrides = {}) {
   }
 }
 
-class QQBoundary extends EventEmitter {
+class QQBoundary extends EventEmitter implements IcqqBot {
   uin = 123456789
   online = true
-  shares = []
-  pickFriend(id) {
+  shares: Array<{ content: ShareContent; app: AppPlatform }> = []
+  onShare?: (content: ShareContent, app: AppPlatform) => unknown
+  pickFriend(id: number) {
     assert.equal(id, this.uin)
     return {
-      share: async (content, app) => {
+      share: async (content: ShareContent, app: AppPlatform) => {
         this.shares.push({ content, app })
         await this.onShare?.(content, app)
       }
     }
   }
-  deliver(ark, event = 'sync.message', from = this.uin, to = this.uin) {
+  deliver(ark: MusicCard, event = 'sync.message', from = this.uin, to = this.uin) {
     this.emit(event, {
       self_id: this.uin,
       message_type: 'private',
@@ -234,7 +244,7 @@ test('appid 可从 extra 取得，关闭中的等待项返回明确失败', asyn
 
 test('每次请求结束即释放 SDK 监听器，不持续持有旧客户端', async (t) => {
   let bot = new QQBoundary()
-  const oldBots = []
+  const oldBots: QQBoundary[] = []
   const signer = new MusicSigner({ getBots: () => [bot], timeoutMs: 15 })
   t.after(() => signer.close())
   for (let i = 0; i < 30; i++) {
@@ -273,7 +283,7 @@ test('同一 ID 的并发请求在歌曲查询前去重', async (t) => {
   assert.equal(bot.shares.length, 1)
 })
 
-async function diskCache(t) {
+async function diskCache(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), 'music-card-cache-'))
   t.after(() => {
     assert.ok(resolvePath(directory).startsWith(resolvePath(tmpdir()) + sep))
@@ -312,8 +322,8 @@ test('关闭等待旧缓存写入完成，重启后的刷新不会被旧卡覆�
   const cache = await diskCache(t)
   const bot = new QQBoundary()
   const signer = new MusicSigner({ getBots: () => [bot], cache })
-  const entered = Promise.withResolvers()
-  const release = Promise.withResolvers()
+  const entered = Promise.withResolvers<void>()
+  const release = Promise.withResolvers<void>()
   const rename = fs.rename
   let delayed = false
   fs.rename = async (...args) => {
@@ -324,7 +334,7 @@ test('关闭等待旧缓存写入完成，重启后的刷新不会被旧卡覆�
     }
     return rename(...args)
   }
-  let oldRequest
+  let oldRequest: Promise<MusicCard> | undefined
   try {
     bot.onShare = () => bot.deliver({ ...card(), server_field: '旧卡' })
     oldRequest = signer.sign(input)
@@ -366,7 +376,7 @@ test('ID 缓存命中直接返回旧 JSON，不再查询歌曲平台', async (t)
   })
   t.after(() => signer.close())
   bot.onShare = () => bot.deliver(card())
-  const request = { type: '163', id: '000186016', _platform: 'qq' }
+  const request = { type: '163', id: '000186016', _platform: 'qq' } satisfies MusicRequest
   const raw = cardText(await signer.sign(request))
   assert.equal(cardText(await signer.sign(request)), raw)
   assert.equal(queries, 1)
@@ -377,7 +387,7 @@ test('ID 缓存命中直接返回旧 JSON，不再查询歌曲平台', async (t)
 
 test('缓存隔离签名账号及应用三元组，原请求相同也不能跨账号或平台配置复用', async (t) => {
   const cache = await diskCache(t)
-  const configurations = [
+  const configurations: AppPlatform[] = [
     {
       appid: 100497308,
       appname: 'com.tencent.qqmusic',
@@ -414,13 +424,15 @@ test('缓存隔离签名账号及应用三元组，原请求相同也不能跨�
 
 test('相同 appid 和歌曲的不同应用配置按顺序提交，分别缓存自己的回包', async (t) => {
   const bot = new QQBoundary()
-  const records = new Map()
+  const records = new Map<string, CacheRecord>()
   const signer = new MusicSigner({
     getBots: () => [bot],
     timeoutMs: 1000,
     cache: {
       get: async (key) => records.get(key) ?? null,
-      set: async (key, raw, request) => records.set(key, { raw, request })
+      set: async (key, raw, request) => {
+        records.set(key, { version: 1, key, raw, request })
+      }
     }
   })
   const firstInput = {
@@ -455,12 +467,12 @@ test('相同 appid 和歌曲的不同应用配置按顺序提交，分别缓存�
 
 test('异步缓存读取期间修改调用方对象不会污染签名请求', async (t) => {
   const bot = new QQBoundary()
-  let finishRead
+  let finishRead!: (record: CacheRecord | null) => void
   const signer = new MusicSigner({
     getBots: () => [bot],
     cache: {
       get: () =>
-        new Promise((resolve) => {
+        new Promise<CacheRecord | null>((resolve) => {
           finishRead = resolve
         }),
       set: async () => {}
@@ -481,7 +493,7 @@ test('缓存目录无法写入时仍返回本次成功签出的音卡并释放�
   const bot = new QQBoundary()
   const cache = await diskCache(t)
   await writeFile(cache.directory, '占用缓存目录路径的文件')
-  const errors = []
+  const errors: unknown[] = []
   const signer = new MusicSigner({
     getBots: () => [bot],
     cache,
