@@ -39,11 +39,12 @@ jobs:
             - cwd: plugins/temp-plugin
               args: [--ignore-workspace, --frozen-lockfile, --registry=https://registry.npmjs.org]
 
-      - name: Check types, lint and test compiled JavaScript
+      - name: Check types, lint, formatting and test compiled JavaScript
         working-directory: plugins/temp-plugin
         run: |
           pnpm run typecheck
           pnpm run lint
+          pnpm run format:check
           pnpm test
 
       - name: Prepare lib branch

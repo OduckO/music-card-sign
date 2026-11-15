@@ -3,13 +3,10 @@
     "target": "es2024",
     "module": "ESNext",
     "moduleResolution": "Node",
+    "types": ["node", "trss-yunzai"],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "~/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"],
+      "~/*": ["./src/*"]
     },
     "outDir": "./lib",
     "declaration": true,
@@ -21,9 +18,7 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": [
-    "src"
-  ],
+  "include": ["src"],
   "tsc-alias": {
     "resolveFullPaths": true
   }

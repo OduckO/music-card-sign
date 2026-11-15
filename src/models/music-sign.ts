@@ -1,82 +1,162 @@
-import type { AppPlatform, BotCandidate, CardCache, IcqqBot, MusicCard, MusicEvent, MusicRequest, NormalizedRequest, PendingRequest, PlatformInput, ResolveMusic, SignerOptions, SignOptions, Subscription } from '@/types'
+import type {
+  AppPlatform,
+  BotCandidate,
+  CardCache,
+  IcqqBot,
+  MusicCard,
+  MusicEvent,
+  MusicRequest,
+  NormalizedRequest,
+  PendingRequest,
+  PlatformInput,
+  ResolveMusic,
+  SignerOptions,
+  SignOptions,
+  Subscription
+} from '@/types'
 import { errorMessage } from '@/utils'
 
 const platforms: Record<string, AppPlatform> = {
-  qq: { appid: 100497308, appname: 'com.tencent.qqmusic', appsign: 'cbd27cd7c861227d013a25b2d10f0799' },
-  netease: { appid: 100495085, appname: 'com.netease.cloudmusic', appsign: 'da6b069da1e2982db3e386233f68d76d' },
-  kuwo: { appid: 100243533, appname: 'cn.kuwo.player', appsign: 'bf9ff4ffb4c558a34ee3fd52c223ebf5' },
-  kugou: { appid: 205141, appname: 'com.kugou.android', appsign: 'fe4a24d80fcf253a00676a808f62c2c6' },
-  migu: { appid: 1101053067, appname: 'cmccwm.mobilemusic', appsign: '6cdc72a439cef99a3418d2a78aa28c73' },
-  bilibili: { appid: 100951776, appname: 'tv.danmaku.bili', appsign: '7194d531cbe7960a22007b9f6bdaa38b' },
-  '5sing': { appid: 200079, appname: 'com.sing.client', appsign: '3fa2b7951bbf704a052bd2364f3e3ee1' },
-  bodian: { appid: 101904722, appname: 'cn.wenyu.bodian', appsign: '5380ca99d2bea3173b0b6e52cff44b45' },
-  tim: { appid: 1105296740, appname: 'com.tencent.tim', appsign: '775e696d09856872fdd8ab4f3f06b1e0' },
-  yuanshen: { appid: 1110976923, appname: 'com.miHoYo.Yuanshen', appsign: '5583e6a15a9cfbe6af9c945c5b8b1a4b' }
+  qq: {
+    appid: 100497308,
+    appname: 'com.tencent.qqmusic',
+    appsign: 'cbd27cd7c861227d013a25b2d10f0799'
+  },
+  netease: {
+    appid: 100495085,
+    appname: 'com.netease.cloudmusic',
+    appsign: 'da6b069da1e2982db3e386233f68d76d'
+  },
+  kuwo: {
+    appid: 100243533,
+    appname: 'cn.kuwo.player',
+    appsign: 'bf9ff4ffb4c558a34ee3fd52c223ebf5'
+  },
+  kugou: {
+    appid: 205141,
+    appname: 'com.kugou.android',
+    appsign: 'fe4a24d80fcf253a00676a808f62c2c6'
+  },
+  migu: {
+    appid: 1101053067,
+    appname: 'cmccwm.mobilemusic',
+    appsign: '6cdc72a439cef99a3418d2a78aa28c73'
+  },
+  bilibili: {
+    appid: 100951776,
+    appname: 'tv.danmaku.bili',
+    appsign: '7194d531cbe7960a22007b9f6bdaa38b'
+  },
+  '5sing': {
+    appid: 200079,
+    appname: 'com.sing.client',
+    appsign: '3fa2b7951bbf704a052bd2364f3e3ee1'
+  },
+  bodian: {
+    appid: 101904722,
+    appname: 'cn.wenyu.bodian',
+    appsign: '5380ca99d2bea3173b0b6e52cff44b45'
+  },
+  tim: {
+    appid: 1105296740,
+    appname: 'com.tencent.tim',
+    appsign: '775e696d09856872fdd8ab4f3f06b1e0'
+  },
+  yuanshen: {
+    appid: 1110976923,
+    appname: 'com.miHoYo.Yuanshen',
+    appsign: '5583e6a15a9cfbe6af9c945c5b8b1a4b'
+  }
 }
 const aliases: Record<string, string> = { 163: 'netease', custom: 'qq' }
 const rawCards = new WeakMap<MusicCard, string>()
 
-export function cardText (card: MusicCard) {
+export function cardText(card: MusicCard) {
   return rawCards.get(card) ?? JSON.stringify(card)
 }
 
 export class MusicSignError extends Error {
   readonly status: number
-  constructor (message: string, status = 400) {
+  constructor(message: string, status = 400) {
     super(message)
     this.status = status
   }
 }
 
-function unwrap (input: unknown): MusicRequest {
+function unwrap(input: unknown): MusicRequest {
   if (typeof input === 'string') {
-    try { input = JSON.parse(input) } catch { throw new MusicSignError('请求必须是 JSON 对象') }
+    try {
+      input = JSON.parse(input)
+    } catch {
+      throw new MusicSignError('请求必须是 JSON 对象')
+    }
   }
-  if (!input || typeof input !== 'object' || Array.isArray(input)) { throw new MusicSignError('请求必须是 JSON 对象') }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new MusicSignError('请求必须是 JSON 对象')
+  }
   const data = input as MusicRequest
   if (data.data || data.params) return { ...unwrap(data.data || data.params), ...data }
   return data
 }
 
-function text (value: unknown, field: string) {
+function text(value: unknown, field: string) {
   if (value === undefined || value === null) return ''
-  if (!['string', 'number'].includes(typeof value)) throw new MusicSignError(`${field} 必须是字符串`)
+  if (!['string', 'number'].includes(typeof value))
+    throw new MusicSignError(`${field} 必须是字符串`)
   const result = String(value).trim()
   if (result.length > 8192) throw new MusicSignError(`${field} 过长`)
   return result
 }
 
-function webUrl (value: unknown, field: string, required = false) {
+function webUrl(value: unknown, field: string, required = false) {
   const result = text(value, field)
   if (!result && !required) return ''
   try {
     const url = new URL(result)
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error()
-  } catch { throw new MusicSignError(`${field} 必须是 http(s) URL`) }
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password)
+      throw new Error()
+  } catch {
+    throw new MusicSignError(`${field} 必须是 http(s) URL`)
+  }
   return result
 }
 
-function selectPlatform (data: MusicRequest, customPlatforms: Record<string, PlatformInput>): AppPlatform {
+function selectPlatform(
+  data: MusicRequest,
+  customPlatforms: Record<string, PlatformInput>
+): AppPlatform {
   const selected = data._platform ?? data.platform ?? data.source ?? data.type ?? 'qq'
   let platform: PlatformInput | undefined
-  if (selected && typeof selected === 'object' && !Array.isArray(selected)) platform = selected as PlatformInput
+  if (selected && typeof selected === 'object' && !Array.isArray(selected))
+    platform = selected as PlatformInput
   else {
     const name = text(selected, '_platform').toLowerCase()
     platform = customPlatforms[aliases[name] || name] ?? platforms[aliases[name] || name]
-    if (!platform && data.id !== undefined && data._platform === undefined &&
-        data.platform === undefined && data.source === undefined) platform = platforms.qq
+    if (
+      !platform &&
+      data.id !== undefined &&
+      data._platform === undefined &&
+      data.platform === undefined &&
+      data.source === undefined
+    )
+      platform = platforms.qq
     if (!platform) throw new MusicSignError(`未知音卡平台：${name}`)
   }
   const appid = Number(platform.appid)
-  if (!Number.isSafeInteger(appid) || appid <= 0) throw new MusicSignError('平台 appid 必须是正整数')
+  if (!Number.isSafeInteger(appid) || appid <= 0)
+    throw new MusicSignError('平台 appid 必须是正整数')
   const appname = text(platform.appname, 'appname')
   const appsign = text(platform.appsign ?? platform.app_sign, 'appsign')
   if (!/^[\w.]+$/.test(appname)) throw new MusicSignError('平台 appname 必须是应用包名')
-  if (appsign && !/^[a-f\d]{32}$/i.test(appsign)) throw new MusicSignError('平台 appsign 必须为空或 32 位十六进制应用 hash')
+  if (appsign && !/^[a-f\d]{32}$/i.test(appsign))
+    throw new MusicSignError('平台 appsign 必须为空或 32 位十六进制应用 hash')
   return { appid, appname, appsign }
 }
 
-export function normalizeRequest (input: unknown, customPlatforms: Record<string, PlatformInput> = {}): NormalizedRequest {
+export function normalizeRequest(
+  input: unknown,
+  customPlatforms: Record<string, PlatformInput> = {}
+): NormalizedRequest {
   const data = unwrap(input)
   const platform = selectPlatform(data, customPlatforms)
   const title = text(data.title ?? data.song ?? data.name, 'title')
@@ -96,18 +176,30 @@ export function normalizeRequest (input: unknown, customPlatforms: Record<string
   }
 }
 
-function exactJSON (value: unknown): string {
+function exactJSON(value: unknown): string {
   try {
     return JSON.stringify(value, (key, item) => {
-      if (['undefined', 'function', 'symbol', 'bigint'].includes(typeof item) ||
-          (typeof item === 'number' && !Number.isFinite(item))) { throw new Error('请求只支持 JSON 字段值') }
-      if (item && typeof item === 'object' && !Array.isArray(item)) { return Object.fromEntries(Object.keys(item).sort().map(name => [name, item[name]])) }
+      if (
+        ['undefined', 'function', 'symbol', 'bigint'].includes(typeof item) ||
+        (typeof item === 'number' && !Number.isFinite(item))
+      ) {
+        throw new Error('请求只支持 JSON 字段值')
+      }
+      if (item && typeof item === 'object' && !Array.isArray(item)) {
+        return Object.fromEntries(
+          Object.keys(item)
+            .toSorted()
+            .map((name) => [name, item[name]])
+        )
+      }
       return item
     })
-  } catch { throw new MusicSignError('请求必须是可序列化的 JSON 对象') }
+  } catch {
+    throw new MusicSignError('请求必须是可序列化的 JSON 对象')
+  }
 }
 
-function receivedCards (event: MusicEvent): MusicCard[] {
+function receivedCards(event: MusicEvent): MusicCard[] {
   const result = []
   for (const elem of Array.isArray(event.message) ? event.message : []) {
     if (elem?.type !== 'json') continue
@@ -118,31 +210,45 @@ function receivedCards (event: MusicEvent): MusicCard[] {
         if (typeof raw === 'string') rawCards.set(card, raw)
         result.push(card)
       }
-    } catch { /* 非音乐或无法解析的 JSON 不影响其它等待项。 */ }
+    } catch {
+      /* 非音乐或无法解析的 JSON 不影响其它等待项。 */
+    }
   }
   return result
 }
 
-function matches (card: MusicCard, request: NormalizedRequest) {
+function matches(card: MusicCard, request: NormalizedRequest) {
   const music = card.meta.music
   let extra = card.extra
   if (typeof extra === 'string') {
-    try { extra = JSON.parse(extra) } catch { extra = null }
+    try {
+      extra = JSON.parse(extra)
+    } catch {
+      extra = null
+    }
   }
-  if (Number(music.appid ?? (typeof extra === 'object' ? extra?.appid : undefined)) !== request.platform.appid) return false
+  if (
+    Number(music.appid ?? (typeof extra === 'object' ? extra?.appid : undefined)) !==
+    request.platform.appid
+  )
+    return false
   const content = request.content
-  return String(card.prompt ?? '') === content.content &&
+  return (
+    String(card.prompt ?? '') === content.content &&
     String(music.title ?? '') === content.title &&
     String(music.desc ?? '') === content.summary &&
     String(music.jumpUrl ?? '') === content.url &&
     String(music.musicUrl ?? '') === content.audio &&
     (!content.image || String(music.preview ?? '') === content.image)
+  )
 }
 
-function nativeBot (bot: BotCandidate): IcqqBot | null {
+function nativeBot(bot: BotCandidate): IcqqBot | null {
   const sdk = ('sdk' in bot ? bot.sdk : bot) as IcqqBot | undefined
   const online = typeof sdk?.isOnline === 'function' ? sdk.isOnline() : sdk?.online === true
-  return online && sdk && typeof sdk.pickFriend === 'function' && typeof sdk.on === 'function' ? sdk : null
+  return online && sdk && typeof sdk.pickFriend === 'function' && typeof sdk.on === 'function'
+    ? sdk
+    : null
 }
 
 export class MusicSigner {
@@ -158,7 +264,15 @@ export class MusicSigner {
   readonly submissions = new Map<string, Promise<MusicCard>>()
   readonly listeners = new Map<IcqqBot, Subscription>()
   closed = false
-  constructor ({ getBots, botId = '', timeoutMs = 15000, customPlatforms = {}, resolveMusic, cache, onCacheError }: SignerOptions) {
+  constructor({
+    getBots,
+    botId = '',
+    timeoutMs = 15000,
+    customPlatforms = {},
+    resolveMusic,
+    cache,
+    onCacheError
+  }: SignerOptions) {
     if (typeof getBots !== 'function') throw new TypeError('getBots 必须是函数')
     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new TypeError('timeoutMs 必须大于 0')
     this.getBots = getBots
@@ -170,17 +284,24 @@ export class MusicSigner {
     this.onCacheError = onCacheError
   }
 
-  bots () {
-    return [...new Set(this.getBots().map(nativeBot).filter((bot): bot is IcqqBot => bot !== null))]
+  bots() {
+    return [
+      ...new Set(
+        this.getBots()
+          .map(nativeBot)
+          .filter((bot): bot is IcqqBot => bot !== null)
+      )
+    ]
   }
 
-  async sign (input: unknown, { forceFresh = false }: SignOptions = {}): Promise<MusicCard> {
+  async sign(input: unknown, { forceFresh = false }: SignOptions = {}): Promise<MusicCard> {
     if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
     const data: MusicRequest = JSON.parse(exactJSON(unwrap(input)))
     const bots = this.bots()
     const id = text(data.self_id ?? data.bot_id, 'self_id') || String(this.botId || '')
-    if (!id && bots.length > 1) throw new MusicSignError('有多个在线 icqq 账号，请指定 self_id 或配置 botId')
-    const bot = id ? bots.find(bot => String(bot.uin) === id) : bots[0]
+    if (!id && bots.length > 1)
+      throw new MusicSignError('有多个在线 icqq 账号，请指定 self_id 或配置 botId')
+    const bot = id ? bots.find((candidate) => String(candidate.uin) === id) : bots[0]
     if (!bot) throw new MusicSignError('未找到指定的在线 icqq 账号，请先接入 ICQQ-Plugin', 503)
     const platform = selectPlatform(data, this.customPlatforms)
     const identity = exactJSON([String(bot.uin), platform, data])
@@ -188,18 +309,33 @@ export class MusicSigner {
     if (this.inflight.has(key)) return this.inflight.get(key)!
     const operation = this.signRequest(bot, data, platform, identity, key, forceFresh)
     this.inflight.set(key, operation)
-    try { return await operation } finally {
+    try {
+      return await operation
+    } finally {
       if (this.inflight.get(key) === operation) this.inflight.delete(key)
     }
   }
 
-  async signRequest (bot: IcqqBot, data: MusicRequest, platform: AppPlatform, identity: string, key: string, forceFresh: boolean): Promise<MusicCard> {
+  async signRequest(
+    bot: IcqqBot,
+    data: MusicRequest,
+    platform: AppPlatform,
+    identity: string,
+    key: string,
+    forceFresh: boolean
+  ): Promise<MusicCard> {
     if (this.cache && !forceFresh) {
       try {
         const record = await this.cache.get(identity)
         if (record) {
           const [card] = receivedCards({ message: [{ type: 'json', data: record.raw }] })
-          if (!card || !matches(card, record.request) || exactJSON(record.request.platform) !== exactJSON(platform)) { throw new Error('音卡缓存正文与保存的请求不匹配') }
+          if (
+            !card ||
+            !matches(card, record.request) ||
+            exactJSON(record.request.platform) !== exactJSON(platform)
+          ) {
+            throw new Error('音卡缓存正文与保存的请求不匹配')
+          }
           if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
           return card
         }
@@ -210,7 +346,7 @@ export class MusicSigner {
     }
     if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
     if (data.id !== undefined && !(data.title ?? data.song ?? data.name)) {
-      const resolve = this.resolveMusic ?? (await import('./music-info.js')).resolveMusicInfo
+      const resolve = this.resolveMusic ?? (await import('./music-info')).resolveMusicInfo
       const info = await resolve(data.type || 'qq', data.id, { timeoutMs: this.timeoutMs })
       data = { ...info, ...data }
     }
@@ -219,28 +355,43 @@ export class MusicSigner {
     if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
     const card = await this.submit(bot, request, key)
     if (this.cache) {
-      try { await this.cache.set(identity, cardText(card), request) } catch (error) { this.onCacheError?.(error) }
+      try {
+        await this.cache.set(identity, cardText(card), request)
+      } catch (error) {
+        this.onCacheError?.(error)
+      }
     }
     return card
   }
 
-  async submit (bot: IcqqBot, request: NormalizedRequest, key: string): Promise<MusicCard> {
+  async submit(bot: IcqqBot, request: NormalizedRequest, key: string): Promise<MusicCard> {
     // 回包缺少 appname/appsign，同 appid 和歌曲的提交需按顺序完成。
     const content = request.content
-    const group = exactJSON([String(bot.uin), request.platform.appid,
-      content.title, content.summary, content.content, content.url, content.audio])
+    const group = exactJSON([
+      String(bot.uin),
+      request.platform.appid,
+      content.title,
+      content.summary,
+      content.content,
+      content.url,
+      content.audio
+    ])
     const previous = this.submissions.get(group) ?? Promise.resolve()
-    const operation = previous.catch(() => {}).then(() => {
-      if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
-      return this.send(bot, request, key)
-    })
+    const operation = previous
+      .catch(() => {})
+      .then(() => {
+        if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
+        return this.send(bot, request, key)
+      })
     this.submissions.set(group, operation)
-    try { return await operation } finally {
+    try {
+      return await operation
+    } finally {
       if (this.submissions.get(group) === operation) this.submissions.delete(group)
     }
   }
 
-  send (bot: IcqqBot, request: NormalizedRequest, key: string): Promise<MusicCard> {
+  send(bot: IcqqBot, request: NormalizedRequest, key: string): Promise<MusicCard> {
     const subscription = this.listen(bot)
     const { promise, resolve, reject } = Promise.withResolvers<MusicCard>()
     const item: PendingRequest = {
@@ -256,19 +407,27 @@ export class MusicSigner {
         else resolve(card!)
       }
     }
-    item.timer = setTimeout(() => item.finish(new MusicSignError('等待 bot 自己的音卡 JSON 超时', 504)), this.timeoutMs)
+    item.timer = setTimeout(
+      () => item.finish(new MusicSignError('等待 bot 自己的音卡 JSON 超时', 504)),
+      this.timeoutMs
+    )
     this.pending.set(key, item)
     subscription.items.add(item)
-    Promise.resolve().then(() => {
-      if (this.closed || this.pending.get(key) !== item) return
-      const friend = bot.pickFriend(bot.uin)
-      if (typeof friend?.share !== 'function') throw new MusicSignError('该账号没有原生 icqq share 能力', 503)
-      return friend.share(request.content, request.platform)
-    }).catch(error => item.finish(new MusicSignError(`音卡提交失败：${errorMessage(error)}`, 502)))
+    Promise.resolve()
+      .then(() => {
+        if (this.closed || this.pending.get(key) !== item) return
+        const friend = bot.pickFriend(bot.uin)
+        if (typeof friend?.share !== 'function')
+          throw new MusicSignError('该账号没有原生 icqq share 能力', 503)
+        return friend.share(request.content, request.platform)
+      })
+      .catch((error) =>
+        item.finish(new MusicSignError(`音卡提交失败：${errorMessage(error)}`, 502))
+      )
     return promise
   }
 
-  unlisten (bot: IcqqBot) {
+  unlisten(bot: IcqqBot) {
     const subscription = this.listeners.get(bot)
     if (!subscription) return
     bot.removeListener('message.private', subscription.listener)
@@ -276,11 +435,11 @@ export class MusicSigner {
     this.listeners.delete(bot)
   }
 
-  listen (bot: IcqqBot): Subscription {
+  listen(bot: IcqqBot): Subscription {
     if (this.listeners.has(bot)) return this.listeners.get(bot)!
     const subscription: Subscription = {
       items: new Set(),
-      listener: event => {
+      listener: (event) => {
         if (event.group_id || (event.message_type && event.message_type !== 'private')) return
         if (event.self_id !== undefined && String(event.self_id) !== String(bot.uin)) return
         const from = event.from_id ?? event.user_id ?? event.sender?.user_id
@@ -299,13 +458,18 @@ export class MusicSigner {
     return subscription
   }
 
-  status () {
-    return { enabled: !this.closed, bots: this.bots().map(bot => String(bot.uin)), pending: this.pending.size }
+  status() {
+    return {
+      enabled: !this.closed,
+      bots: this.bots().map((bot) => String(bot.uin)),
+      pending: this.pending.size
+    }
   }
 
-  async close () {
+  async close() {
     this.closed = true
-    for (const item of this.pending.values()) item.finish(new MusicSignError('音卡签名服务已关闭', 503))
+    for (const item of this.pending.values())
+      item.finish(new MusicSignError('音卡签名服务已关闭', 503))
     for (const bot of this.listeners.keys()) this.unlisten(bot)
     await Promise.allSettled(this.inflight.values())
     this.inflight.clear()

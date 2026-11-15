@@ -1,5 +1,6 @@
 import type { IncomingMessage } from 'node:http'
 import type { EventEmitter } from 'node:events'
+import type { CustomEvent } from 'trss-yunzai'
 
 export interface AppPlatform {
   appid: number
@@ -83,7 +84,7 @@ export interface MusicCard extends Record<string, unknown> {
 }
 
 export interface MusicEvent {
-  message?: Array<{ type: string, data?: unknown }>
+  message?: Array<{ type: string; data?: unknown }>
   message_type?: string
   self_id?: string | number
   group_id?: string | number
@@ -98,7 +99,9 @@ export interface IcqqBot extends EventEmitter {
   uin: number
   isOnline?: () => boolean
   online?: boolean
-  pickFriend: (id: number) => { share: (content: ShareContent, platform: AppPlatform) => Promise<unknown> }
+  pickFriend: (id: number) => {
+    share: (content: ShareContent, platform: AppPlatform) => Promise<unknown>
+  }
 }
 
 export interface BotAdapter {
@@ -110,7 +113,11 @@ export type BotCandidate = IcqqBot | BotAdapter
 
 // 平台 JSON 在各自解析器中检查返回码、歌曲 ID 和必需字段。
 export type ApiResponse = Record<string, any>
-export type JsonFetcher = (endpoint: string, params?: Record<string, string>, options?: RequestInit) => Promise<ApiResponse>
+export type JsonFetcher = (
+  endpoint: string,
+  params?: Record<string, string>,
+  options?: RequestInit
+) => Promise<ApiResponse>
 export type MusicFetch = (input: string | URL, options?: RequestInit) => Promise<Response>
 
 export interface ResolverContext {
@@ -127,8 +134,14 @@ export interface ResolveOptions {
   timeoutMs?: number
   resolvers?: Record<string, MusicResolver>
 }
-export type ResolveMusic = (type: string, id: string | number, options?: ResolveOptions) => Promise<MusicInfo>
-export interface SignOptions { forceFresh?: boolean }
+export type ResolveMusic = (
+  type: string,
+  id: string | number,
+  options?: ResolveOptions
+) => Promise<MusicInfo>
+export interface SignOptions {
+  forceFresh?: boolean
+}
 
 export interface CacheRecord {
   version: 1
@@ -166,7 +179,7 @@ export interface Subscription {
 
 export interface HttpSigner {
   sign: (input: MusicRequest) => Promise<MusicCard>
-  status?: () => { enabled: boolean, bots: string[], pending: number }
+  status?: () => { enabled: boolean; bots: string[]; pending: number }
 }
 
 export interface HttpOptions {
@@ -176,10 +189,9 @@ export interface HttpOptions {
   localPort?: number
 }
 
-export interface HttpRequest extends IncomingMessage { body?: unknown }
-
-export interface CommandEvent {
-  msg: string
-  self_id?: string | number
-  reply: (data: string | { type: 'json', data: string }) => Promise<unknown>
+export interface HttpRequest extends IncomingMessage {
+  body?: unknown
 }
+
+export type CommandEvent = Pick<CustomEvent, 'msg' | 'reply'> &
+  Partial<Pick<CustomEvent, 'self_id'>>

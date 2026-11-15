@@ -1,0 +1,48 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "env": { "node": true },
+  "globals": {
+    "Bot": "readonly",
+    "redis": "readonly",
+    "plugin": "readonly",
+    "segment": "readonly",
+    "logger": "readonly"
+  },
+  "rules": {
+    "eslint/no-underscore-dangle": ["error", { "allow": ["_platform", "_router"] }],
+    "eslint/eqeqeq": "error",
+    "eslint/prefer-const": "error",
+    "typescript/consistent-type-imports": "error"
+  },
+  "overrides": [
+    {
+      "files": ["test/**/*.js"],
+      "rules": {
+        "eslint/no-await-in-loop": "off"
+      }
+    },
+    {
+      "files": ["src/**/*.ts"],
+      "rules": {
+        "eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "\\.js$",
+                "message": "TS 源码使用无扩展名导入，构建时由 tsc-alias 解析运行路径。"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "ignorePatterns": ["node_modules/**", "lib/**", ".test-tmp/**", "temp_lib_content/**"]
+}

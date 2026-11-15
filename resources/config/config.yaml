@@ -1,9 +1,9 @@
 enabled: true
-botId: ""
+botId: ''
 path: /music_card/card
 timeoutMs: 15000
 localPort: 0
-apiKey: ""
+apiKey: ''
 platforms: {}
 testMusic:
   type: custom

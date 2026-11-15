@@ -7,17 +7,19 @@ import { fileURLToPath } from 'node:url'
 
 export class MusicCardCache {
   readonly directory: string
-  constructor (directory: string | URL) {
+  constructor(directory: string | URL) {
     this.directory = directory instanceof URL ? fileURLToPath(directory) : resolve(directory)
   }
 
-  path (key: string) {
+  path(key: string) {
     return join(this.directory, createHash('sha256').update(key).digest('hex') + '.json')
   }
 
-  async get (key: string): Promise<CacheRecord | null> {
+  async get(key: string): Promise<CacheRecord | null> {
     let text
-    try { text = await fs.readFile(this.path(key), 'utf8') } catch (error) {
+    try {
+      text = await fs.readFile(this.path(key), 'utf8')
+    } catch (error) {
       if (errorCode(error) === 'ENOENT') return null
       throw error
     }
@@ -27,7 +29,7 @@ export class MusicCardCache {
     return record
   }
 
-  async set (key: string, raw: string, request: NormalizedRequest): Promise<void> {
+  async set(key: string, raw: string, request: NormalizedRequest): Promise<void> {
     await fs.mkdir(this.directory, { recursive: true })
     const path = this.path(key)
     const temporary = path + '.' + randomUUID() + '.tmp'
