@@ -37,7 +37,7 @@ jobs:
           version: 9.15.9
           run_install: |
             - cwd: plugins/temp-plugin
-              args: [--frozen-lockfile, --registry=https://registry.npmjs.org]
+              args: [--ignore-workspace, --frozen-lockfile, --registry=https://registry.npmjs.org]
 
       - name: Check types, lint and test compiled JavaScript
         working-directory: plugins/temp-plugin
