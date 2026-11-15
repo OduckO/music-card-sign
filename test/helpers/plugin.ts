@@ -41,6 +41,7 @@ export interface FixturePlugin extends Pick<MusicCardSign, 'init' | 'signCard'> 
   toggle: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setBot: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setTarget: (event: FixtureCommandEvent<string>) => Promise<boolean>
+  update: (event: FixtureCommandEvent) => Promise<boolean>
   status: (event: Pick<FixtureCommandEvent<string>, 'reply'>) => Promise<boolean>
 }
 

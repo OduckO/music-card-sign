@@ -9,6 +9,7 @@ import {
   probe
 } from '@/modules/music-card-sign/commands'
 import { errorMessage } from '@/utils'
+import { updatePlugin } from '@/modules/music-card-sign/update'
 
 export class MusicCardSign extends plugin<'message'> {
   constructor() {
@@ -33,7 +34,12 @@ export class MusicCardSign extends plugin<'message'> {
           permission: 'master'
         },
         { reg: '^#?音之测测(?:\\s+[\\s\\S]+)?$', fnc: 'probe', permission: 'master' },
-        { reg: '^#签名音卡\\s+[\\s\\S]+$', fnc: 'forwardCard', permission: 'master' }
+        { reg: '^#签名音卡\\s+[\\s\\S]+$', fnc: 'forwardCard', permission: 'master' },
+        {
+          reg: '^#音乐签名(?:强制更新|更新(?:日志)?)$',
+          fnc: 'update',
+          permission: 'master'
+        }
       ]
     })
   }
@@ -85,5 +91,9 @@ export class MusicCardSign extends plugin<'message'> {
 
   probe(e: CommandEvent) {
     return probe(e)
+  }
+
+  update(e: CommandEvent) {
+    return updatePlugin(e)
   }
 }

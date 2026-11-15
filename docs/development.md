@@ -42,7 +42,8 @@ music-card-sign/
 │   ├── modules/music-card-sign/
 │   │   ├── service.ts                # 服务生命周期、配置保存和签名调用
 │   │   ├── commands.ts               # 命令解析和音之测测
-│   │   └── send.ts                   # 按会话适配器发送完整音卡 JSON
+│   │   ├── send.ts                   # 按会话适配器发送完整音卡 JSON
+│   │   └── update.ts                 # 调用云崽本体更新器
 │   ├── types/                        # 配置和公开 API 类型
 │   └── utils/                        # 错误信息处理
 ├── resources/config/config.yaml      # 默认配置
@@ -65,6 +66,8 @@ music-card-sign/
 TS 源码使用无扩展名导入。`tsc-alias` 将 `@/`、`~/` 别名和内部模块路径转换成 Node.js ESM 可执行的 `.js` 路径；宿主配置模块由 Node 在运行时解析。
 
 锅巴模块使用同一类型包的 `trss-yunzai/guoba`，入口和表单方式参照 [DF 插件 dev 分支](https://github.com/KaguyaJs/Yunzai-DF-Plugin/tree/dev)。根目录的两个 JS 文件是云崽和锅巴的加载入口，业务与配置实现位于 TS 模块中。
+
+更新指令同样参考 DF 插件，按实际插件目录名调用宿主的 `plugins/other/update`。模块由 Node 在执行指令时解析，转交独立的事件对象，保留原指令和会话；更新互斥、Git 操作、依赖更新和重启沿用本体实现。JiuLi 提供该更新器的兼容入口。
 
 [Oxlint](https://oxc.rs/docs/guide/usage/linter/config.html) 使用 `correctness`、`suspicious`、`perf` 规则组，并检查严格相等、`const` 和类型导入。源码中的静态导入、导出和字符串形式动态导入禁止使用 `.js` 扩展名。
 
