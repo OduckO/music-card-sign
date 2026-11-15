@@ -69,6 +69,17 @@ const platforms: Record<string, AppPlatform> = {
   }
 }
 const aliases: Record<string, string> = { 163: 'netease', custom: 'qq' }
+const httpsDomains = [
+  'gtimg.cn',
+  'qq.com',
+  'music.126.net',
+  'kuwo.cn',
+  'kugou.com',
+  'kgimg.com',
+  'migu.cn',
+  'hdslb.com',
+  'bilibili.com'
+]
 const rawCards = new WeakMap<MusicCard, string>()
 
 export function cardText(card: MusicCard) {
@@ -77,9 +88,11 @@ export function cardText(card: MusicCard) {
 
 export class MusicSignError extends Error {
   readonly status: number
-  constructor(message: string, status = 400) {
+  readonly details?: { fields: string[] }
+  constructor(message: string, status = 400, details?: { fields: string[] }) {
     super(message)
     this.status = status
+    this.details = details
   }
 }
 
@@ -115,6 +128,14 @@ function webUrl(value: unknown, field: string, required = false) {
     const url = new URL(result)
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password)
       throw new Error()
+    if (
+      field !== 'audio' &&
+      url.protocol === 'http:' &&
+      httpsDomains.some((domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`))
+    ) {
+      url.protocol = 'https:'
+      return url.href
+    }
   } catch {
     throw new MusicSignError(`${field} 必须是 http(s) URL`)
   }
@@ -217,7 +238,7 @@ function receivedCards(event: MusicEvent): MusicCard[] {
   return result
 }
 
-function matches(card: MusicCard, request: NormalizedRequest) {
+function mismatchFields(card: MusicCard, request: NormalizedRequest) {
   const music = card.meta.music
   let extra = card.extra
   if (typeof extra === 'string') {
@@ -227,20 +248,25 @@ function matches(card: MusicCard, request: NormalizedRequest) {
       extra = null
     }
   }
-  if (
-    Number(music.appid ?? (typeof extra === 'object' ? extra?.appid : undefined)) !==
-    request.platform.appid
-  )
-    return false
   const content = request.content
-  return (
-    String(card.prompt ?? '') === content.content &&
-    String(music.title ?? '') === content.title &&
-    String(music.desc ?? '') === content.summary &&
-    String(music.jumpUrl ?? '') === content.url &&
-    String(music.musicUrl ?? '') === content.audio &&
-    (!content.image || String(music.preview ?? '') === content.image)
-  )
+  const expected: Record<string, unknown> = {
+    appid: request.platform.appid,
+    prompt: content.content,
+    title: content.title,
+    desc: content.summary,
+    jumpUrl: content.url,
+    musicUrl: content.audio
+  }
+  const actual: Record<string, unknown> = {
+    appid: Number(music.appid ?? (typeof extra === 'object' ? extra?.appid : undefined)),
+    prompt: String(card.prompt ?? ''),
+    title: String(music.title ?? ''),
+    desc: String(music.desc ?? ''),
+    jumpUrl: String(music.jumpUrl ?? ''),
+    musicUrl: String(music.musicUrl ?? '')
+  }
+  // QQ 会把封面转存为 preview，不能用它判断回包是否属于原请求。
+  return Object.keys(expected).filter((field) => actual[field] !== expected[field])
 }
 
 function nativeBot(bot: BotCandidate): IcqqBot | null {
@@ -332,7 +358,10 @@ export class MusicSigner {
     try {
       return await operation
     } catch (error) {
-      this.onLog?.('error', `${context} 签名失败：${errorMessage(error)}`)
+      this.onLog?.(
+        'error',
+        `${context} 签名失败：${errorMessage(error)} 请求体=${JSON.stringify(data)}`
+      )
       throw error
     } finally {
       if (this.inflight.get(key) === operation) this.inflight.delete(key)
@@ -355,7 +384,7 @@ export class MusicSigner {
           const [card] = receivedCards({ message: [{ type: 'json', data: record.raw }] })
           if (
             !card ||
-            !matches(card, record.request) ||
+            mismatchFields(card, record.request).length > 0 ||
             exactJSON(record.request.platform) !== exactJSON(platform)
           ) {
             throw new Error('音卡缓存正文与保存的请求不匹配')
@@ -397,16 +426,14 @@ export class MusicSigner {
     key: string,
     context: string
   ): Promise<MusicCard> {
-    // 回包缺少 appname/appsign，同 appid 和歌曲的提交需按顺序完成。
+    // 仅凭这些字段识别本次回包；其余字段不同的请求需串行，才能明确报告错误。
     const content = request.content
     const group = exactJSON([
       String(bot.uin),
       request.platform.appid,
       content.title,
-      content.summary,
       content.content,
-      content.url,
-      content.audio
+      content.url
     ])
     const previous = this.submissions.get(group) ?? Promise.resolve()
     const operation = previous
@@ -508,11 +535,18 @@ export class MusicSigner {
           )
           for (const item of subscription.items) {
             if (event.time && event.time < item.started) continue
-            if (matches(card, item.request)) item.finish(null, card)
+            const fields = mismatchFields(card, item.request)
+            if (!fields.length) item.finish(null, card)
+            else if (
+              !fields.some((field) => ['appid', 'prompt', 'title', 'jumpUrl'].includes(field))
+            )
+              item.finish(
+                new MusicSignError(`音卡回传字段不匹配：${fields.join('、')}`, 502, { fields })
+              )
             else
               this.onLog?.(
                 'warn',
-                `Bot=${bot.uin} 回传与等待歌曲字段不匹配，等待歌曲=${item.request.content.title} appid=${item.request.platform.appid}`
+                `Bot=${bot.uin} 忽略其他音卡回包，未匹配字段=${fields.join('、')}，等待歌曲=${item.request.content.title} appid=${item.request.platform.appid}`
               )
           }
         }

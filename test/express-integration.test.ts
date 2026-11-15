@@ -5,7 +5,91 @@ import { EventEmitter } from 'node:events'
 import express from 'express'
 import { mountService } from '../src/models/http'
 import { MusicSigner } from '../src/models/music-sign'
-import type { HttpSigner, IcqqBot } from '../src/types'
+import type { HttpSigner, IcqqBot, MusicCard } from '../src/types'
+
+test('实际 HTTP：用户请求的封面被 QQ 转存后成功返回，错误回包立即返回 JSON 详情', async (t) => {
+  const request = {
+    type: 'custom',
+    title: '晴天',
+    singer: '周杰伦',
+    url: 'https://music.163.com/#/song?id=186016',
+    audio: 'https://music.163.com/song/media/outer/url?id=186016.mp3',
+    image: 'https://example.com/cover.jpg'
+  }
+  const ark: MusicCard = {
+    app: 'com.tencent.music.lua',
+    view: 'music',
+    prompt: '[分享]晴天',
+    config: { token: 'offline-qq-token', forward: 1, type: 'normal' },
+    extra: Object.assign({ appid: 100497308 }, { app_type: 1, uin: 3228049612 }),
+    meta: {
+      music: {
+        appid: 100497308,
+        title: request.title,
+        desc: request.singer,
+        jumpUrl: request.url,
+        musicUrl: request.audio,
+        preview: 'https://qq.ugcimg.cn/converted-cover'
+      }
+    }
+  }
+  let raw = JSON.stringify(ark, null, 2)
+  const bot: IcqqBot & EventEmitter = Object.assign(new EventEmitter(), {
+    uin: 3228049612,
+    online: true,
+    pickFriend: () => ({
+      share: async () =>
+        bot.emit('sync.message', {
+          from_id: bot.uin,
+          to_id: bot.uin,
+          message: [{ type: 'json', data: raw }]
+        })
+    })
+  })
+  const signer = new MusicSigner({ getBots: () => [bot], timeoutMs: 100 })
+  t.after(() => signer.close())
+  const app = Object.assign(express(), { quiet: [] as string[] })
+  app.use(express.json())
+  const logs: string[] = []
+  const unmount = await mountService(app, signer, {
+    onLog: (_level, message) => logs.push(message)
+  })
+  t.after(unmount)
+  const server = http.createServer(app)
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  t.after(
+    () =>
+      new Promise<void>((resolve) => {
+        server.closeAllConnections()
+        server.close(() => resolve())
+      })
+  )
+  const address = server.address()
+  assert.ok(address && typeof address !== 'string')
+  const url = `http://127.0.0.1:${address.port}/music_card/card`
+  const options = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request)
+  }
+  const response = await fetch(url, options)
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), raw)
+  ark.meta.music.musicUrl = 'https://example.com/wrong.mp3'
+  raw = JSON.stringify(ark)
+  const failed = await fetch(url, options)
+  assert.equal(failed.status, 502)
+  assert.match(failed.headers.get('content-type') ?? '', /application\/json/)
+  assert.deepEqual(await failed.json(), {
+    error: '音卡回传字段不匹配：musicUrl',
+    request,
+    details: { fields: ['musicUrl'] }
+  })
+  assert.ok(logs.some((message) => message.includes(JSON.stringify(request))))
+  assert.ok(!logs.some((message) => message.includes('offline-qq-token')))
+  assert.equal(signer.status().pending, 0)
+  assert.equal(bot.listenerCount('sync.message'), 0)
+})
 
 test('实际云崽 Express：POST 经 body 解析与路径挂载后仍返回原文，卸载后 404', async (t) => {
   const app = Object.assign(express(), { quiet: [] as string[] })

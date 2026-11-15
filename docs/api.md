@@ -32,6 +32,8 @@
 
 示例封面需替换为实际可用地址，音频地址也应由调用方确认可用。
 
+QQ 可能将封面转存并改写 `preview`，返回的音卡会保留新地址。音乐平台已知域名的 HTTP 封面和跳转地址会升级为 HTTPS，音频地址保持输入值。缓存按完整原始请求区分，改变封面地址仍会重新签名。
+
 | 字段        | 必需 | 说明                                                  |
 | ----------- | ---- | ----------------------------------------------------- |
 | `type`      | 否   | `custom` 默认使用 QQ 音乐应用身份；其他平台名称见下文 |
@@ -126,15 +128,50 @@ X-API-Key: <key>
 
 成功响应为 HTTP 200，正文直接是捕获的完整音卡 JSON 原文，不加 `data` 包装，也不再次编码成 JSON 字符串。保留回包未知字段、`extra`、`config` 和原始 JSON 文本编码。
 
-音卡路径的失败响应使用非 2xx 状态，`Content-Type` 为 `application/json`，正文为：
+音卡路径的失败响应使用非 2xx 状态，`Content-Type` 为 `application/json`。请求解析成功后，失败响应附上本次请求。已确认属于本次请求的回包若歌手或音频不匹配，会立即返回 `502`，例如：
 
 ```json
-{ "error": "失败原因" }
+{
+  "error": "音卡回传字段不匹配：musicUrl",
+  "request": {
+    "type": "custom",
+    "title": "晴天",
+    "singer": "周杰伦",
+    "url": "https://music.163.com/#/song?id=186016",
+    "audio": "https://music.163.com/song/media/outer/url?id=186016.mp3",
+    "image": "https://example.com/cover.jpg"
+  },
+  "details": { "fields": ["musicUrl"] }
+}
 ```
 
-宿主前置 JSON 解析失败同样返回 JSON。日志会记录 HTTP 入口、签名阶段、错误详情及响应状态；参数和歌曲查询错误不会跳转到网页。
+`details.fields` 列出未匹配的回包字段：`desc` 对应歌手，`musicUrl` 对应音频。未收到本次请求的回包时，等待达到 `timeoutMs` 后返回 `504` JSON，并附上请求。鉴权或 JSON 解析失败时，正文为 `{ "error": "失败原因" }`。
 
-Cloudflare `524` 页面由代理生成，表示源站未及时响应。在运行机器上直接 GET 完整签名地址，对照「宿主入口收到」和「响应」日志确认请求是否进入插件。
+HTTP 最后一条错误日志包含与响应相同的错误和请求体；响应日志记录状态及耗时。Cloudflare `504` / `524` HTML 页面由代理生成，需要对照源站的「宿主入口收到」和「响应」日志检查代理。
+
+调用方同时检查状态码和内容类型，避免把错误正文当成音卡。Node.js 24 可直接使用 `fetch`；地址字段使用裸 URL：
+
+```javascript
+const response = await fetch('https://dy.lyln114514.com/music_card/card', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    type: 'custom',
+    title: '晴天',
+    singer: '周杰伦',
+    url: 'https://music.163.com/#/song?id=186016',
+    audio: 'https://music.163.com/song/media/outer/url?id=186016.mp3',
+    image: 'https://example.com/cover.jpg'
+  })
+})
+const raw = await response.text()
+if (!response.headers.get('content-type')?.includes('application/json')) {
+  throw new Error(`HTTP ${response.status} 返回非 JSON：${raw.slice(0, 300)}`)
+}
+const result = JSON.parse(raw)
+if (!response.ok) throw new Error(JSON.stringify(result))
+console.log(result)
+```
 
 | HTTP 状态 | 含义                             |
 | --------- | -------------------------------- |
@@ -143,7 +180,7 @@ Cloudflare `524` 页面由代理生成，表示源站未及时响应。在运行
 | `404`     | 路由不存在                       |
 | `405`     | 请求方法不支持，使用 POST 或 GET |
 | `413`     | 请求体超过 64 KiB                |
-| `502`     | 歌曲查询、分享提交或解析失败     |
+| `502`     | 歌曲查询、分享提交或回包字段错误 |
 | `503`     | 没有可用在线账号或服务未开启     |
 | `504`     | 查询或等待回传超时               |
 

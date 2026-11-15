@@ -5,7 +5,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve as resolvePath, sep } from 'node:path'
-import { MusicSigner, normalizeRequest, cardText } from '../src/models/music-sign'
+import { MusicSigner, MusicSignError, normalizeRequest, cardText } from '../src/models/music-sign'
 import { MusicCardCache } from '../src/models/music-cache'
 import type {
   AppPlatform,
@@ -85,6 +85,87 @@ test('默认 QQ 并接受协议常用别名，不把 custom 当平台', () => {
   assert.throws(() => normalizeRequest({ ...input, url: 'file:///etc/passwd' }), /http/i)
 })
 
+test('已知音乐域名的封面和跳转链接升级 HTTPS，音频与其他域名保持原值', () => {
+  const request = normalizeRequest({
+    ...input,
+    url: 'http://y.qq.com/n/ryqq/songDetail/001',
+    image: 'http://p2.music.126.net/cover.jpg?size=300',
+    audio: 'http://example.com/audio.mp3'
+  })
+  assert.equal(request.content.url, 'https://y.qq.com/n/ryqq/songDetail/001')
+  assert.equal(request.content.image, 'https://p2.music.126.net/cover.jpg?size=300')
+  assert.equal(request.content.audio, 'http://example.com/audio.mp3')
+  for (const image of ['http://example.com/cover.jpg', 'http://qq.com.example.com/cover.jpg']) {
+    assert.equal(normalizeRequest({ ...input, image }).content.image, image)
+  }
+})
+
+test('QQ 转存封面仍接受回包，相同原请求命中缓存，改变封面必须重新签名', async (t) => {
+  const bot = new QQBoundary()
+  const signer = new MusicSigner({
+    getBots: () => [bot],
+    cache: await diskCache(t),
+    timeoutMs: 100
+  })
+  t.after(() => signer.close())
+  bot.onShare = () =>
+    bot.deliver(card({ preview: `https://qq.ugcimg.cn/cover/${bot.shares.length}` }))
+  const first = await signer.sign(input)
+  assert.equal(first.meta.music.preview, 'https://qq.ugcimg.cn/cover/1')
+  assert.equal(cardText(await signer.sign(input)), cardText(first))
+  const second = await signer.sign({ ...input, image: 'https://example.com/cover/2.jpg' })
+  assert.equal(second.meta.music.preview, 'https://qq.ugcimg.cn/cover/2')
+  assert.equal(bot.shares.length, 2)
+})
+
+test('确认本次回包的歌手或音频不匹配时立即失败，列出字段并释放监听器', async (t) => {
+  const bot = new QQBoundary()
+  const signer = new MusicSigner({ getBots: () => [bot], timeoutMs: 100 })
+  t.after(() => signer.close())
+  bot.onShare = () =>
+    bot.deliver(card({ desc: '错误歌手', musicUrl: 'https://example.com/wrong.mp3' }))
+  await assert.rejects(signer.sign(input), (error: unknown) => {
+    assert.ok(error instanceof MusicSignError)
+    assert.equal(error.status, 502)
+    assert.ok('details' in error)
+    assert.deepEqual(error.details, { fields: ['desc', 'musicUrl'] })
+    assert.match(error.message, /desc.*musicUrl/)
+    return true
+  })
+  assert.equal(signer.status().pending, 0)
+  assert.equal(bot.listenerCount('sync.message'), 0)
+  assert.equal(bot.listenerCount('message.private'), 0)
+  bot.onShare = () => bot.deliver(card())
+  assert.deepEqual(await signer.sign(input), card())
+})
+
+test('歌曲相同但歌手或音频不同的请求串行提交，各自获得对应回包', async (t) => {
+  const bot = new QQBoundary()
+  const signer = new MusicSigner({ getBots: () => [bot], timeoutMs: 1000 })
+  const first = signer.sign(input)
+  const second = signer.sign({
+    ...input,
+    singer: '另一位歌手',
+    audio: 'https://example.com/other.mp3'
+  })
+  first.catch(() => {})
+  second.catch(() => {})
+  t.after(async () => {
+    await signer.close()
+    await Promise.allSettled([first, second])
+  })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(bot.shares.length, 1)
+  bot.deliver(card())
+  assert.deepEqual(await first, card())
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(bot.shares.length, 2)
+  const other = card({ desc: '另一位歌手', musicUrl: 'https://example.com/other.mp3' })
+  bot.deliver(other)
+  assert.deepEqual(await second, other)
+  assert.equal(signer.submissions.size, 0)
+})
+
 test('隐藏平台字段切换网易云，也支持应用三元组', () => {
   assert.equal(normalizeRequest({ ...input, _platform: '163' }).platform.appid, 100495085)
   const custom = {
@@ -128,7 +209,7 @@ test('先监听再 share，可接同步回传，返回完整服务端 JSON', asy
   assert.equal(bot.shares[0].app.appname, 'com.tencent.qqmusic')
 })
 
-test('忽略他人、发给他人、错误平台或字段的卡，再接受自己正确私聊', async (t) => {
+test('忽略他人、发给他人、其他平台或歌曲的卡，再接受自己正确私聊', async (t) => {
   const bot = new QQBoundary()
   const signer = new MusicSigner({ getBots: () => [bot], timeoutMs: 100 })
   t.after(() => signer.close())
@@ -136,8 +217,8 @@ test('忽略他人、发给他人、错误平台或字段的卡，再接受自�
     bot.deliver(card(), 'sync.message', 987654321)
     bot.deliver(card(), 'sync.message', bot.uin, 987654321)
     bot.deliver(card({ appid: 100495085 }))
-    bot.deliver(card({ desc: '另一位歌手' }))
-    bot.deliver(card({ musicUrl: 'https://example.com/wrong.mp3' }))
+    bot.deliver(card({ title: '另一首歌' }))
+    bot.deliver(card({ jumpUrl: 'https://example.com/another-song' }))
     bot.deliver(card(), 'message.private')
   }
   assert.deepEqual(await signer.sign(input), card())
@@ -155,7 +236,7 @@ test('向配置联系人分享，仅接受签名 Bot 发给该联系人的匹配
     bot.deliver(ark, 'message.private', targetId, bot.uin)
     bot.deliver(ark, 'sync.message', bot.uin, bot.uin)
     bot.deliver(ark, 'sync.message', bot.uin, 234567890)
-    bot.deliver(card({ desc: '另一个歌手' }), 'sync.message', bot.uin, targetId)
+    bot.deliver(card({ title: '另一首歌' }), 'sync.message', bot.uin, targetId)
     assert.equal(signer.status().pending, 1)
     bot.deliver(ark, 'sync.message', bot.uin, targetId)
   }

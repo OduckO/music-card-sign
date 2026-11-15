@@ -78,6 +78,7 @@ export function createHandler(
   return async (req: HttpRequest, res: http.ServerResponse) => {
     const started = performance.now()
     const trace = `请求=${++sequence}`
+    let request: unknown
     const send = (status: number, data: unknown) => {
       respond(res, status, data)
       onLog?.(
@@ -111,16 +112,23 @@ export function createHandler(
       if (!['GET', 'POST'].includes(req.method || ''))
         return send(405, { error: '使用 POST 或 GET' })
       const body = await readBody(req)
+      request = body
       if (!body || typeof body !== 'object' || Array.isArray(body)) {
         throw new MusicSignError('请求体必须是 JSON 对象')
       }
       const input = { ...Object.fromEntries(url.searchParams), ...body }
+      request = input
       onLog?.('info', `${trace} 请求解析完成，开始签名`)
       const card = await signer.sign(input)
       send(200, cardText(card))
     } catch (error) {
-      onLog?.('error', `${trace} 请求失败：${errorMessage(error)}`)
-      send(errorStatus(error), { error: errorMessage(error) })
+      const failure = {
+        error: errorMessage(error),
+        ...(request !== undefined ? { request } : {}),
+        ...(error instanceof MusicSignError && error.details ? { details: error.details } : {})
+      }
+      onLog?.('error', `${trace} 请求失败：${JSON.stringify(failure)}`)
+      send(errorStatus(error), failure)
     }
   }
 }

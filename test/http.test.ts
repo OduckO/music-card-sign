@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import http from 'node:http'
 import type { TestContext } from 'node:test'
 import { createHandler, mountService } from '../src/models/http'
+import { MusicSignError } from '../src/models/music-sign'
 import type { ExpressHost } from '../src/models/http'
 import type { HttpOptions, HttpSigner, MusicCard } from '../src/types'
 
@@ -51,7 +52,8 @@ test('请求错误与签名超时使用非 2xx，调用方可以按状态抛错'
   })
   const timeout = await fetch(`${api}/sign`, { method: 'POST', body: '{}' })
   assert.equal(timeout.status, 504)
-  assert.match(await timeout.text(), /超时/)
+  assert.match(timeout.headers.get('content-type') ?? '', /application\/json/)
+  assert.deepEqual(await timeout.json(), { error: '等待回传超时', request: {} })
   const invalid = await fetch(`${api}/sign`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -60,6 +62,45 @@ test('请求错误与签名超时使用非 2xx，调用方可以按状态抛错'
   assert.equal(invalid.status, 400)
   const unknown = await fetch(`${api}/unknown`)
   assert.equal(unknown.status, 404)
+})
+
+test('签名失败的 JSON 和最后错误日志包含原请求体与未匹配字段', async (t) => {
+  const request = {
+    type: 'custom',
+    title: '晴天',
+    singer: '周杰伦',
+    url: 'https://music.163.com/#/song?id=186016',
+    audio: 'https://music.163.com/song/media/outer/url?id=186016.mp3',
+    image: 'https://example.com/cover.jpg'
+  }
+  const logs: Array<{ level: string; message: string }> = []
+  const api = await localApi(
+    t,
+    {
+      sign: async () => {
+        throw Object.assign(new MusicSignError('音卡回传字段不匹配：musicUrl', 502), {
+          details: { fields: ['musicUrl'] }
+        })
+      }
+    },
+    { onLog: (level, message) => logs.push({ level, message }), apiKey: 'offline-secret' }
+  )
+  const response = await fetch(`${api}/music_card/card`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer offline-secret' },
+    body: JSON.stringify(request)
+  })
+  assert.equal(response.status, 502)
+  assert.match(response.headers.get('content-type') ?? '', /application\/json/)
+  assert.deepEqual(await response.json(), {
+    error: '音卡回传字段不匹配：musicUrl',
+    request,
+    details: { fields: ['musicUrl'] }
+  })
+  const lastError = logs.findLast(({ level }) => level === 'error')?.message ?? ''
+  assert.ok(lastError.includes(JSON.stringify(request)))
+  assert.match(lastError, /musicUrl/)
+  assert.ok(!logs.some(({ message }) => message.includes('offline-secret')))
 })
 
 test('可选 API 鉴权保护调用，健康检查不触发签名', async (t) => {
