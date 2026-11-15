@@ -1,0 +1,7 @@
+node_modules/
+/lib/
+/data/
+/config/
+.test-tmp/
+*.log
+temp_lib_content/

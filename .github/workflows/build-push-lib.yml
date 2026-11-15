@@ -1,0 +1,83 @@
+name: Build and publish lib
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-lib
+  cancel-in-progress: false
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Yunzai
+        uses: actions/checkout@v5
+        with:
+          repository: KaguyaJs/TRSS-Yunzai
+
+      - name: Checkout plugin
+        uses: actions/checkout@v5
+        with:
+          path: plugins/temp-plugin
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: |
+            - cwd: plugins/temp-plugin
+              args: [--frozen-lockfile, --registry=https://registry.npmjs.org]
+
+      - name: Check types, lint and test compiled JavaScript
+        working-directory: plugins/temp-plugin
+        run: |
+          pnpm run typecheck
+          pnpm run lint
+          pnpm test
+
+      - name: Prepare lib branch
+        working-directory: plugins/temp-plugin
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs/promises'
+          import path from 'node:path'
+          const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'))
+          const output = 'temp_lib_content'
+          await fs.mkdir(output, { recursive: true })
+          for (const file of pkg.files) {
+            const target = path.join(output, file)
+            await fs.mkdir(path.dirname(target), { recursive: true })
+            await fs.cp(file, target, { recursive: true })
+          }
+          delete pkg.devDependencies
+          delete pkg.scripts
+          await fs.writeFile(path.join(output, 'package.json'), JSON.stringify(pkg, null, 2) + '\n')
+          await fs.writeFile(path.join(output, '.gitignore'), 'node_modules/\n/data/\n/config/\n*.log\n')
+          NODE
+
+      - name: Upload compiled plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: music-card-sign-js
+          path: plugins/temp-plugin/temp_lib_content
+          include-hidden-files: true
+
+      - name: Publish lib branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: lib
+          publish_dir: plugins/temp-plugin/temp_lib_content
+          force_orphan: false
+          full_commit_message: 'build: compile ${{ github.sha }}'
