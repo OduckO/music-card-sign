@@ -24,6 +24,7 @@ export declare function supportGuoba(): {
             testMusic: string;
             enabled: boolean;
             botId: string;
+            targetId: string;
             path: string;
             timeoutMs: number;
             localPort: number;

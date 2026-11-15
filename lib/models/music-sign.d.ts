@@ -9,6 +9,7 @@ export declare function normalizeRequest(input: unknown, customPlatforms?: Recor
 export declare class MusicSigner {
     readonly getBots: SignerOptions['getBots'];
     botId: string | number;
+    readonly targetId: string;
     readonly timeoutMs: number;
     readonly customPlatforms: Record<string, PlatformInput>;
     readonly resolveMusic?: ResolveMusic;
@@ -21,7 +22,7 @@ export declare class MusicSigner {
     readonly submissions: Map<string, Promise<MusicCard>>;
     readonly listeners: Map<IcqqBot, Subscription>;
     closed: boolean;
-    constructor({ getBots, botId, timeoutMs, customPlatforms, resolveMusic, cache, onCacheError, onLog }: SignerOptions);
+    constructor({ getBots, botId, targetId, timeoutMs, customPlatforms, resolveMusic, cache, onCacheError, onLog }: SignerOptions);
     bots(): IcqqBot[];
     sign(input: unknown, { forceFresh }?: SignOptions): Promise<MusicCard>;
     signRequest(bot: IcqqBot, data: MusicRequest, platform: AppPlatform, identity: string, key: string, forceFresh: boolean, context: string): Promise<MusicCard>;
@@ -33,6 +34,7 @@ export declare class MusicSigner {
         enabled: boolean;
         bots: string[];
         pending: number;
+        targetId: string;
     };
     close(): Promise<void>;
 }

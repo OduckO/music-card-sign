@@ -141,6 +141,7 @@ export interface CardCache {
 export interface SignerOptions {
     getBots: () => BotCandidate[];
     botId?: string | number;
+    targetId?: string | number;
     timeoutMs?: number;
     customPlatforms?: Record<string, PlatformInput>;
     resolveMusic?: ResolveMusic;
@@ -164,6 +165,7 @@ export interface HttpSigner {
         enabled: boolean;
         bots: string[];
         pending: number;
+        targetId?: string;
     };
 }
 export interface HttpOptions {

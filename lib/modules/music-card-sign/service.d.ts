@@ -5,6 +5,7 @@ export declare function getServiceStatus(): Promise<{
     enabled: boolean;
     bots: string[];
     pending: number;
+    targetId: string;
 } | undefined>;
 export declare function getTestMusic(): Promise<MusicRequest>;
 export declare function updateSettings(patch: Partial<Config>): Promise<void>;
