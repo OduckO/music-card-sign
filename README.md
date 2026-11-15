@@ -8,7 +8,7 @@
 
    ```sh
    git clone -b lib https://github.com/OduckO/music-card-sign.git plugins/music-card-sign
-   pnpm --dir plugins/music-card-sign install --prod
+   pnpm --dir plugins/music-card-sign install --ignore-workspace --prod
    ```
 
    `main` 分支存放 TS 源码，`lib` 分支可直接供云崽加载。
@@ -49,7 +49,7 @@ music-card-sign/
 
 ```sh
 git -C plugins/music-card-sign pull
-pnpm --dir plugins/music-card-sign install --prod
+pnpm --dir plugins/music-card-sign install --ignore-workspace --prod
 ```
 
 ## 开发与自动编译
@@ -57,7 +57,7 @@ pnpm --dir plugins/music-card-sign install --prod
 需要 Node.js 24 和 pnpm 9。在源码仓库中运行：
 
 ```sh
-pnpm install --frozen-lockfile
+pnpm install --ignore-workspace --frozen-lockfile
 pnpm run typecheck
 pnpm run lint
 pnpm test
