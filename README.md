@@ -12,6 +12,7 @@
    ```
 
    `main` 分支存放 TS 源码，`lib` 分支可直接供云崽加载。
+
 2. 版本要求：`@icqqjs/icqq 1.10.3`，通过云崽 ICQQ-Plugin 接入签名账号。音卡可发送到支持 JSON 卡片的其它协议账号。
 3. 首次加载使用云崽配置工具生成云崽根目录的 `config/music-card-sign.yaml`。多个 icqq 账号时可用 `#设置音乐签名Bot <QQ号>` 设置 `botId`，保存后立即生效；请求也可传入 `self_id`。手动修改配置文件后重启云崽。
 4. 默认复用云崽 HTTP 服务，在调用方配置签名地址 `http://127.0.0.1:<云崽端口>/music_card/card`。宿主启用了 HTTP 鉴权时，携带对应鉴权信息。
@@ -38,7 +39,8 @@ music-card-sign/
 ├── test/                             # 测试编译后的 JS
 ├── .github/workflows/build-push-lib.yml
 ├── tsconfig.json
-├── eslint.config.js
+├── .oxlintrc.json                     # Oxlint 代码规则
+├── .oxfmtrc.json                      # Oxfmt 格式规范
 ├── pnpm-lock.yaml
 └── package.json
 ```
@@ -54,37 +56,42 @@ pnpm --dir plugins/music-card-sign install --ignore-workspace --prod
 
 ## 开发与自动编译
 
-需要 Node.js 24 和 pnpm 9。在源码仓库中运行：
+需要 Node.js 24 和 pnpm 9。云崽全局对象、插件类和命令事件使用 [TRSS-Yunzai-Types](https://github.com/KaguyaJs/TRSS-Yunzai-Types) 的 `@kaguyajs/trss-yunzai-types 1.3.3`，沿用模板的 `@types/trss-yunzai` 包别名。在源码仓库中运行：
 
 ```sh
 pnpm install --ignore-workspace --frozen-lockfile
 pnpm run typecheck
 pnpm run lint
+pnpm run format:check
 pnpm test
 ```
 
 `pnpm run build` 使用模板的 `tsc && tsc-alias`，严格检查 TS，并把 `@/`、`~/` 别名转换成可执行的相对 `.js` 路径。`lib/` 不提交到 `main`；类型声明随 JS 一起生成，方便其它插件接入。
 
-每次推送 `main`，GitHub Actions 会按模板检出云崽和插件，安装锁定依赖，执行类型检查、lint、构建与离线测试。全部通过后，将 `package.json.files` 中的运行文件推到 `lib` 分支，并上传 `music-card-sign-js` 产物。发布包移除开发依赖和开发脚本。工作流也支持手动运行。
+TS 源码使用无扩展名导入，Oxlint 会检查静态导入、导出和字符串形式的动态导入，禁止以 `.js` 结尾的路径。编译后的 JS 由构建工具处理 Node.js ESM 路径。
+
+代码检查采用 [Oxlint 官方配置](https://oxc.rs/docs/guide/usage/linter/config.html) 的 `correctness`、`suspicious`、`perf` 规则组，并检查严格相等、优先使用 `const` 和类型导入。格式化使用 [Oxfmt](https://oxc.rs/docs/guide/usage/formatter/config.html)：两空格、单引号、无分号、无尾逗号、100 列、LF 换行。运行 `pnpm run lint:fix` 修复支持自动修复的规则，运行 `pnpm run format` 统一格式。
+
+每次推送 `main`，GitHub Actions 会按模板检出云崽和插件，安装锁定依赖，执行类型检查、lint、格式检查、构建与离线测试。全部通过后，将 `package.json.files` 中的运行文件推到 `lib` 分支，并上传 `music-card-sign-js` 产物。发布包移除开发依赖和开发脚本。工作流也支持手动运行。
 
 离线测试覆盖签名匹配、并发与资源释放、完整 JSON、精确缓存、ID 扩展、命令、配置迁移和本地 Express HTTP。测试使用模拟 QQ 消息；实际账号接入后可运行 `#音之测测` 检查音卡回传。
 
 配置字段：
 
-| 字段 | 默认值 | 用途 |
-|---|---|---|
-| `enabled` | `true` | 加载时是否启用 |
-| `botId` | `""` | 固定签名账号；留空仅在一个 icqq 账号在线时自动选择 |
-| `path` | `/music_card/card` | 宿主与额外回环服务的签名路由 |
-| `timeoutMs` | `15000` | 歌曲查询超时及提交后等待回传的超时，各阶段独立计时 |
-| `localPort` | `0` | `0` 复用宿主；非零额外启动回环地址服务 |
-| `apiKey` | `""` | 可选插件鉴权，使用 `Authorization: Bearer <key>` 或 `X-API-Key` |
-| `platforms` | `{}` | 平台名称到应用三元组的映射 |
+| 字段        | 默认值               | 用途                                                              |
+| ----------- | -------------------- | ----------------------------------------------------------------- |
+| `enabled`   | `true`               | 加载时是否启用                                                    |
+| `botId`     | `""`                 | 固定签名账号；留空仅在一个 icqq 账号在线时自动选择                |
+| `path`      | `/music_card/card`   | 宿主与额外回环服务的签名路由                                      |
+| `timeoutMs` | `15000`              | 歌曲查询超时及提交后等待回传的超时，各阶段独立计时                |
+| `localPort` | `0`                  | `0` 复用宿主；非零额外启动回环地址服务                            |
+| `apiKey`    | `""`                 | 可选插件鉴权，使用 `Authorization: Bearer <key>` 或 `X-API-Key`   |
+| `platforms` | `{}`                 | 平台名称到应用三元组的映射                                        |
 | `testMusic` | 《晴天》的自定义请求 | `音之测测` 默认歌曲，可替换为自己的有效歌曲字段，支持 `_platform` |
 
 ## API
 
-兼容 [LuckyLilliaBot 的 sign.ts](https://github.com/LuckyLilliaDev/LuckyLilliaBot/blob/main/src/common/utils/sign.ts)：直接 POST 配置的完整 URL，`Content-Type: application/json`。
+直接 POST 配置的完整 URL，`Content-Type: application/json`。
 
 自定义歌曲：
 
@@ -138,7 +145,7 @@ ID 模式：
 
 成功：HTTP 200，正文直接是捕获的完整 JSON，没有 `data` 包装，不把 JSON 再编码成带引号的字符串。保留回包未知字段、`extra`、`config` 和 JSON 文本编码。
 
-失败：HTTP 400 参数错误、401 插件鉴权失败、502 平台查询/提交/解析失败、503 没有在线账号或服务关闭、504 等待音卡超时。非 2xx 让 LuckyLillia `sign()` 正常抛错。额外回环服务接受配置的 `path`，同时兼容 `/`、`/sign`、`/api/music/sign`、`/music_card/card`；宿主只挂载配置的 `path`。
+失败：HTTP 400 参数错误、401 插件鉴权失败、502 平台查询/提交/解析失败、503 没有在线账号或服务关闭、504 等待音卡超时。调用方按 HTTP 状态处理失败。额外回环服务接受配置的 `path`，同时兼容 `/`、`/sign`、`/api/music/sign`、`/music_card/card`；宿主只挂载配置的 `path`。
 
 GET `<path>` 返回状态，GET `<path>/health` 可做健康检查；额外回环服务也支持 `/health` 和 `/healthz`。GET 带查询参数、表单请求和 `data/params` 一层包装作为兼容入口，推荐 JSON POST。
 
@@ -186,7 +193,7 @@ API 请求的 `self_id` 或配置的 `botId` 指定生成账号，Handler/命令
 
 ## 开发者扩展 ID 查询
 
-从 `lib/models/music-info.js` 导入 `registerMusicResolver(type, resolver)`。`type` 是请求中的歌曲来源名称，`resolver` 使用插件自己的 API 获取歌曲，并返回 `{ title, singer, url, audio, image }`。歌名、歌手、跳转地址和音频地址必需，封面可为空。TS 开发者可从 `lib/types/music.js` 导入 `MusicResolver` 等类型。
+从 `lib/models/music-info.js` 导入 `registerMusicResolver(type, resolver)`。`type` 是请求中的歌曲来源名称，`resolver` 使用插件自己的 API 获取歌曲，并返回 `{ title, singer, url, audio, image }`。歌名、歌手、跳转地址和音频地址必需，封面可为空。TS 开发者可从 `lib/types/music` 导入 `MusicResolver` 等类型。
 
 例如，将以下注册逻辑合并到开发者插件的 `init()` 中。`myMusicApi` 是该插件已有的 API 客户端，按实际返回字段映射歌曲信息：
 

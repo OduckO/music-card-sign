@@ -1,5 +1,6 @@
 import type { IncomingMessage } from 'node:http';
 import type { EventEmitter } from 'node:events';
+import type { CustomEvent } from 'trss-yunzai';
 export interface AppPlatform {
     appid: number;
     appname: string;
@@ -173,11 +174,4 @@ export interface HttpOptions {
 export interface HttpRequest extends IncomingMessage {
     body?: unknown;
 }
-export interface CommandEvent {
-    msg: string;
-    self_id?: string | number;
-    reply: (data: string | {
-        type: 'json';
-        data: string;
-    }) => Promise<unknown>;
-}
+export type CommandEvent = Pick<CustomEvent, 'msg' | 'reply'> & Partial<Pick<CustomEvent, 'self_id'>>;
