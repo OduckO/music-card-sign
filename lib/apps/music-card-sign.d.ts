@@ -3,6 +3,7 @@ export declare class MusicCardSign extends plugin<'message'> {
     constructor();
     init(): Promise<void>;
     onUnload(): Promise<void>;
+    help(e: CommandEvent): Promise<boolean>;
     status(e: CommandEvent): Promise<boolean>;
     toggle(e: CommandEvent): Promise<boolean>;
     setBot(e: CommandEvent): Promise<boolean>;
