@@ -47,6 +47,65 @@ test('云崽 init 挂载服务，主人音卡命令直接发送捕获 JSON，卸
   assert.equal(stack.length, 0, '后执行的关闭必须关闭并发启动的服务')
 })
 
+test('ICQQ 音卡直接使用 Bot SDK 发送到群聊或私聊，不经宿主 reply 加工', async (t) => {
+  const { instance, bot, cards, logs } = await fixture(t)
+  const sent: Array<{ kind: string; id: number; raw: string }> = []
+  Object.assign(bot, {
+    sendGroupMsg: async (id: number, message: { type: string; data: string }) => {
+      assert.equal(message.type, 'json')
+      sent.push({ kind: 'group', id, raw: message.data })
+      return { message_id: 'group:1' }
+    },
+    sendPrivateMsg: async (id: number, message: { type: string; data: string }) => {
+      assert.equal(message.type, 'json')
+      sent.push({ kind: 'private', id, raw: message.data })
+      return { message_id: 'private:1' }
+    }
+  })
+  const replies: string[] = []
+  const reply = async (message: FixtureReply) => {
+    assert.equal(typeof message, 'string', '宿主 reply 只应收到测试进度文字')
+    replies.push(String(message))
+    return true
+  }
+  await instance.probe({
+    self_id: bot.uin,
+    group_id: '345678901',
+    user_id: '234567890',
+    msg: '#音之测测',
+    reply
+  })
+  assert.deepEqual(sent, [{ kind: 'group', id: 345678901, raw: cards[0] }])
+  assert.match(replies.at(-1)!, /音之测测通过/)
+  await instance.probe({ self_id: bot.uin, user_id: '234567890', msg: '#音之测测', reply })
+  assert.deepEqual(sent.at(-1), { kind: 'private', id: 234567890, raw: cards[1] })
+  assert.ok(logs.some(({ message }) => /原生 SDK/.test(message)))
+})
+
+test('ICQQ SDK 发送失败报告原始错误，不再通过宿主 reply 重发卡片', async (t) => {
+  const { instance, bot, logs } = await fixture(t)
+  Object.assign(bot, {
+    sendPrivateMsg: async () => {
+      throw new Error('QQ JSON 风控拒绝')
+    }
+  })
+  const replies: FixtureReply[] = []
+  await instance.probe({
+    self_id: bot.uin,
+    user_id: '234567890',
+    msg: '#音之测测',
+    reply: async (message) => {
+      replies.push(message)
+      return true
+    }
+  })
+  assert.match(String(replies.at(-1)), /当前会话发送.*QQ JSON 风控拒绝/)
+  assert.ok(replies.every((message) => typeof message === 'string'))
+  assert.ok(
+    logs.some(({ level, message }) => level === 'error' && /QQ JSON 风控拒绝/.test(message))
+  )
+})
+
 test('TRSS 未提供 addCleanup 时仍能初始化 API 并响应音之测测', async (t) => {
   const { instance, stack, cards, logs } = await fixture(t, {}, { noAddCleanup: true })
   assert.equal(instance.cleanup.length, 0)

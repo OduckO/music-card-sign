@@ -20,6 +20,8 @@ export type FixtureReplyResult = boolean | void | { message_id?: number[]; error
 
 export interface FixtureCommandEvent<Message = FixtureReply> {
   self_id?: string | number
+  group_id?: string | number
+  user_id?: string | number
   bot?: { adapter?: { name: string } }
   msg: string
   reply: (message: Message) => Promise<FixtureReplyResult>

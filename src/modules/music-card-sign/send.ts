@@ -1,4 +1,4 @@
-import type { CommandEvent } from '@/types'
+import type { BotAdapter, CommandEvent } from '@/types'
 import { errorMessage } from '@/utils'
 
 export function adapterName(e: Pick<CommandEvent, 'bot' | 'self_id'>) {
@@ -22,7 +22,21 @@ export async function replyCard(e: CommandEvent, raw: string) {
       adapter === 'OneBotv11'
         ? segment.raw({ type: 'json', data: { data: raw } })
         : { type: 'json' as const, data: raw }
-    const result = await e.reply(message)
+    let result
+    if (adapter === 'ICQQ' && (e.group_id !== undefined || e.user_id !== undefined)) {
+      const sdk =
+        e.self_id === undefined ? undefined : (Bot[e.self_id] as BotAdapter | undefined)?.sdk
+      const targetId = Number(e.group_id ?? e.user_id)
+      if (!Number.isSafeInteger(targetId) || targetId <= 0)
+        throw new Error('当前 ICQQ 会话缺少有效的群号或 QQ 号')
+      const send = e.group_id !== undefined ? sdk?.sendGroupMsg : sdk?.sendPrivateMsg
+      if (!sdk || typeof send !== 'function')
+        throw new Error('当前 ICQQ 会话没有可用的原生 SDK 发送方法')
+      logger.info(`${context} 使用原生 SDK，${e.group_id !== undefined ? '群' : 'QQ'}=${targetId}`)
+      result = await send.call(sdk, targetId, { type: 'json', data: raw })
+    } else {
+      result = await e.reply(message)
+    }
     const errors = result?.error
     if (!result || (Array.isArray(errors) ? errors.length : errors)) {
       const detail = Array.isArray(errors)

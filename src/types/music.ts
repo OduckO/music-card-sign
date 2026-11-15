@@ -102,6 +102,14 @@ export interface IcqqBot extends EventEmitter {
   pickFriend: (id: number) => {
     share: (content: ShareContent, platform: AppPlatform) => Promise<unknown>
   }
+  sendPrivateMsg?: (
+    id: number,
+    message: { type: 'json'; data: string }
+  ) => Promise<{ message_id: string; error?: unknown }>
+  sendGroupMsg?: (
+    id: number,
+    message: { type: 'json'; data: string }
+  ) => Promise<{ message_id: string; error?: unknown }>
 }
 
 export interface BotAdapter {
@@ -198,5 +206,7 @@ export interface HttpRequest extends IncomingMessage {
 
 export type CommandEvent = Pick<CustomEvent, 'msg' | 'reply'> &
   Partial<Pick<CustomEvent, 'self_id'>> & {
+    group_id?: string | number
+    user_id?: string | number
     bot?: { adapter?: { name: string } }
   }

@@ -92,7 +92,7 @@ await replyCard(e, raw)
 
 分享目标使用配置的 `targetId`，为空时使用选中的签名账号。捕获要求发送者为该签名账号、接收者为分享目标，并匹配歌曲与平台字段。联系人无需回复；设置目标会重建服务并取消旧等待。
 
-`replyCard` 对 ICQQ 使用原生 JSON 段，对 OneBot v11 使用 `segment.raw({ type: 'json', data: { data: raw } })`。两种方式都保留已签出的原文和平台字段；发送失败时抛出含协议端详情的错误。其他会话适配器会明确提示未支持。
+`replyCard` 对 ICQQ 使用 `Bot[e.self_id].sdk.sendGroupMsg()` 或 `sendPrivateMsg()` 直接发送原生 JSON 段，按事件的 `group_id` / `user_id` 选择当前会话，绕过宿主的 Markdown 消息加工。OneBot v11 使用 `e.reply(segment.raw({ type: 'json', data: { data: raw } }))`。两种方式都保留已签出的原文和平台字段；发送失败时抛出含协议端详情的错误。其他会话适配器会明确提示未支持。
 
 ## 扩展 ID 查询
 
