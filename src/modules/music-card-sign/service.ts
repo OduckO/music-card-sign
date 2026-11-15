@@ -33,6 +33,9 @@ function getBots() {
 
 async function start() {
   if (service || !settings.enabled) return
+  logger.info(
+    `[音卡签名] 正在启动，签名 Bot=${settings.botId || '自动'}，回传超时=${settings.timeoutMs} ms`
+  )
   if (!Bot.express?.use) throw new Error('音卡签名插件需要云崽 Bot.express')
   const signer = new MusicSigner({
     getBots,
@@ -40,16 +43,24 @@ async function start() {
     timeoutMs: settings.timeoutMs,
     customPlatforms: settings.platforms,
     cache: new MusicCardCache(path.join(PluginPath, 'data/music-card-cache')),
-    onCacheError: (error) => logger.warn(`[音卡缓存] ${errorMessage(error)}`)
+    onCacheError: (error) => logger.warn(`[音卡缓存] ${errorMessage(error)}`),
+    onLog: (level, message) => logger[level](`[音卡签名] ${message}`)
   })
   try {
-    const unmount = await mountService(Bot.express as ExpressHost, signer, settings)
+    const unmount = await mountService(Bot.express as ExpressHost, signer, {
+      ...settings,
+      onLog: (level, message) => logger[level](`[音卡 HTTP] ${message}`)
+    })
     service = { signer, unmount }
     logger.mark(
       `[音卡签名] 已挂载 ${settings.path}` +
-        (settings.localPort ? `，本地端口 ${settings.localPort}` : '')
+        (settings.localPort
+          ? `，本地端口 ${settings.localPort}`
+          : '，使用云崽 HTTP 端口（受宿主鉴权控制）') +
+        `，在线 icqq=${signer.status().bots.join('、') || '无'}`
     )
   } catch (error) {
+    logger.error(`[音卡签名] 启动失败：${errorMessage(error)}`, error)
     await signer.close()
     throw error
   }
@@ -61,6 +72,7 @@ async function stop() {
   if (!current) return
   await current.signer.close()
   await current.unmount()
+  logger.info('[音卡签名] 服务已关闭')
 }
 
 export function startService() {
@@ -137,10 +149,18 @@ export async function signCard(
   reject: (message: string) => never,
   options?: SignOptions
 ): Promise<string> {
+  logger.info('[音卡签名] Handler 收到请求')
   await lifecycle
   if (!service) return reject('音卡签名服务未开启')
   const card = await service.signer.sign(
-    { ...data, self_id: data.self_id || settings.botId || e.self_id },
+    {
+      ...data,
+      self_id:
+        data.self_id ||
+        data.bot_id ||
+        settings.botId ||
+        (e.self_id !== undefined && Bot[e.self_id]?.adapter?.name === 'ICQQ' ? e.self_id : '')
+    },
     options
   )
   return cardText(card)

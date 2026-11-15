@@ -163,6 +163,7 @@ export interface SignerOptions {
   resolveMusic?: ResolveMusic
   cache?: CardCache
   onCacheError?: (error: unknown) => void
+  onLog?: (level: 'info' | 'warn' | 'error', message: string) => void
 }
 
 export interface PendingRequest {
@@ -187,6 +188,7 @@ export interface HttpOptions {
   path?: string
   mounted?: boolean
   localPort?: number
+  onLog?: SignerOptions['onLog']
 }
 
 export interface HttpRequest extends IncomingMessage {
@@ -194,4 +196,6 @@ export interface HttpRequest extends IncomingMessage {
 }
 
 export type CommandEvent = Pick<CustomEvent, 'msg' | 'reply'> &
-  Partial<Pick<CustomEvent, 'self_id'>>
+  Partial<Pick<CustomEvent, 'self_id'>> & {
+    bot?: { adapter?: { name: string } }
+  }

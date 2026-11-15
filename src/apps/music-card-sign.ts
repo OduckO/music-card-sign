@@ -1,6 +1,7 @@
 import type { CommandEvent, MusicRequest, SignOptions } from '@/types'
 import { startService, stopService, signCard } from '@/modules/music-card-sign/service'
 import { status, toggle, setBot, forwardCard, probe } from '@/modules/music-card-sign/commands'
+import { errorMessage } from '@/utils'
 
 export class MusicCardSign extends plugin<'message'> {
   constructor() {
@@ -26,8 +27,19 @@ export class MusicCardSign extends plugin<'message'> {
   }
 
   async init() {
-    this.addCleanup(stopService, startService)
-    await startService()
+    logger.info('[音卡签名] 应用 init 开始')
+    try {
+      if (typeof this.addCleanup === 'function') this.addCleanup(stopService, startService)
+      await startService()
+      logger.info('[音卡签名] 应用 init 完成，已注册音之测测')
+    } catch (error) {
+      logger.error(`[音卡签名] 应用 init 失败：${errorMessage(error)}`, error)
+      throw error
+    }
+  }
+
+  onUnload() {
+    return stopService()
   }
 
   status(e: CommandEvent) {

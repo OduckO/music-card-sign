@@ -46,6 +46,13 @@ class GuobaResult<T> implements Result<T> {
 
 const context = { Result: GuobaResult }
 
+test('锅巴可先于应用加载，读取配置不依赖全局插件类且不会提前启动服务', async (t) => {
+  const { directory } = await fixture(t, {}, { guobaFirst: true })
+  const module = await import(pathToFileURL(join(directory, 'guoba.support.js')).href + '?reload')
+  assert.equal(typeof module.supportGuoba, 'function')
+  assert.equal(module.supportGuoba().configInfo.getConfigData().enabled, true)
+})
+
 async function guobaFixture(t: TestContext) {
   const host = await fixture(t)
   const module = (await import(pathToFileURL(join(host.directory, 'guoba.support.js')).href)) as {
@@ -109,8 +116,8 @@ test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号及自定
   assert.equal(yaml.timeoutMs, 500)
   assert.deepEqual(yaml.platforms, platforms)
   assert.deepEqual(yaml.testMusic, testMusic)
-  assert.equal(stack.length, 1)
-  assert.equal(stack[0].path, '/guoba/music')
+  assert.equal(stack.length, 3)
+  assert.equal(stack[1].path, '/guoba/music')
   const response: FixtureResponse = {
     statusCode: 0,
     body: '',
@@ -121,9 +128,9 @@ test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号及自定
       this.body = body
     }
   }
-  await stack[0].handle({ url: '/', method: 'POST', headers: {}, body: testMusic }, response)
+  await stack[1].handle({ url: '/', method: 'POST', headers: {}, body: testMusic }, response)
   assert.equal(response.statusCode, 401)
-  await stack[0].handle(
+  await stack[1].handle(
     {
       url: '/',
       method: 'POST',
@@ -142,7 +149,7 @@ test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号及自定
 test('锅巴拒绝坏字段，校验失败保持原配置和已挂载路由', async (t) => {
   const { guoba, stack, configPath } = await guobaFixture(t)
   const original = await readFile(configPath, 'utf8')
-  const handler = stack[0].handle
+  const handler = stack[1].handle
   for (const data of [
     { testMusic: '{' },
     { testMusic: '[]' },
@@ -159,7 +166,7 @@ test('锅巴拒绝坏字段，校验失败保持原配置和已挂载路由', as
     assert.equal(result.isOk, false)
     assert.ok(result.message)
     assert.equal(await readFile(configPath, 'utf8'), original)
-    assert.equal(stack[0].handle, handler)
+    assert.equal(stack[1].handle, handler)
   }
 })
 
@@ -178,8 +185,8 @@ test('锅巴设置被占用的端口时恢复旧配置和可用服务', async (t
   assert.equal(result.isOk, false)
   assert.match(result.message, /EADDRINUSE/)
   assert.equal(await readFile(configPath, 'utf8'), original)
-  assert.equal(stack.length, 1)
-  assert.equal(stack[0].path, '/music_card/card')
+  assert.equal(stack.length, 3)
+  assert.equal(stack[1].path, '/music_card/card')
   assert.equal(guoba.configInfo.getConfigData().localPort, 0)
   await instance.probe(command('#音之测测'))
 })
@@ -202,11 +209,11 @@ test('锅巴保存失败恢复内存配置与服务，开关多次保存不重�
   assert.equal(failed.isOk, false)
   assert.equal(await readFile(configPath, 'utf8'), original)
   assert.equal(guoba.configInfo.getConfigData().botId, '')
-  assert.equal(stack.length, 1)
-  assert.equal(stack[0].path, '/music_card/card')
+  assert.equal(stack.length, 3)
+  assert.equal(stack[1].path, '/music_card/card')
   assert.equal((await guoba.configInfo.setConfigData({ enabled: false }, context)).isOk, true)
   assert.equal(stack.length, 0)
   assert.equal((await guoba.configInfo.setConfigData({ enabled: true }, context)).isOk, true)
   assert.equal((await guoba.configInfo.setConfigData({ enabled: true }, context)).isOk, true)
-  assert.equal(stack.length, 1)
+  assert.equal(stack.length, 3)
 })

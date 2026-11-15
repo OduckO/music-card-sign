@@ -8,13 +8,7 @@ import {
   setSigningBot,
   signCard
 } from './service'
-
-async function replyCard(e: Pick<CommandEvent, 'reply'>, raw: string) {
-  const result = await e.reply({ type: 'json', data: raw })
-  if (!result || (Array.isArray(result.error) ? result.error.length : result.error)) {
-    throw new Error('当前会话音卡发送失败，请检查协议端 JSON 支持')
-  }
-}
+import { adapterName, replyCard } from './send'
 
 export async function status(e: CommandEvent) {
   const serviceStatus = await getServiceStatus()
@@ -57,6 +51,7 @@ export async function setBot(e: CommandEvent) {
 }
 
 export async function forwardCard(e: CommandEvent) {
+  logger.info(`[音卡指令] 签名音卡 Bot=${e.self_id ?? '未知'} 适配器=${adapterName(e)}`)
   try {
     const data = JSON.parse(e.msg.replace(/^#签名音卡\s+/, ''))
     const raw = await signCard(e, data, (message) => {
@@ -64,6 +59,7 @@ export async function forwardCard(e: CommandEvent) {
     })
     await replyCard(e, raw)
   } catch (error) {
+    logger.error(`[音卡指令] 签名音卡失败：${errorMessage(error)}`, error)
     await e.reply(`音卡签名失败：${errorMessage(error)}`)
   }
   return true
@@ -72,7 +68,9 @@ export async function forwardCard(e: CommandEvent) {
 export async function probe(e: CommandEvent) {
   const started = performance.now()
   let phase = '生成/回传'
+  logger.info(`[音卡指令] 音之测测开始 Bot=${e.self_id ?? '未知'} 适配器=${adapterName(e)}`)
   try {
+    await e.reply('音之测测开始，正在检查 icqq 签名与 JSON 回传，请稍候。')
     const defaultMusic = await getTestMusic()
     const supplied = e.msg.replace(/^#?音之测测/, '').trim()
     const data = supplied ? JSON.parse(supplied) : defaultMusic
@@ -87,6 +85,7 @@ export async function probe(e: CommandEvent) {
     phase = '当前会话发送'
     await replyCard(e, raw)
   } catch (error) {
+    logger.error(`[音卡指令] 音之测测失败（${phase}）：${errorMessage(error)}`, error)
     await e.reply(
       `音之测测失败（${phase}，${Math.round(performance.now() - started)} ms）：${errorMessage(error)}`
     )

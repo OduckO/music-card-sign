@@ -12,11 +12,15 @@ import YAML from 'yaml'
 
 const projectRoot = process.cwd()
 
-export type FixtureReply = string | { type: 'json'; data: string }
+export type FixtureReply =
+  | string
+  | { type: 'json'; data: string }
+  | { type: 'raw'; data: { type: 'json'; data: { data: string } } }
 export type FixtureReplyResult = boolean | void | { message_id?: number[]; error?: string[] }
 
 export interface FixtureCommandEvent<Message = FixtureReply> {
   self_id?: string | number
+  bot?: { adapter?: { name: string } }
   msg: string
   reply: (message: Message) => Promise<FixtureReplyResult>
 }
@@ -29,6 +33,7 @@ export interface FixtureCleanup {
 export interface FixturePlugin extends Pick<MusicCardSign, 'init' | 'signCard'> {
   rule: Array<PluginRule & { reg: string | RegExp }>
   cleanup: FixtureCleanup[]
+  onUnload: () => Promise<void>
   forwardCard: (event: FixtureCommandEvent) => Promise<boolean>
   probe: (event: FixtureCommandEvent) => Promise<boolean>
   toggle: (event: FixtureCommandEvent<string>) => Promise<boolean>
@@ -56,6 +61,7 @@ export interface PluginFixture {
   bot: IcqqBot
   stack: FixtureRouterLayer[]
   cards: string[]
+  logs: Array<{ level: string; message: string }>
   directory: string
   hostRoot: string
 }
@@ -68,7 +74,12 @@ export const command = (msg: string): FixtureCommandEvent => ({
 export async function fixture(
   t: TestContext,
   settings: Partial<Config> = {},
-  persisted: { legacy?: Partial<Config>; yaml?: Partial<Config> } = {}
+  persisted: {
+    legacy?: Partial<Config>
+    yaml?: Partial<Config>
+    guobaFirst?: boolean
+    noAddCleanup?: boolean
+  } = {}
 ): Promise<PluginFixture> {
   const hostRoot = await mkdtemp(join(tmpdir(), 'music-card-plugin-'))
   const directory = join(hostRoot, 'plugins/music-card-sign')
@@ -94,11 +105,6 @@ export default async function makeConfig(name, config) {
 `
   )
   process.chdir(hostRoot)
-  t.after(() => {
-    process.chdir(previousCwd)
-    assert.ok(resolvePath(hostRoot).startsWith(resolvePath(tmpdir()) + sep))
-    return rm(hostRoot, { recursive: true, force: true })
-  })
   for (const file of ['index.js', 'guoba.support.js', 'package.json', 'lib', 'resources'])
     await cp(join(projectRoot, file), join(directory, file), { recursive: true })
   const defaultsPath = join(directory, 'resources/config/config.yaml')
@@ -113,9 +119,21 @@ export default async function makeConfig(name, config) {
   const old = {
     plugin: (globalThis as { plugin?: typeof plugin }).plugin,
     Bot: globalThis.Bot,
-    logger: globalThis.logger
+    logger: globalThis.logger,
+    segment: globalThis.segment
   }
-  t.after(() => Object.assign(globalThis, old))
+  const loaded: { instance?: FixturePlugin; stopService?: () => Promise<void> } = {}
+  t.after(async () => {
+    try {
+      for (const cleanup of loaded.instance?.cleanup ?? []) await cleanup.dispose()
+      await loaded.stopService?.()
+    } finally {
+      Object.assign(globalThis, old)
+      process.chdir(previousCwd)
+      assert.ok(resolvePath(hostRoot).startsWith(resolvePath(tmpdir()) + sep))
+      await rm(hostRoot, { recursive: true, force: true })
+    }
+  })
   Object.assign(globalThis, {
     plugin: class {
       cleanup: FixtureCleanup[] = []
@@ -128,6 +146,7 @@ export default async function makeConfig(name, config) {
       }
     }
   })
+  if (persisted.noAddCleanup) Reflect.deleteProperty(plugin.prototype, 'addCleanup')
   const cards: string[] = []
   const bot: IcqqBot = Object.assign(new EventEmitter(), {
     uin: 123456789,
@@ -161,7 +180,10 @@ export default async function makeConfig(name, config) {
     })
   })
   const stack: FixtureRouterLayer[] = []
+  const logs: PluginFixture['logs'] = []
+  const segmentStub: Pick<typeof segment, 'raw'> = { raw: (data) => ({ type: 'raw', data }) }
   Object.assign(globalThis, {
+    segment: segmentStub,
     Bot: {
       uin: [bot.uin],
       [bot.uin]: { adapter: { name: 'ICQQ' }, sdk: bot },
@@ -173,15 +195,32 @@ export default async function makeConfig(name, config) {
         }
       }
     },
-    logger: { mark() {}, info() {}, error() {}, warn() {} }
+    logger: Object.fromEntries(
+      ['mark', 'info', 'error', 'warn'].map((level) => [
+        level,
+        (message: string) => logs.push({ level, message })
+      ])
+    )
   })
+  if (persisted.guobaFirst) {
+    const pluginClass = (globalThis as { plugin?: typeof plugin }).plugin
+    Object.assign(globalThis, { plugin: undefined })
+    try {
+      const guoba = await import(pathToFileURL(join(directory, 'guoba.support.js')).href)
+      assert.equal(guoba.supportGuoba().pluginInfo.name, 'music-card-sign')
+      assert.equal(stack.length, 0, '锅巴读取配置不应启动服务')
+    } finally {
+      Object.assign(globalThis, { plugin: pluginClass })
+    }
+  }
   const { apps } = (await import(pathToFileURL(join(directory, 'index.js')).href)) as {
     apps: { MusicCardSign: new () => FixturePlugin }
   }
   const instance = new apps.MusicCardSign()
+  loaded.instance = instance
+  loaded.stopService = (
+    await import(pathToFileURL(join(directory, 'lib/modules/music-card-sign/service.js')).href)
+  ).stopService
   await instance.init()
-  t.after(async () => {
-    for (const cleanup of instance.cleanup) await cleanup.dispose()
-  })
-  return { instance, bot, stack, cards, directory, hostRoot }
+  return { instance, bot, stack, cards, logs, directory, hostRoot }
 }

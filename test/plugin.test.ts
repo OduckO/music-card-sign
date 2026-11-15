@@ -30,7 +30,7 @@ test('云崽 init 挂载服务，主人音卡命令直接发送捕获 JSON，卸
   }
   assert.equal(await instance.forwardCard(e), true)
   assert.deepEqual(replies, [{ type: 'json', data: cards[0] }])
-  assert.equal(stack.length, 1)
+  assert.equal(stack.length, 3)
   for (const cleanup of instance.cleanup) await cleanup.dispose()
   assert.equal(stack.length, 0)
   assert.equal(bot.listenerCount('sync.message'), 0)
@@ -38,13 +38,38 @@ test('云崽 init 挂载服务，主人音卡命令直接发送捕获 JSON，卸
     instance.toggle(command('#开启音乐签名服务')),
     instance.toggle(command('#开启音乐签名服务'))
   ])
-  assert.equal(stack.length, 1, '并发开启只能注册一条路由')
+  assert.equal(stack.length, 3, '并发开启只能注册一条路由')
   await instance.toggle(command('#关闭音乐签名服务'))
   await Promise.all([
     instance.toggle(command('#开启音乐签名服务')),
     instance.toggle(command('#关闭音乐签名服务'))
   ])
   assert.equal(stack.length, 0, '后执行的关闭必须关闭并发启动的服务')
+})
+
+test('TRSS 未提供 addCleanup 时仍能初始化 API 并响应音之测测', async (t) => {
+  const { instance, stack, cards, logs } = await fixture(t, {}, { noAddCleanup: true })
+  assert.equal(instance.cleanup.length, 0)
+  assert.equal(stack.length, 3)
+  await instance.probe(command('#音之测测'))
+  assert.equal(cards.length, 1)
+  assert.ok(logs.some(({ message }) => message.includes('init 完成')))
+  await instance.toggle(command('#关闭音乐签名服务'))
+  assert.equal(stack.length, 0)
+})
+
+test('JiuLi onUnload 释放等待中的回传、监听器和 HTTP 路由', async (t) => {
+  const { instance, bot, stack, logs } = await fixture(t, {}, { noAddCleanup: true })
+  bot.pickFriend = () => ({ share: async () => {} })
+  const probe = instance.probe(command('#音之测测'))
+  while (!logs.some(({ message }) => message.includes('提交分享')))
+    await new Promise<void>((resolve) => setImmediate(resolve))
+  assert.equal(bot.listenerCount('sync.message'), 1)
+  await instance.onUnload()
+  await probe
+  assert.equal(stack.length, 0)
+  assert.equal(bot.listenerCount('sync.message'), 0)
+  assert.equal(bot.listenerCount('message.private'), 0)
 })
 
 test('音之测测使用默认歌曲，发送完整回包并报告耗时，命令要求主人权限', async (t) => {
@@ -68,9 +93,11 @@ test('音之测测使用默认歌曲，发送完整回包并报告耗时，命�
   )
   assert.equal(JSON.parse(cards[0]).meta.music.title, '晴天')
   assert.equal(JSON.parse(cards[0]).meta.music.appid, 100497308)
-  assert.deepEqual(replies[0], { type: 'json', data: cards[0] })
-  assert.ok(typeof replies[1] === 'string')
-  assert.match(replies[1], /音之测测通过.*\d+ ms/)
+  assert.ok(typeof replies[0] === 'string')
+  assert.match(replies[0], /音之测测开始/)
+  assert.deepEqual(replies[1], { type: 'json', data: cards[0] })
+  assert.ok(typeof replies[2] === 'string')
+  assert.match(replies[2], /音之测测通过.*\d+ ms/)
   const userConfig: Config = YAML.parse(
     await readFile(join(directory, '../../config/music-card-sign.yaml'), 'utf8')
   )
@@ -165,11 +192,98 @@ test('音之测测区分当前会话 JSON 发送失败，不误报通过', async
       return typeof data === 'object' ? { error: ['JSON unsupported'] } : true
     }
   })
-  assert.ok(typeof replies[0] === 'object')
-  assert.equal(replies[0].type, 'json')
-  assert.ok(typeof replies[1] === 'string')
-  assert.match(replies[1], /音之测测失败.*当前会话发送.*发送失败/)
+  assert.ok(typeof replies[1] === 'object')
+  assert.equal(replies[1].type, 'json')
+  assert.ok(typeof replies[2] === 'string')
+  assert.match(replies[2], /音之测测失败.*当前会话发送.*发送失败/)
   assert.ok(!replies.some((data) => typeof data === 'string' && data.includes('通过')))
+})
+
+test('OneBot v11 会话自动选择 icqq 签名，发送符合协议的完整 JSON 而非二次序列化', async (t) => {
+  const { instance, bot, cards, logs } = await fixture(t)
+  const replies: FixtureReply[] = []
+  await instance.probe({
+    self_id: 987654321,
+    bot: { adapter: { name: 'OneBotv11' } },
+    msg: '#音之测测',
+    reply: async (message) => {
+      replies.push(message)
+      return { message_id: [1], error: [] }
+    }
+  })
+  assert.equal(cards.length, 1, '会话账号不能覆盖自动选择的 icqq 签名账号')
+  assert.ok(typeof replies[0] === 'string')
+  assert.match(replies[0], /音之测测开始/)
+  const expected = { type: 'json', data: { data: cards[0] } }
+  assert.deepEqual(replies[1], { type: 'raw', data: expected })
+  // 用户补丁会在 data.data 已存在时保留原文；OneBot 接口收到的必须是对象。
+  assert.equal(JSON.parse(expected.data.data).meta.music.title, '晴天')
+  assert.ok(logs.some(({ message }) => message.includes('OneBotv11')))
+  assert.ok(logs.some(({ message }) => message.includes(`Bot=${bot.uin}`)))
+  assert.ok(logs.some(({ message }) => message.includes('提交分享')))
+  assert.ok(logs.some(({ message }) => message.includes('回传匹配')))
+  assert.ok(logs.some(({ message }) => message.includes('发送成功')))
+})
+
+test('音之测测在等待回传前响应，并记录超时和释放等待项', async (t) => {
+  const { instance, bot, logs } = await fixture(t, { timeoutMs: 25 })
+  const replies: FixtureReply[] = []
+  bot.pickFriend = () => ({
+    share: async () => {
+      assert.ok(typeof replies[0] === 'string')
+      assert.match(replies[0], /音之测测开始/)
+    }
+  })
+  await instance.probe({
+    self_id: bot.uin,
+    msg: '音之测测',
+    reply: async (message) => {
+      replies.push(message)
+      return true
+    }
+  })
+  assert.ok(logs.some(({ level, message }) => level === 'error' && message.includes('超时')))
+  assert.equal(bot.listenerCount('sync.message'), 0)
+  const reply = replies.at(-1)
+  assert.ok(typeof reply === 'string')
+  assert.match(reply, /生成\/回传.*超时/)
+})
+
+test('发送失败记录协议端原始错误，失败回复包含详情', async (t) => {
+  const { instance, bot, logs } = await fixture(t)
+  const replies: FixtureReply[] = []
+  await instance.probe({
+    self_id: bot.uin,
+    bot: { adapter: { name: 'OneBotv11' } },
+    msg: '#音之测测',
+    reply: async (message) => {
+      replies.push(message)
+      return typeof message === 'object' ? { error: ['retcode=100: JSON unsupported'] } : true
+    }
+  })
+  const reply = replies.at(-1)
+  assert.ok(typeof reply === 'string')
+  assert.match(reply, /当前会话发送.*retcode=100: JSON unsupported/)
+  assert.ok(logs.some(({ level, message }) => level === 'error' && message.includes('retcode=100')))
+  assert.ok(!logs.some(({ message }) => message.includes('发送成功')))
+})
+
+test('未支持的会话适配器明确报告，不能假报音卡发送成功', async (t) => {
+  const { instance, bot } = await fixture(t)
+  const replies: FixtureReply[] = []
+  await instance.probe({
+    self_id: bot.uin,
+    bot: { adapter: { name: 'QQBot' } },
+    msg: '#音之测测',
+    reply: async (message) => {
+      replies.push(message)
+      return true
+    }
+  })
+  const reply = replies.at(-1)
+  assert.ok(typeof reply === 'string')
+  assert.match(reply, /当前会话发送.*QQBot/)
+  assert.equal(replies.filter((message) => typeof message === 'object').length, 0)
 })
 
 const cachedInput: MusicRequest = {
@@ -388,7 +502,7 @@ test('主人设置签名 Bot 后配置持久保存，HTTP 和 Handler 立即使�
       this.body = body
     }
   }
-  await stack[0].handle({ url: '/', method: 'POST', headers: {}, body: cachedInput }, res)
+  await stack[1].handle({ url: '/', method: 'POST', headers: {}, body: cachedInput }, res)
   assert.equal(res.statusCode, 200)
   assert.equal(JSON.parse(res.body).meta.music.title, cachedInput.title)
   await instance.signCard({ self_id: 987654321 }, cachedInput, rejectSign)

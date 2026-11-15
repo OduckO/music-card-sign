@@ -259,6 +259,8 @@ export class MusicSigner {
   readonly resolveMusic?: ResolveMusic
   readonly cache?: CardCache
   readonly onCacheError?: (error: unknown) => void
+  readonly onLog?: SignerOptions['onLog']
+  sequence = 0
   readonly pending = new Map<string, PendingRequest>()
   readonly inflight = new Map<string, Promise<MusicCard>>()
   readonly submissions = new Map<string, Promise<MusicCard>>()
@@ -271,7 +273,8 @@ export class MusicSigner {
     customPlatforms = {},
     resolveMusic,
     cache,
-    onCacheError
+    onCacheError,
+    onLog
   }: SignerOptions) {
     if (typeof getBots !== 'function') throw new TypeError('getBots 必须是函数')
     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new TypeError('timeoutMs 必须大于 0')
@@ -282,6 +285,7 @@ export class MusicSigner {
     this.resolveMusic = resolveMusic
     this.cache = cache
     this.onCacheError = onCacheError
+    this.onLog = onLog
   }
 
   bots() {
@@ -295,6 +299,8 @@ export class MusicSigner {
   }
 
   async sign(input: unknown, { forceFresh = false }: SignOptions = {}): Promise<MusicCard> {
+    const trace = `请求=${++this.sequence}`
+    this.onLog?.('info', `${trace} 收到签名请求，强制重新签名=${forceFresh}`)
     if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
     const data: MusicRequest = JSON.parse(exactJSON(unwrap(input)))
     const bots = this.bots()
@@ -302,15 +308,26 @@ export class MusicSigner {
     if (!id && bots.length > 1)
       throw new MusicSignError('有多个在线 icqq 账号，请指定 self_id 或配置 botId')
     const bot = id ? bots.find((candidate) => String(candidate.uin) === id) : bots[0]
-    if (!bot) throw new MusicSignError('未找到指定的在线 icqq 账号，请先接入 ICQQ-Plugin', 503)
+    if (!bot) {
+      this.onLog?.(
+        'error',
+        `${trace} 选择账号失败，指定 Bot=${id || '自动'}，在线 icqq=${bots.map((candidate) => candidate.uin).join('、') || '无'}`
+      )
+      throw new MusicSignError('未找到指定的在线 icqq 账号，请先接入 ICQQ-Plugin', 503)
+    }
+    const context = `${trace} Bot=${bot.uin}`
+    this.onLog?.('info', `${context} 已选择签名账号`)
     const platform = selectPlatform(data, this.customPlatforms)
     const identity = exactJSON([String(bot.uin), platform, data])
     const key = (forceFresh ? 'fresh:' : 'cached:') + identity
     if (this.inflight.has(key)) return this.inflight.get(key)!
-    const operation = this.signRequest(bot, data, platform, identity, key, forceFresh)
+    const operation = this.signRequest(bot, data, platform, identity, key, forceFresh, context)
     this.inflight.set(key, operation)
     try {
       return await operation
+    } catch (error) {
+      this.onLog?.('error', `${context} 签名失败：${errorMessage(error)}`)
+      throw error
     } finally {
       if (this.inflight.get(key) === operation) this.inflight.delete(key)
     }
@@ -322,7 +339,8 @@ export class MusicSigner {
     platform: AppPlatform,
     identity: string,
     key: string,
-    forceFresh: boolean
+    forceFresh: boolean,
+    context: string
   ): Promise<MusicCard> {
     if (this.cache && !forceFresh) {
       try {
@@ -337,6 +355,7 @@ export class MusicSigner {
             throw new Error('音卡缓存正文与保存的请求不匹配')
           }
           if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
+          this.onLog?.('info', `${context} 精确缓存命中，复用完整 JSON`)
           return card
         }
       } catch (error) {
@@ -346,6 +365,7 @@ export class MusicSigner {
     }
     if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
     if (data.id !== undefined && !(data.title ?? data.song ?? data.name)) {
+      this.onLog?.('info', `${context} 查询歌曲信息，来源=${data.type || 'qq'} ID=${data.id}`)
       const resolve = this.resolveMusic ?? (await import('./music-info')).resolveMusicInfo
       const info = await resolve(data.type || 'qq', data.id, { timeoutMs: this.timeoutMs })
       data = { ...info, ...data }
@@ -353,10 +373,11 @@ export class MusicSigner {
     // 使用开始时的平台配置，避免异步歌曲查询期间配置改变。
     const request = normalizeRequest({ ...data, _platform: platform })
     if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
-    const card = await this.submit(bot, request, key)
+    const card = await this.submit(bot, request, key, context)
     if (this.cache) {
       try {
         await this.cache.set(identity, cardText(card), request)
+        this.onLog?.('info', `${context} 完整 JSON 已保存缓存`)
       } catch (error) {
         this.onCacheError?.(error)
       }
@@ -364,7 +385,12 @@ export class MusicSigner {
     return card
   }
 
-  async submit(bot: IcqqBot, request: NormalizedRequest, key: string): Promise<MusicCard> {
+  async submit(
+    bot: IcqqBot,
+    request: NormalizedRequest,
+    key: string,
+    context: string
+  ): Promise<MusicCard> {
     // 回包缺少 appname/appsign，同 appid 和歌曲的提交需按顺序完成。
     const content = request.content
     const group = exactJSON([
@@ -381,7 +407,7 @@ export class MusicSigner {
       .catch(() => {})
       .then(() => {
         if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
-        return this.send(bot, request, key)
+        return this.send(bot, request, key, context)
       })
     this.submissions.set(group, operation)
     try {
@@ -391,7 +417,8 @@ export class MusicSigner {
     }
   }
 
-  send(bot: IcqqBot, request: NormalizedRequest, key: string): Promise<MusicCard> {
+  send(bot: IcqqBot, request: NormalizedRequest, key: string, context: string): Promise<MusicCard> {
+    const started = performance.now()
     const subscription = this.listen(bot)
     const { promise, resolve, reject } = Promise.withResolvers<MusicCard>()
     const item: PendingRequest = {
@@ -403,8 +430,19 @@ export class MusicSigner {
         this.pending.delete(key)
         subscription.items.delete(item)
         if (!subscription.items.size) this.unlisten(bot)
-        if (error) reject(error)
-        else resolve(card!)
+        if (error) {
+          this.onLog?.(
+            'error',
+            `${context} 回传失败（${Math.round(performance.now() - started)} ms）：${error.message}`
+          )
+          reject(error)
+        } else {
+          this.onLog?.(
+            'info',
+            `${context} 回传匹配，收到完整 JSON，${Math.round(performance.now() - started)} ms`
+          )
+          resolve(card!)
+        }
       }
     }
     item.timer = setTimeout(
@@ -413,12 +451,20 @@ export class MusicSigner {
     )
     this.pending.set(key, item)
     subscription.items.add(item)
+    this.onLog?.(
+      'info',
+      `${context} 监听 message.private / sync.message，等待本人 JSON ${this.timeoutMs} ms`
+    )
     Promise.resolve()
       .then(() => {
         if (this.closed || this.pending.get(key) !== item) return
         const friend = bot.pickFriend(bot.uin)
         if (typeof friend?.share !== 'function')
           throw new MusicSignError('该账号没有原生 icqq share 能力', 503)
+        this.onLog?.(
+          'info',
+          `${context} 提交分享，appid=${request.platform.appid}，歌曲=${request.content.title}`
+        )
         return friend.share(request.content, request.platform)
       })
       .catch((error) =>
@@ -445,9 +491,18 @@ export class MusicSigner {
         const from = event.from_id ?? event.user_id ?? event.sender?.user_id
         if (String(from) !== String(bot.uin) || String(event.to_id) !== String(bot.uin)) return
         for (const card of receivedCards(event)) {
+          this.onLog?.(
+            'info',
+            `Bot=${bot.uin} 收到本人音卡 JSON，appid=${card.meta.music.appid ?? '未知'}，歌曲=${card.meta.music.title ?? '未知'}`
+          )
           for (const item of subscription.items) {
             if (event.time && event.time < item.started) continue
             if (matches(card, item.request)) item.finish(null, card)
+            else
+              this.onLog?.(
+                'warn',
+                `Bot=${bot.uin} 回传与等待歌曲字段不匹配，等待歌曲=${item.request.content.title} appid=${item.request.platform.appid}`
+              )
           }
         }
       }

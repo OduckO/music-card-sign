@@ -84,7 +84,7 @@ test('可选 API 鉴权保护调用，健康检查不触发签名', async (t) =>
 })
 
 test('复用已有 Express app，卸载删除自己的路由和 quiet 前缀', async () => {
-  const stack: Array<{ path: string; handle: http.RequestListener }> = []
+  const stack: Array<{ path: string; handle: Parameters<ExpressHost['use']>[1] }> = []
   const app: ExpressHost = {
     router: { stack },
     quiet: [],
@@ -97,7 +97,7 @@ test('复用已有 Express app，卸载删除自己的路由和 quiet 前缀', a
     status: () => ({ enabled: true, bots: [], pending: 0 })
   }
   const unmount = await mountService(app, signer, { path: '/music_card/card' })
-  assert.equal(stack.length, 1)
+  assert.equal(stack.length, 3)
   assert.equal(stack[0].path, '/music_card/card')
   assert.equal(app.quiet?.length, 1)
   await unmount()
@@ -134,4 +134,32 @@ test('独立 HTTP handler 接受配置的自定义签名路径', async (t) => {
   )
   const response = await fetch(`${api}/custom/music`, { method: 'POST', body: '{}' })
   assert.equal(response.status, 200)
+})
+
+test('HTTP 入口记录收到请求、签名开始与响应状态，错误包含详情', async (t) => {
+  const logs: Array<{ level: string; message: string }> = []
+  const api = await localApi(
+    t,
+    {
+      sign: async () => {
+        assert.ok(logs.some(({ message }) => message.includes('开始签名')))
+        throw Object.assign(new Error('等待本人 JSON 超时'), { status: 504 })
+      }
+    },
+    { onLog: (level, message) => logs.push({ level, message }), apiKey: 'offline-secret' }
+  )
+  const response = await fetch(`${api}/sign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer offline-secret' },
+    body: '{}'
+  })
+  assert.equal(response.status, 504)
+  assert.ok(logs.some(({ message }) => message.includes('收到 POST /sign')))
+  assert.ok(
+    logs.some(({ level, message }) => level === 'error' && message.includes('等待本人 JSON 超时'))
+  )
+  assert.ok(logs.some(({ message }) => message.includes('响应 504')))
+  await fetch(`${api}/sign`)
+  assert.ok(logs.some(({ message }) => message.includes('响应 401')))
+  assert.ok(!logs.some(({ message }) => message.includes('offline-secret')))
 })
