@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
 import { readFile, writeFile, readdir } from 'node:fs/promises'
 import fs from 'node:fs/promises'
 import { join } from 'node:path'
@@ -282,6 +283,102 @@ test('OneBot v11 会话自动选择 icqq 签名，发送符合协议的完整 JS
   assert.ok(logs.some(({ message }) => message.includes('提交分享')))
   assert.ok(logs.some(({ message }) => message.includes('回传匹配')))
   assert.ok(logs.some(({ message }) => message.includes('发送成功')))
+})
+
+test('OneBot v11 群聊和私聊由配置的 icqq 签名，再由收指令账号发送原卡', async (t) => {
+  const { instance, bot, cards, targets, logs } = await fixture(t, { botId: '123456789' })
+  const receiverId = 234567890
+  Object.assign(Bot, {
+    uin: [receiverId, bot.uin],
+    [receiverId]: { adapter: { name: 'OneBotv11' } }
+  })
+  Object.assign(bot, {
+    sendGroupMsg: async () => assert.fail('签名账号不能替 OneBot 会话发送群消息'),
+    sendPrivateMsg: async () => assert.fail('签名账号不能替 OneBot 会话发送私聊消息')
+  })
+  const sessions = [{ group_id: '345678901', user_id: '456789012' }, { user_id: '456789012' }]
+  const music = {
+    type: 'custom',
+    _platform: '163',
+    title: '跨账号音卡',
+    url: 'https://example.com/song',
+    audio: 'https://example.com/audio.mp3'
+  }
+  for (const [index, session] of sessions.entries()) {
+    const replies: FixtureReply[] = []
+    await instance.probe({
+      self_id: receiverId,
+      ...session,
+      msg: '#音之测测 ' + JSON.stringify(music),
+      reply: async (message) => {
+        replies.push(message)
+        return { message_id: [1], error: [] }
+      }
+    })
+    assert.equal(cards.length, index + 1)
+    assert.deepEqual(replies[1], {
+      type: 'raw',
+      data: { type: 'json', data: { data: cards[index] } }
+    })
+    assert.equal(JSON.parse(cards[index]).meta.music.appid, 100495085)
+    assert.match(String(replies.at(-1)), /音之测测通过/)
+  }
+  assert.deepEqual(targets, [bot.uin, bot.uin])
+  assert.ok(
+    logs.some(({ message }) => message.includes(`[音卡发送] Bot=${receiverId} 适配器=OneBotv11`))
+  )
+})
+
+test('另一个 ICQQ 账号收到指令时，由它的 SDK 发回配置账号签好的原卡', async (t) => {
+  const { instance, bot, cards, targets } = await fixture(t, { botId: '123456789' })
+  const receiverId = 234567890
+  const sent: Array<{ kind: string; id: number; raw: string }> = []
+  const receiver = Object.assign(new EventEmitter(), {
+    uin: receiverId,
+    isOnline: () => true,
+    pickFriend: () => assert.fail('收到指令的账号不能覆盖配置的签名账号'),
+    sendGroupMsg: async (id: number, message: { type: string; data: string }) => {
+      assert.equal(message.type, 'json')
+      sent.push({ kind: 'group', id, raw: message.data })
+      return { message_id: 'group:1' }
+    },
+    sendPrivateMsg: async (id: number, message: { type: string; data: string }) => {
+      assert.equal(message.type, 'json')
+      sent.push({ kind: 'private', id, raw: message.data })
+      return { message_id: 'private:1' }
+    }
+  })
+  Object.assign(Bot, {
+    uin: [receiverId, bot.uin],
+    [receiverId]: { adapter: { name: 'ICQQ' }, sdk: receiver }
+  })
+  const replies: string[] = []
+  const reply = async (message: FixtureReply) => {
+    assert.equal(typeof message, 'string', 'ICQQ 原卡应通过收指令账号的 SDK 发送')
+    replies.push(String(message))
+    return true
+  }
+  await instance.probe({
+    self_id: receiverId,
+    group_id: '345678901',
+    user_id: '456789012',
+    msg: '#音之测测',
+    reply
+  })
+  assert.match(replies.at(-1)!, /音之测测通过/)
+  await instance.probe({
+    self_id: receiverId,
+    user_id: '456789012',
+    msg: '#音之测测',
+    reply
+  })
+  assert.match(replies.at(-1)!, /音之测测通过/)
+  assert.equal(cards.length, 2)
+  assert.deepEqual(targets, [bot.uin, bot.uin])
+  assert.deepEqual(sent, [
+    { kind: 'group', id: 345678901, raw: cards[0] },
+    { kind: 'private', id: 456789012, raw: cards[1] }
+  ])
 })
 
 test('音之测测在等待回传前响应，并记录超时和释放等待项', async (t) => {
