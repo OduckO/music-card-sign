@@ -10,6 +10,8 @@
   "files": [
     "./lib",
     "./resources",
+    "./docs/api.md",
+    "./docs/development.md",
     "./README.md",
     "./index.js",
     "./LICENSE",
