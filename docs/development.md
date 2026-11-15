@@ -41,7 +41,8 @@ music-card-sign/
 │   ├── modules/guoba/index.ts         # 锅巴表单、校验和配置保存
 │   ├── modules/music-card-sign/
 │   │   ├── service.ts                # 服务生命周期、配置保存和签名调用
-│   │   └── commands.ts               # 命令解析、音卡回复和音之测测
+│   │   ├── commands.ts               # 命令解析和音之测测
+│   │   └── send.ts                   # 按会话适配器发送完整音卡 JSON
 │   ├── types/                        # 配置和公开 API 类型
 │   └── utils/                        # 错误信息处理
 ├── resources/config/config.yaml      # 默认配置
@@ -74,6 +75,8 @@ TS 源码使用无扩展名导入。`tsc-alias` 将 `@/`、`~/` 别名和内部�
 其他插件可调用 Runtime Handler，取得音卡原文并发送：
 
 ```javascript
+import { replyCard } from '../../music-card-sign/lib/modules/music-card-sign/send.js'
+
 const raw = await e.runtime.handler.call('music.sign', e, {
   type: 'custom',
   title: '歌曲名',
@@ -82,10 +85,12 @@ const raw = await e.runtime.handler.call('music.sign', e, {
   audio: 'https://example.com/audio.mp3',
   _platform: 'netease'
 })
-await e.reply({ type: 'json', data: raw })
+await replyCard(e, raw)
 ```
 
-账号按请求 `self_id`、配置 `botId`、当前事件 `self_id`、唯一在线 icqq 账号的顺序选择。生成账号与接收会话可不同，接收协议需要支持 JSON 卡片。
+账号按请求 `self_id` / `bot_id`、配置 `botId`、当前 ICQQ 事件账号、唯一在线 icqq 账号的顺序选择。OneBot v11 会话账号不会覆盖签名账号。
+
+`replyCard` 对 ICQQ 使用原生 JSON 段，对 OneBot v11 使用 `segment.raw({ type: 'json', data: { data: raw } })`。两种方式都保留已签出的原文和平台字段；发送失败时抛出含协议端详情的错误。其他会话适配器会明确提示未支持。
 
 ## 扩展 ID 查询
 
@@ -143,6 +148,8 @@ ID 精确缓存命中时会跳过查询。更新歌曲 API 后，需要重新生
 测试源码统一为 `.test.ts`，与业务源码一样使用严格类型检查和无扩展名导入。`pnpm test` 先生成生产 `lib`，再按 `tsconfig.test.json` 将源码与测试编译到 `.test-tmp/compiled/`，最后由 Node 执行测试 JS。宿主夹具从项目根目录复制真实发布入口和 `lib`，同时测试锅巴保存与失败恢复；临时编译文件不参与发布。
 
 并发重复请求共用一次查询和提交；相同账号、应用 ID 和歌曲内容的不同请求按顺序提交，其他歌曲仍可并行。任务完成后释放等待记录，账号最后一项请求结束后解绑监听器。关闭和重新开启服务会等待旧缓存写入完成。
+
+提供 `addCleanup` 的 TRSS 通过该方法注册清理与恢复；JiuLi 通过 `onUnload` 关闭服务。两种清理入口可重复调用，不会重复注册 HTTP 路由。测试覆盖无 `addCleanup` 的初始化、卸载中的回传取消、宿主鉴权和未就绪响应。
 
 ## 自动编译与发布
 

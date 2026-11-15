@@ -1,8 +1,9 @@
 import type { HttpOptions, HttpRequest, HttpSigner } from '../types/index.js';
-import type { RequestHandler } from 'express';
+import type { ErrorRequestHandler, RequestHandler } from 'express';
 import http from 'node:http';
+type HostHandler = RequestHandler | ErrorRequestHandler | http.RequestListener;
 interface RouterLayer {
-    handle: RequestHandler | http.RequestListener;
+    handle: HostHandler;
     route?: unknown;
     name?: string;
     slash?: boolean;
@@ -11,7 +12,7 @@ interface RouterLayer {
     };
 }
 export interface ExpressHost {
-    use: (path: string, handler: http.RequestListener) => unknown;
+    use: (path: string, handler: HostHandler) => unknown;
     _router?: {
         stack: RouterLayer[];
     };
@@ -20,6 +21,6 @@ export interface ExpressHost {
     };
     quiet?: string[];
 }
-export declare function createHandler(signer: HttpSigner, { apiKey, mounted, path: configuredPath }?: HttpOptions): (req: HttpRequest, res: http.ServerResponse) => Promise<void>;
+export declare function createHandler(signer: HttpSigner, { apiKey, mounted, path: configuredPath, onLog }?: HttpOptions): (req: HttpRequest, res: http.ServerResponse) => Promise<void>;
 export declare function mountService(app: ExpressHost, signer: HttpSigner, options?: HttpOptions): Promise<() => Promise<void>>;
 export {};

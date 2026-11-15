@@ -2,6 +2,7 @@ import type { CommandEvent, MusicRequest, SignOptions } from '../types/index.js'
 export declare class MusicCardSign extends plugin<'message'> {
     constructor();
     init(): Promise<void>;
+    onUnload(): Promise<void>;
     status(e: CommandEvent): Promise<boolean>;
     toggle(e: CommandEvent): Promise<boolean>;
     setBot(e: CommandEvent): Promise<boolean>;
