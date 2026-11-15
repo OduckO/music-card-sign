@@ -1,6 +1,7 @@
 import type { CommandEvent, MusicRequest, SignOptions } from '@/types'
 import { startService, stopService, signCard } from '@/modules/music-card-sign/service'
 import {
+  help,
   status,
   toggle,
   setBot,
@@ -21,6 +22,7 @@ export class MusicCardSign extends plugin<'message'> {
       namespace: 'music-card-sign',
       handler: [{ key: 'music.sign', fn: 'signCard' }],
       rule: [
+        { reg: '^#音乐签名(?:帮助)?$', fnc: 'help', permission: 'master' },
         { reg: '^#音乐签名状态$', fnc: 'status', permission: 'master' },
         {
           reg: '^#设置音乐签名(?:[Bb][Oo][Tt]|账号)(?:\\s+[\\s\\S]+)?$',
@@ -58,6 +60,10 @@ export class MusicCardSign extends plugin<'message'> {
 
   onUnload() {
     return stopService()
+  }
+
+  help(e: CommandEvent) {
+    return help(e)
   }
 
   status(e: CommandEvent) {

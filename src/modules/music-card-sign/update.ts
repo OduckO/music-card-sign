@@ -28,8 +28,34 @@ export async function updatePlugin(e: CommandEvent) {
       pathToFileURL(createRequire(import.meta.url).resolve('../../../../other/update')).href
     )) as { update: new () => HostUpdater }
     const updater = new Update()
-    updater.e = { ...e, msg: `#${action}${PluginName}` }
-    await (action === '更新日志' ? updater.updateLog() : updater.update())
+    let replied = false
+    updater.e = Object.create(Object.getPrototypeOf(e), {
+      ...Object.getOwnPropertyDescriptors(e),
+      msg: {
+        value: `#${action}${PluginName}`,
+        enumerable: true,
+        writable: true,
+        configurable: true
+      },
+      reply: {
+        value: (...args: Parameters<CommandEvent['reply']>) => {
+          replied = true
+          return e.reply(...args)
+        },
+        enumerable: true,
+        writable: true,
+        configurable: true
+      }
+    }) as CommandEvent
+    logger.info(`[音卡更新] 转交本体指令 ${updater.e.msg}`)
+    const result = await (action === '更新日志' ? updater.updateLog() : updater.update())
+    if (result === false) {
+      const message = `本体更新器未执行${action}，请检查主人权限、插件目录或是否正在更新。`
+      logger.warn(`[音卡更新] ${message}`)
+      if (!replied) await e.reply(message)
+    } else {
+      logger.info(`[音卡更新] 本体${action}流程结束`)
+    }
   } catch (error) {
     logger.error(`[音卡更新] ${action}失败：${errorMessage(error)}`, error)
     await e.reply(`音乐签名${action}失败：${errorMessage(error)}`)
