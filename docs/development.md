@@ -97,6 +97,8 @@ await replyCard(e, raw)
 
 `replyCard` 对 ICQQ 使用 `Bot[e.self_id].sdk.sendGroupMsg()` 或 `sendPrivateMsg()` 直接发送原生 JSON 段，按事件的 `group_id` / `user_id` 选择当前会话，绕过宿主的 Markdown 消息加工。OneBot v11 使用 `e.reply(segment.raw({ type: 'json', data: { data: raw } }))`。两种方式都保留已签出的原文和平台字段；发送失败时抛出含协议端详情的错误。其他会话适配器会明确提示未支持。
 
+每次发送回执等待受 `timeoutMs` 限制。`#音之测测` 的开始通知与签名并行，通知失败会记录日志；卡片发送超时会报告当前会话发送失败。
+
 ## 扩展 ID 查询
 
 `registerMusicResolver(type, resolver)` 让插件用自己的 API 获取歌曲信息。`type` 是请求中的来源名称，解析器返回 `{ title, singer, url, audio, image }`：歌名、歌手、跳转地址和音频地址必需，封面可为空。
@@ -153,6 +155,8 @@ ID 精确缓存命中时会跳过查询。更新歌曲 API 后，需要重新生
 测试源码统一为 `.test.ts`，与业务源码一样使用严格类型检查和无扩展名导入。`pnpm test` 先生成生产 `lib`，再按 `tsconfig.test.json` 将源码与测试编译到 `.test-tmp/compiled/`，最后由 Node 执行测试 JS。宿主夹具从项目根目录复制真实发布入口和 `lib`，同时测试锅巴保存与失败恢复；临时编译文件不参与发布。
 
 并发重复请求共用一次查询和提交；相同账号、应用 ID 和歌曲内容的不同请求按顺序提交，其他歌曲仍可并行。任务完成后释放等待记录，账号最后一项请求结束后解绑监听器。关闭和重新开启服务会等待旧缓存写入完成。
+
+SDK 订阅测试使用 `triptrap@0.0.17`，验证锅巴保存、成功回传、超时与关闭服务后调用订阅返回的取消函数，并保留宿主已有监听。命令测试覆盖通知失败、回执迟到及一直未返回的情况。
 
 提供 `addCleanup` 的 TRSS 通过该方法注册清理与恢复；JiuLi 通过 `onUnload` 关闭服务。两种清理入口可重复调用，不会重复注册 HTTP 路由。测试覆盖无 `addCleanup` 的初始化、卸载中的回传取消、宿主鉴权和未就绪响应。
 
