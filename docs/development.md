@@ -34,11 +34,14 @@ music-card-sign/
 ├── src/
 │   ├── index.ts                      # 导出 loadApps() 注册的应用
 │   ├── dir.ts                        # 插件、应用和资源路径
-│   ├── apps/music-card-sign.ts        # 主人命令、Handler 和服务生命周期
+│   ├── apps/music-card-sign.ts        # 命令、Handler 注册与模块调用
 │   ├── config/index.ts               # 云崽配置工具与旧配置迁移
 │   ├── models/                       # 签名、歌曲查询、精确缓存和 HTTP
 │   ├── modules/loader/index.ts        # 加载编译后的应用
 │   ├── modules/guoba/index.ts         # 锅巴表单、校验和配置保存
+│   ├── modules/music-card-sign/
+│   │   ├── service.ts                # 服务生命周期、配置保存和签名调用
+│   │   └── commands.ts               # 命令解析、音卡回复和音之测测
 │   ├── types/                        # 配置和公开 API 类型
 │   └── utils/                        # 错误信息处理
 ├── resources/config/config.yaml      # 默认配置

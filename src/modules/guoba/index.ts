@@ -1,5 +1,5 @@
 import config from '@/config'
-import { updateSettings } from '@/apps/music-card-sign'
+import { updateSettings } from '@/modules/music-card-sign/service'
 import { selectPlatform } from '@/models/music-sign'
 import { errorMessage } from '@/utils'
 import type { Config, PlatformInput } from '@/types'

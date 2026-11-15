@@ -1,0 +1,99 @@
+import config from '@/config'
+import type { CommandEvent } from '@/types'
+import { errorMessage } from '@/utils'
+import {
+  getServiceStatus,
+  getTestMusic,
+  setServiceEnabled,
+  setSigningBot,
+  signCard
+} from './service'
+
+async function replyCard(e: Pick<CommandEvent, 'reply'>, raw: string) {
+  const result = await e.reply({ type: 'json', data: raw })
+  if (!result || (Array.isArray(result.error) ? result.error.length : result.error)) {
+    throw new Error('当前会话音卡发送失败，请检查协议端 JSON 支持')
+  }
+}
+
+export async function status(e: CommandEvent) {
+  const serviceStatus = await getServiceStatus()
+  const settings = config.config
+  await e.reply(
+    [
+      `音卡签名服务：${serviceStatus?.enabled ? '开启' : '关闭'}`,
+      `签名 Bot：${settings.botId || '自动选择'}`,
+      `在线 icqq：${serviceStatus?.bots.join('、') || '无'}`,
+      `等待请求：${serviceStatus?.pending || 0}`,
+      `宿主路径：${settings.path}`,
+      settings.localPort
+        ? `本地地址：http://127.0.0.1:${settings.localPort}${settings.path}`
+        : '使用云崽现有 HTTP 端口'
+    ].join('\n')
+  )
+  return true
+}
+
+export async function toggle(e: CommandEvent) {
+  const message = await setServiceEnabled(e.msg.includes('开启'))
+  await e.reply(message)
+  return true
+}
+
+export async function setBot(e: CommandEvent) {
+  const value = e.msg.replace(/^#设置音乐签名(?:bot|账号)/i, '').trim()
+  if (!value) {
+    await e.reply('用法：#设置音乐签名Bot <QQ号>，或 #设置音乐签名Bot 自动')
+    return true
+  }
+  const botId = ['自动', '清除'].includes(value) ? '' : value
+  if (botId && (!/^[1-9]\d*$/.test(botId) || !Number.isSafeInteger(Number(botId)))) {
+    await e.reply('Bot 号必须是有效的正整数 QQ 号，或填写「自动」。')
+    return true
+  }
+  const message = await setSigningBot(botId)
+  await e.reply(message)
+  return true
+}
+
+export async function forwardCard(e: CommandEvent) {
+  try {
+    const data = JSON.parse(e.msg.replace(/^#签名音卡\s+/, ''))
+    const raw = await signCard(e, data, (message) => {
+      throw new Error(message)
+    })
+    await replyCard(e, raw)
+  } catch (error) {
+    await e.reply(`音卡签名失败：${errorMessage(error)}`)
+  }
+  return true
+}
+
+export async function probe(e: CommandEvent) {
+  const started = performance.now()
+  let phase = '生成/回传'
+  try {
+    const defaultMusic = await getTestMusic()
+    const supplied = e.msg.replace(/^#?音之测测/, '').trim()
+    const data = supplied ? JSON.parse(supplied) : defaultMusic
+    const raw = await signCard(
+      e,
+      data,
+      (message) => {
+        throw new Error(message)
+      },
+      { forceFresh: true }
+    )
+    phase = '当前会话发送'
+    await replyCard(e, raw)
+  } catch (error) {
+    await e.reply(
+      `音之测测失败（${phase}，${Math.round(performance.now() - started)} ms）：${errorMessage(error)}`
+    )
+    return true
+  }
+  await e.reply(
+    `音之测测通过，耗时 ${Math.round(performance.now() - started)} ms。\n已收到 bot 自己的音卡 JSON，并发送到当前会话。`
+  )
+  return true
+}
