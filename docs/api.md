@@ -128,11 +128,12 @@ X-API-Key: <key>
 
 成功响应为 HTTP 200，正文直接是捕获的完整音卡 JSON 原文，不加 `data` 包装，也不再次编码成 JSON 字符串。保留回包未知字段、`extra`、`config` 和原始 JSON 文本编码。
 
-音卡路径的失败响应使用非 2xx 状态，`Content-Type` 为 `application/json`。请求解析成功后，失败响应附上本次请求。已确认属于本次请求的回包若歌手或音频不匹配，会立即返回 `502`，例如：
+音卡路径的失败响应使用非 2xx 状态，`Content-Type` 为 `application/json`。请求解析成功后，失败响应附上本次请求。提交、查询或回传失败通过 HTTP `503` 返回，JSON 的 `status` 保留内部 `502/504`。已确认属于本次请求的回包若歌手或音频不匹配，会立即返回，例如：
 
 ```json
 {
   "error": "音卡回传字段不匹配：musicUrl",
+  "status": 502,
   "request": {
     "type": "custom",
     "title": "晴天",
@@ -145,9 +146,11 @@ X-API-Key: <key>
 }
 ```
 
-`details.fields` 列出未匹配的回包字段：`desc` 对应歌手，`musicUrl` 对应音频。未收到本次请求的回包时，等待达到 `timeoutMs` 后返回 `504` JSON，并附上请求。鉴权或 JSON 解析失败时，正文为 `{ "error": "失败原因" }`。
+`details.fields` 列出未匹配的回包字段：`desc` 对应歌手，`musicUrl` 对应音频。未收到本次请求的回包时，等待达到 `timeoutMs` 后返回 HTTP `503`，JSON 的 `status` 为 `504`，并附上请求。鉴权或 JSON 解析失败时，正文为 `{ "error": "失败原因" }`。
 
-HTTP 最后一条错误日志包含与响应相同的错误和请求体；响应日志记录状态及耗时。Cloudflare `504` / `524` HTML 页面由代理生成，需要对照源站的「宿主入口收到」和「响应」日志检查代理。
+HTTP 最后一条错误日志包含与响应相同的错误和请求体；响应日志记录实际 HTTP 状态及耗时。SDK 抛出的对象错误会提取 `message/msg` 和 `code`，例如 `音卡提交失败：Request failed with status code 530 (code=-1)`。
+
+[Cloudflare 会为源站的 `502/504` 返回品牌错误页](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-502-504/)，因此插件用 `503` 传递这两类业务失败的 JSON。源站断开或代理自身超时时，仍需检查源站与代理日志。
 
 调用方同时检查状态码和内容类型，避免把错误正文当成音卡。Node.js 24 可直接使用 `fetch`；地址字段使用裸 URL：
 
@@ -173,16 +176,16 @@ if (!response.ok) throw new Error(JSON.stringify(result))
 console.log(result)
 ```
 
-| HTTP 状态 | 含义                             |
-| --------- | -------------------------------- |
-| `400`     | 参数或 JSON 格式错误             |
-| `401`     | 鉴权失败                         |
-| `404`     | 路由不存在                       |
-| `405`     | 请求方法不支持，使用 POST 或 GET |
-| `413`     | 请求体超过 64 KiB                |
-| `502`     | 歌曲查询、分享提交或回包字段错误 |
-| `503`     | 没有可用在线账号或服务未开启     |
-| `504`     | 查询或等待回传超时               |
+| HTTP 状态 | 含义                                           |
+| --------- | ---------------------------------------------- |
+| `400`     | 参数或 JSON 格式错误                           |
+| `401`     | 鉴权失败                                       |
+| `404`     | 路由不存在                                     |
+| `405`     | 请求方法不支持，使用 POST 或 GET               |
+| `413`     | 请求体超过 64 KiB                              |
+| `503`     | 没有可用账号、服务关闭，或查询、提交、回传失败 |
+
+失败 JSON 的 `status: 502` 表示查询、提交或回包字段错误，`status: 504` 表示查询或回传超时。两者的实际 HTTP 状态均为 `503`；已有调用方继续使用 `response.ok` 判断是否成功。
 
 不带查询参数的 GET `<path>` 返回服务状态，GET `<path>/health` 用于健康检查；额外服务也支持 `/health` 和 `/healthz`。状态包含 `service`、`enabled`、`bots`、`pending`、`targetId`；`targetId` 为空表示发给各自签名 Bot。查询状态不会生成音卡。检查实际回传可使用 `#音之测测`。
 
