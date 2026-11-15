@@ -10,4 +10,5 @@ export declare class MusicCardSign extends plugin<'message'> {
     signCard(e: Pick<CommandEvent, 'self_id'>, data: MusicRequest, reject: (message: string) => never, options?: SignOptions): Promise<string>;
     forwardCard(e: CommandEvent): Promise<boolean>;
     probe(e: CommandEvent): Promise<boolean>;
+    update(e: CommandEvent): Promise<boolean>;
 }
