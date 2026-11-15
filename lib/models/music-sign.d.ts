@@ -2,7 +2,12 @@ import type { AppPlatform, CardCache, IcqqBot, MusicCard, MusicRequest, Normaliz
 export declare function cardText(card: MusicCard): string;
 export declare class MusicSignError extends Error {
     readonly status: number;
-    constructor(message: string, status?: number);
+    readonly details?: {
+        fields: string[];
+    };
+    constructor(message: string, status?: number, details?: {
+        fields: string[];
+    });
 }
 export declare function selectPlatform(data: MusicRequest, customPlatforms: Record<string, PlatformInput>): AppPlatform;
 export declare function normalizeRequest(input: unknown, customPlatforms?: Record<string, PlatformInput>): NormalizedRequest;
