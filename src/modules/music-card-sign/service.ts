@@ -34,12 +34,13 @@ function getBots() {
 async function start() {
   if (service || !settings.enabled) return
   logger.info(
-    `[音卡签名] 正在启动，签名 Bot=${settings.botId || '自动'}，回传超时=${settings.timeoutMs} ms`
+    `[音卡签名] 正在启动，签名 Bot=${settings.botId || '自动'}，接收联系人=${settings.targetId || '签名 Bot 自己'}，回传超时=${settings.timeoutMs} ms`
   )
   if (!Bot.express?.use) throw new Error('音卡签名插件需要云崽 Bot.express')
   const signer = new MusicSigner({
     getBots,
     botId: settings.botId,
+    targetId: settings.targetId,
     timeoutMs: settings.timeoutMs,
     customPlatforms: settings.platforms,
     cache: new MusicCardCache(path.join(PluginPath, 'data/music-card-cache')),

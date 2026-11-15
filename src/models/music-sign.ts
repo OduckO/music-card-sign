@@ -254,6 +254,7 @@ function nativeBot(bot: BotCandidate): IcqqBot | null {
 export class MusicSigner {
   readonly getBots: SignerOptions['getBots']
   botId: string | number
+  readonly targetId: string
   readonly timeoutMs: number
   readonly customPlatforms: Record<string, PlatformInput>
   readonly resolveMusic?: ResolveMusic
@@ -269,6 +270,7 @@ export class MusicSigner {
   constructor({
     getBots,
     botId = '',
+    targetId = '',
     timeoutMs = 15000,
     customPlatforms = {},
     resolveMusic,
@@ -278,8 +280,12 @@ export class MusicSigner {
   }: SignerOptions) {
     if (typeof getBots !== 'function') throw new TypeError('getBots 必须是函数')
     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new TypeError('timeoutMs 必须大于 0')
+    const target = String(targetId).trim()
+    if (target && (!/^[1-9]\d*$/.test(target) || !Number.isSafeInteger(Number(target))))
+      throw new TypeError('联系人必须是有效的正整数 QQ 号，或留空')
     this.getBots = getBots
     this.botId = botId
+    this.targetId = target
     this.timeoutMs = timeoutMs
     this.customPlatforms = customPlatforms
     this.resolveMusic = resolveMusic
@@ -315,7 +321,7 @@ export class MusicSigner {
       )
       throw new MusicSignError('未找到指定的在线 icqq 账号，请先接入 ICQQ-Plugin', 503)
     }
-    const context = `${trace} Bot=${bot.uin}`
+    const context = `${trace} Bot=${bot.uin} 接收 QQ=${this.targetId || bot.uin}`
     this.onLog?.('info', `${context} 已选择签名账号`)
     const platform = selectPlatform(data, this.customPlatforms)
     const identity = exactJSON([String(bot.uin), platform, data])
@@ -418,6 +424,7 @@ export class MusicSigner {
   }
 
   send(bot: IcqqBot, request: NormalizedRequest, key: string, context: string): Promise<MusicCard> {
+    const targetId = Number(this.targetId || bot.uin)
     const started = performance.now()
     const subscription = this.listen(bot)
     const { promise, resolve, reject } = Promise.withResolvers<MusicCard>()
@@ -446,19 +453,22 @@ export class MusicSigner {
       }
     }
     item.timer = setTimeout(
-      () => item.finish(new MusicSignError('等待 bot 自己的音卡 JSON 超时', 504)),
+      () =>
+        item.finish(
+          new MusicSignError(`等待 Bot=${bot.uin} 发给接收 QQ=${targetId} 的音卡 JSON 超时`, 504)
+        ),
       this.timeoutMs
     )
     this.pending.set(key, item)
     subscription.items.add(item)
     this.onLog?.(
       'info',
-      `${context} 监听 message.private / sync.message，等待本人 JSON ${this.timeoutMs} ms`
+      `${context} 监听 message.private / sync.message，等待发送同步 JSON ${this.timeoutMs} ms`
     )
     Promise.resolve()
       .then(() => {
         if (this.closed || this.pending.get(key) !== item) return
-        const friend = bot.pickFriend(bot.uin)
+        const friend = bot.pickFriend(targetId)
         if (typeof friend?.share !== 'function')
           throw new MusicSignError('该账号没有原生 icqq share 能力', 503)
         this.onLog?.(
@@ -483,17 +493,18 @@ export class MusicSigner {
 
   listen(bot: IcqqBot): Subscription {
     if (this.listeners.has(bot)) return this.listeners.get(bot)!
+    const targetId = this.targetId || String(bot.uin)
     const subscription: Subscription = {
       items: new Set(),
       listener: (event) => {
         if (event.group_id || (event.message_type && event.message_type !== 'private')) return
         if (event.self_id !== undefined && String(event.self_id) !== String(bot.uin)) return
         const from = event.from_id ?? event.user_id ?? event.sender?.user_id
-        if (String(from) !== String(bot.uin) || String(event.to_id) !== String(bot.uin)) return
+        if (String(from) !== String(bot.uin) || String(event.to_id) !== targetId) return
         for (const card of receivedCards(event)) {
           this.onLog?.(
             'info',
-            `Bot=${bot.uin} 收到本人音卡 JSON，appid=${card.meta.music.appid ?? '未知'}，歌曲=${card.meta.music.title ?? '未知'}`
+            `Bot=${bot.uin} 接收 QQ=${targetId} 捕获发送音卡 JSON，appid=${card.meta.music.appid ?? '未知'}，歌曲=${card.meta.music.title ?? '未知'}`
           )
           for (const item of subscription.items) {
             if (event.time && event.time < item.started) continue
@@ -517,7 +528,8 @@ export class MusicSigner {
     return {
       enabled: !this.closed,
       bots: this.bots().map((bot) => String(bot.uin)),
-      pending: this.pending.size
+      pending: this.pending.size,
+      targetId: this.targetId
     }
   }
 

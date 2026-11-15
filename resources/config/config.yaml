@@ -1,5 +1,6 @@
 enabled: true
 botId: ''
+targetId: ''
 path: /music_card/card
 timeoutMs: 15000
 localPort: 0

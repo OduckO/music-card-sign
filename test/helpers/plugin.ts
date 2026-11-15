@@ -38,6 +38,7 @@ export interface FixturePlugin extends Pick<MusicCardSign, 'init' | 'signCard'> 
   probe: (event: FixtureCommandEvent) => Promise<boolean>
   toggle: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setBot: (event: FixtureCommandEvent<string>) => Promise<boolean>
+  setTarget: (event: FixtureCommandEvent<string>) => Promise<boolean>
   status: (event: Pick<FixtureCommandEvent<string>, 'reply'>) => Promise<boolean>
 }
 
@@ -61,6 +62,7 @@ export interface PluginFixture {
   bot: IcqqBot
   stack: FixtureRouterLayer[]
   cards: string[]
+  targets: number[]
   logs: Array<{ level: string; message: string }>
   directory: string
   hostRoot: string
@@ -148,12 +150,13 @@ export default async function makeConfig(name, config) {
   })
   if (persisted.noAddCleanup) Reflect.deleteProperty(plugin.prototype, 'addCleanup')
   const cards: string[] = []
+  const targets: number[] = []
   const bot: IcqqBot = Object.assign(new EventEmitter(), {
     uin: 123456789,
     isOnline: () => true,
     pickFriend: (id: number) => ({
       share: async (content: ShareContent, platform: AppPlatform) => {
-        assert.equal(id, bot.uin)
+        targets.push(id)
         const raw = JSON.stringify(
           {
             app: 'com.tencent.structmsg',
@@ -175,7 +178,11 @@ export default async function makeConfig(name, config) {
           2
         )
         cards.push(raw)
-        bot.emit('sync.message', { from_id: id, to_id: id, message: [{ type: 'json', data: raw }] })
+        bot.emit('sync.message', {
+          from_id: bot.uin,
+          to_id: id,
+          message: [{ type: 'json', data: raw }]
+        })
       }
     })
   })
@@ -222,5 +229,5 @@ export default async function makeConfig(name, config) {
     await import(pathToFileURL(join(directory, 'lib/modules/music-card-sign/service.js')).href)
   ).stopService
   await instance.init()
-  return { instance, bot, stack, cards, logs, directory, hostRoot }
+  return { instance, bot, stack, cards, targets, logs, directory, hostRoot }
 }

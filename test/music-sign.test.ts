@@ -52,14 +52,15 @@ function card(overrides: Partial<MusicCard['meta']['music']> = {}): MusicCard {
 class QQBoundary extends EventEmitter implements IcqqBot {
   uin = 123456789
   online = true
+  targets: number[] = []
   shares: Array<{ content: ShareContent; app: AppPlatform }> = []
-  onShare?: (content: ShareContent, app: AppPlatform) => unknown
+  onShare?: (content: ShareContent, app: AppPlatform, targetId: number) => unknown
   pickFriend(id: number) {
-    assert.equal(id, this.uin)
+    this.targets.push(id)
     return {
       share: async (content: ShareContent, app: AppPlatform) => {
         this.shares.push({ content, app })
-        await this.onShare?.(content, app)
+        await this.onShare?.(content, app, id)
       }
     }
   }
@@ -122,6 +123,7 @@ test('先监听再 share，可接同步回传，返回完整服务端 JSON', asy
   bot.onShare = () => bot.deliver(ark)
   const signed = await signer.sign(input)
   assert.deepEqual(signed, ark)
+  assert.deepEqual(bot.targets, [bot.uin])
   assert.equal(bot.shares[0].content.type, 'share')
   assert.equal(bot.shares[0].app.appname, 'com.tencent.qqmusic')
 })
@@ -139,6 +141,54 @@ test('忽略他人、发给他人、错误平台或字段的卡，再接受自�
     bot.deliver(card(), 'message.private')
   }
   assert.deepEqual(await signer.sign(input), card())
+})
+
+test('向配置联系人分享，仅接受签名 Bot 发给该联系人的匹配同步卡', async (t) => {
+  const bot = new QQBoundary()
+  const targetId = 987654321
+  const options = { getBots: () => [{ sdk: bot }], targetId: String(targetId), timeoutMs: 100 }
+  const signer = new MusicSigner(options)
+  t.after(() => signer.close())
+  const ark = card()
+  bot.onShare = (_content, _app, target) => {
+    assert.equal(target, targetId)
+    bot.deliver(ark, 'message.private', targetId, bot.uin)
+    bot.deliver(ark, 'sync.message', bot.uin, bot.uin)
+    bot.deliver(ark, 'sync.message', bot.uin, 234567890)
+    bot.deliver(card({ desc: '另一个歌手' }), 'sync.message', bot.uin, targetId)
+    assert.equal(signer.status().pending, 1)
+    bot.deliver(ark, 'sync.message', bot.uin, targetId)
+  }
+  assert.deepEqual(await signer.sign(input), ark)
+  assert.deepEqual(bot.targets, [targetId])
+  assert.equal(signer.status().pending, 0)
+  assert.equal(bot.listenerCount('sync.message'), 0)
+})
+
+test('联系人回传超时说明接收 QQ，超时和提交失败都释放监听器', async (t) => {
+  const bot = new QQBoundary()
+  const options = { getBots: () => [bot], targetId: '987654321', timeoutMs: 15 }
+  const signer = new MusicSigner(options)
+  t.after(() => signer.close())
+  await assert.rejects(signer.sign(input), /987654321.*超时/)
+  assert.equal(signer.status().pending, 0)
+  assert.equal(bot.listenerCount('sync.message'), 0)
+  bot.onShare = () => {
+    throw new Error('联系人不可用')
+  }
+  await assert.rejects(signer.sign(input), /联系人不可用/)
+  assert.equal(signer.status().pending, 0)
+  assert.equal(bot.listenerCount('message.private'), 0)
+})
+
+test('联系人配置拒绝无效 QQ 号，不注册监听或发送分享', () => {
+  const bot = new QQBoundary()
+  for (const targetId of ['0', '-1', '1.5', '9007199254740992', 'abc']) {
+    const options = { getBots: () => [bot], targetId }
+    assert.throws(() => new MusicSigner(options), /联系人.*QQ/)
+  }
+  assert.deepEqual(bot.targets, [])
+  assert.equal(bot.listenerCount('sync.message'), 0)
 })
 
 test('同一首歌并发只签一次，不同请求不会互相取走回传', async (t) => {

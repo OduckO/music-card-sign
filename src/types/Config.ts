@@ -3,6 +3,7 @@ import type { MusicRequest, PlatformInput } from './music'
 export interface Config {
   enabled: boolean
   botId: string
+  targetId: string
   path: string
   timeoutMs: number
   localPort: number

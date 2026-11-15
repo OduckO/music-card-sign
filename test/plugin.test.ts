@@ -546,6 +546,49 @@ test('签名 Bot 指令提示用法，参数或保存失败时保留原账号', 
   )
 })
 
+test('联系人指令保存配置，音之测测使用新联系人并可恢复发给自己', async (t) => {
+  const { instance, bot, targets, logs, hostRoot, stack } = await fixture(t)
+  const rule = instance.rule.find((entry) => entry.fnc === 'setTarget')
+  assert.equal(rule?.permission, 'master')
+  assert.ok(rule)
+  assert.ok(new RegExp(rule.reg).test('#设置音乐签名联系人 987654321'))
+  const replies: string[] = []
+  const reply = async (message: string) => {
+    replies.push(message)
+  }
+  const configPath = join(hostRoot, 'config/music-card-sign.yaml')
+  await instance.setTarget({ msg: '#设置音乐签名联系人 987654321', reply })
+  assert.match(replies.at(-1)!, /已设为 987654321/)
+  assert.equal(YAML.parse(await readFile(configPath, 'utf8')).targetId, '987654321')
+  await instance.probe(command('#音之测测'))
+  assert.deepEqual(targets, [987654321])
+  assert.ok(logs.some(({ message }) => /接收 QQ=987654321.*提交分享/.test(message)))
+  await instance.status({ reply })
+  assert.match(replies.at(-1)!, /接收联系人：987654321/)
+  const write = fs.writeFile
+  fs.writeFile = async () => {
+    throw new Error('保存失败')
+  }
+  try {
+    await instance.setTarget({ msg: '#设置音乐签名联系人 自己', reply })
+    assert.match(replies.at(-1)!, /保存失败/)
+  } finally {
+    fs.writeFile = write
+  }
+  await instance.probe(command('#音之测测'))
+  assert.deepEqual(targets, [987654321, 987654321])
+  await instance.setTarget({ msg: '#设置音乐签名联系人', reply })
+  assert.match(replies.at(-1)!, /用法/)
+  await instance.setTarget({ msg: '#设置音乐签名联系人 abc', reply })
+  assert.match(replies.at(-1)!, /联系人.*QQ/)
+  await instance.setTarget({ msg: '#设置音乐签名联系人 自己', reply })
+  assert.equal(YAML.parse(await readFile(configPath, 'utf8')).targetId, '')
+  await instance.probe(command('#音之测测'))
+  assert.equal(targets.at(-1), bot.uin)
+  assert.equal(stack.length, 3)
+  assert.equal(bot.listenerCount('sync.message'), 0)
+})
+
 test('首次升级迁移旧 JSON 配置并保留原文件', async (t) => {
   const legacy = {
     botId: '123456789',

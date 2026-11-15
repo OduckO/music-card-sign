@@ -158,6 +158,7 @@ export interface CardCache {
 export interface SignerOptions {
   getBots: () => BotCandidate[]
   botId?: string | number
+  targetId?: string | number
   timeoutMs?: number
   customPlatforms?: Record<string, PlatformInput>
   resolveMusic?: ResolveMusic
@@ -180,7 +181,7 @@ export interface Subscription {
 
 export interface HttpSigner {
   sign: (input: MusicRequest) => Promise<MusicCard>
-  status?: () => { enabled: boolean; bots: string[]; pending: number }
+  status?: () => { enabled: boolean; bots: string[]; pending: number; targetId?: string }
 }
 
 export interface HttpOptions {

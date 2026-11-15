@@ -20,6 +20,12 @@ const schemas: Schemas<FormConfig> = [
     bottomHelpMessage: '填写已登录的 icqq QQ 号；留空自动选择账号。'
   },
   {
+    field: 'targetId',
+    label: '音卡接收联系人',
+    component: 'Input',
+    bottomHelpMessage: '留空发给签名 Bot 自己；填写可私聊的联系人 QQ 号，签名时会向其发送音卡。'
+  },
+  {
     field: 'timeoutMs',
     label: '查询与回传超时（毫秒）',
     component: 'InputNumber',
@@ -93,6 +99,14 @@ function configPatch(data: Record<string, unknown>): Partial<Config> {
       (!/^[1-9]\d*$/.test(patch.botId) || !Number.isSafeInteger(Number(patch.botId)))
     )
       throw new Error('Bot 号必须是有效的正整数 QQ 号，或留空')
+  }
+  if (Object.hasOwn(data, 'targetId')) {
+    patch.targetId = stringValue(data.targetId, '联系人 QQ 号').trim()
+    if (
+      patch.targetId &&
+      (!/^[1-9]\d*$/.test(patch.targetId) || !Number.isSafeInteger(Number(patch.targetId)))
+    )
+      throw new Error('联系人必须是有效的正整数 QQ 号，或留空')
   }
   if (Object.hasOwn(data, 'path')) {
     patch.path = stringValue(data.path, '签名路由').trim()

@@ -65,7 +65,7 @@ async function guobaFixture(t: TestContext) {
   }
 }
 
-test('锅巴根入口导出八项配置，JSON 编辑字段保持完整内容', async (t) => {
+test('锅巴根入口导出九项配置，JSON 编辑字段保持完整内容', async (t) => {
   const { guoba } = await guobaFixture(t)
   assert.equal(guoba.pluginInfo.name, 'music-card-sign')
   assert.equal(guoba.pluginInfo.isV3, true)
@@ -78,18 +78,20 @@ test('锅巴根入口导出八项配置，JSON 编辑字段保持完整内容', 
     'localPort',
     'path',
     'platforms',
+    'targetId',
     'testMusic',
     'timeoutMs'
   ])
   const data = info.getConfigData()
   assert.equal(data.enabled, true)
+  assert.equal(data.targetId, '')
   assert.deepEqual(JSON.parse(data.platforms), {})
   assert.equal(JSON.parse(data.testMusic).title, '晴天')
   assert.equal(info.schemas.find(({ field }) => field === 'apiKey')?.component, 'InputPassword')
 })
 
-test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号及自定义平台', async (t) => {
-  const { guoba, configPath, stack, bot, instance, cards } = await guobaFixture(t)
+test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号、联系人及自定义平台', async (t) => {
+  const { guoba, configPath, stack, bot, instance, cards, targets } = await guobaFixture(t)
   const testMusic = {
     type: 'custom',
     title: '锅巴测试',
@@ -102,6 +104,7 @@ test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号及自定
   const saved = await guoba.configInfo.setConfigData(
     {
       botId: String(bot.uin),
+      targetId: '987654321',
       path: '/guoba/music',
       timeoutMs: 500,
       apiKey: 'guoba-offline-test-key',
@@ -113,6 +116,7 @@ test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号及自定
   assert.equal(saved.isOk, true)
   const yaml: Config = YAML.parse(await readFile(configPath, 'utf8'))
   assert.equal(yaml.botId, String(bot.uin))
+  assert.equal(yaml.targetId, '987654321')
   assert.equal(yaml.timeoutMs, 500)
   assert.deepEqual(yaml.platforms, platforms)
   assert.deepEqual(yaml.testMusic, testMusic)
@@ -144,6 +148,7 @@ test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号及自定
   await instance.probe(command('#音之测测'))
   assert.equal(JSON.parse(cards.at(-1)!).meta.music.title, '锅巴测试')
   assert.equal(bot.listenerCount('sync.message'), 0)
+  assert.deepEqual(targets, [987654321, 987654321])
 })
 
 test('锅巴拒绝坏字段，校验失败保持原配置和已挂载路由', async (t) => {
@@ -156,6 +161,10 @@ test('锅巴拒绝坏字段，校验失败保持原配置和已挂载路由', as
     { testMusic: 'null' },
     { platforms: '[]' },
     { botId: '1.5' },
+    { targetId: '0' },
+    { targetId: '1.5' },
+    { targetId: '9007199254740992' },
+    { targetId: 987654321 },
     { path: '/bad/' },
     { timeoutMs: 0 },
     { localPort: 65536 },

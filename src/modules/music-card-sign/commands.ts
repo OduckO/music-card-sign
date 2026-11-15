@@ -6,6 +6,7 @@ import {
   getTestMusic,
   setServiceEnabled,
   setSigningBot,
+  updateSettings,
   signCard
 } from './service'
 import { adapterName, replyCard } from './send'
@@ -17,6 +18,7 @@ export async function status(e: CommandEvent) {
     [
       `音卡签名服务：${serviceStatus?.enabled ? '开启' : '关闭'}`,
       `签名 Bot：${settings.botId || '自动选择'}`,
+      `接收联系人：${settings.targetId || '签名 Bot 自己'}`,
       `在线 icqq：${serviceStatus?.bots.join('、') || '无'}`,
       `等待请求：${serviceStatus?.pending || 0}`,
       `宿主路径：${settings.path}`,
@@ -46,6 +48,30 @@ export async function setBot(e: CommandEvent) {
     return true
   }
   const message = await setSigningBot(botId)
+  await e.reply(message)
+  return true
+}
+
+export async function setTarget(e: CommandEvent) {
+  const value = e.msg.replace(/^#设置音乐签名联系人/, '').trim()
+  if (!value) {
+    await e.reply('用法：#设置音乐签名联系人 <QQ号>，或 #设置音乐签名联系人 自己')
+    return true
+  }
+  const targetId = ['自己', '清除'].includes(value) ? '' : value
+  if (targetId && (!/^[1-9]\d*$/.test(targetId) || !Number.isSafeInteger(Number(targetId)))) {
+    await e.reply('联系人必须是有效的正整数 QQ 号，或填写「自己」。')
+    return true
+  }
+  let message: string
+  try {
+    await updateSettings({ targetId })
+    message = targetId
+      ? `音乐签名接收联系人已设为 ${targetId}。`
+      : '音乐签名已恢复发给签名 Bot 自己。'
+  } catch (error) {
+    message = `设置失败：${errorMessage(error)}`
+  }
   await e.reply(message)
   return true
 }
@@ -92,7 +118,7 @@ export async function probe(e: CommandEvent) {
     return true
   }
   await e.reply(
-    `音之测测通过，耗时 ${Math.round(performance.now() - started)} ms。\n已收到 bot 自己的音卡 JSON，并发送到当前会话。`
+    `音之测测通过，耗时 ${Math.round(performance.now() - started)} ms。\n已捕获签名 Bot 发出的音卡 JSON，并发送到当前会话。`
   )
   return true
 }
