@@ -4,6 +4,7 @@ export declare class MusicSignError extends Error {
     readonly status: number;
     constructor(message: string, status?: number);
 }
+export declare function selectPlatform(data: MusicRequest, customPlatforms: Record<string, PlatformInput>): AppPlatform;
 export declare function normalizeRequest(input: unknown, customPlatforms?: Record<string, PlatformInput>): NormalizedRequest;
 export declare class MusicSigner {
     readonly getBots: SignerOptions['getBots'];

@@ -1,4 +1,5 @@
-import type { CommandEvent, MusicRequest, SignOptions } from '../types/index.js';
+import type { CommandEvent, Config, MusicRequest, SignOptions } from '../types/index.js';
+export declare function updateSettings(patch: Partial<Config>): Promise<void>;
 export declare class MusicCardSign extends plugin<'message'> {
     constructor();
     init(): Promise<void>;

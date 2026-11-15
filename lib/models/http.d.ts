@@ -6,7 +6,7 @@ interface RouterLayer {
     route?: unknown;
     name?: string;
     slash?: boolean;
-    regexp?: {
+    regexp?: RegExp & {
         fast_slash?: boolean;
     };
 }
