@@ -34,16 +34,19 @@ test('实际 HTTP：用户请求的封面被 QQ 转存后成功返回，错误�
     }
   }
   let raw = JSON.stringify(ark, null, 2)
+  let submissionError: unknown = null
   const bot: IcqqBot & EventEmitter = Object.assign(new EventEmitter(), {
     uin: 3228049612,
     online: true,
     pickFriend: () => ({
-      share: async () =>
-        bot.emit('sync.message', {
+      share: async () => {
+        if (submissionError) throw submissionError
+        return bot.emit('sync.message', {
           from_id: bot.uin,
           to_id: bot.uin,
           message: [{ type: 'json', data: raw }]
         })
+      }
     })
   })
   const signer = new MusicSigner({ getBots: () => [bot], timeoutMs: 100 })
@@ -78,15 +81,27 @@ test('实际 HTTP：用户请求的封面被 QQ 转存后成功返回，错误�
   ark.meta.music.musicUrl = 'https://example.com/wrong.mp3'
   raw = JSON.stringify(ark)
   const failed = await fetch(url, options)
-  assert.equal(failed.status, 502)
+  assert.equal(failed.status, 503)
   assert.match(failed.headers.get('content-type') ?? '', /application\/json/)
   assert.deepEqual(await failed.json(), {
     error: '音卡回传字段不匹配：musicUrl',
+    status: 502,
     request,
     details: { fields: ['musicUrl'] }
   })
   assert.ok(logs.some((message) => message.includes(JSON.stringify(request))))
   assert.ok(!logs.some((message) => message.includes('offline-qq-token')))
+  assert.equal(signer.status().pending, 0)
+  assert.equal(bot.listenerCount('sync.message'), 0)
+  submissionError = { code: -1, message: 'Request failed with status code 530' }
+  const rejected = await fetch(url, options)
+  assert.equal(rejected.status, 503)
+  assert.match(rejected.headers.get('content-type') ?? '', /application\/json/)
+  assert.deepEqual(await rejected.json(), {
+    error: '音卡提交失败：Request failed with status code 530 (code=-1)',
+    status: 502,
+    request
+  })
   assert.equal(signer.status().pending, 0)
   assert.equal(bot.listenerCount('sync.message'), 0)
 })

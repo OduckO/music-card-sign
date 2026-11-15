@@ -51,9 +51,9 @@ test('请求错误与签名超时使用非 2xx，调用方可以按状态抛错'
     }
   })
   const timeout = await fetch(`${api}/sign`, { method: 'POST', body: '{}' })
-  assert.equal(timeout.status, 504)
+  assert.equal(timeout.status, 503)
   assert.match(timeout.headers.get('content-type') ?? '', /application\/json/)
-  assert.deepEqual(await timeout.json(), { error: '等待回传超时', request: {} })
+  assert.deepEqual(await timeout.json(), { error: '等待回传超时', status: 504, request: {} })
   const invalid = await fetch(`${api}/sign`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -90,10 +90,11 @@ test('签名失败的 JSON 和最后错误日志包含原请求体与未匹配�
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer offline-secret' },
     body: JSON.stringify(request)
   })
-  assert.equal(response.status, 502)
+  assert.equal(response.status, 503)
   assert.match(response.headers.get('content-type') ?? '', /application\/json/)
   assert.deepEqual(await response.json(), {
     error: '音卡回传字段不匹配：musicUrl',
+    status: 502,
     request,
     details: { fields: ['musicUrl'] }
   })
@@ -194,12 +195,12 @@ test('HTTP 入口记录收到请求、签名开始与响应状态，错误包含
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer offline-secret' },
     body: '{}'
   })
-  assert.equal(response.status, 504)
+  assert.equal(response.status, 503)
   assert.ok(logs.some(({ message }) => message.includes('收到 POST /sign')))
   assert.ok(
     logs.some(({ level, message }) => level === 'error' && message.includes('等待本人 JSON 超时'))
   )
-  assert.ok(logs.some(({ message }) => message.includes('响应 504')))
+  assert.ok(logs.some(({ message }) => message.includes('响应 503')))
   await fetch(`${api}/sign`)
   assert.ok(logs.some(({ message }) => message.includes('响应 401')))
   assert.ok(!logs.some(({ message }) => message.includes('offline-secret')))
