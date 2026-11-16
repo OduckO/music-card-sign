@@ -92,15 +92,15 @@ test('默认应用使用 102021671 和空包名、签名，不把 custom 当平�
 
 test('默认平台独立于歌曲来源，显式平台覆盖默认配置且支持自定义名称', () => {
   for (const type of ['custom', 'qq', '163', 'my-plugin']) {
-    assert.equal(normalizeRequest({ ...input, type }, {}, 'txqq').platform.appid, 35055)
+    assert.equal(normalizeRequest({ ...input, type }, {}, 'default').platform.appid, 102021671)
   }
   assert.equal(normalizeRequest(input, {}, 'qq').platform.appid, 100497308)
   assert.equal(
-    normalizeRequest({ ...input, _platform: 'qq' }, {}, 'txqq').platform.appid,
+    normalizeRequest({ ...input, _platform: 'qq' }, {}, 'default').platform.appid,
     100497308
   )
   assert.equal(
-    normalizeRequest({ ...input, _platform: '163' }, {}, 'txqq').platform.appid,
+    normalizeRequest({ ...input, _platform: '163' }, {}, 'default').platform.appid,
     100495085
   )
   const app = { appid: 200079, appname: 'com.sing.client', app_sign: '' }
@@ -113,6 +113,24 @@ test('默认平台独立于歌曲来源，显式平台覆盖默认配置且支�
     () => new MusicSigner({ getBots: () => [], defaultPlatform: 'unknown' }),
     /未知音卡平台/
   )
+})
+
+test('移除内置 txqq，显式应用信息和用户自定义平台仍可使用', () => {
+  for (const field of ['_platform', 'platform', 'source']) {
+    assert.throws(() => normalizeRequest({ ...input, [field]: 'txqq' }), /未知音卡平台/)
+  }
+  assert.throws(
+    () => new MusicSigner({ getBots: () => [], defaultPlatform: 'txqq' }),
+    /未知音卡平台/
+  )
+  for (const appid of [35055, 100686848]) {
+    assert.deepEqual(normalizeRequest({ ...input, _platform: { appid } }).platform, {
+      appid,
+      appname: '',
+      appsign: ''
+    })
+  }
+  assert.equal(normalizeRequest(input, { txqq: { appid: 200079 } }, 'txqq').platform.appid, 200079)
 })
 
 test('跳转链接按域名识别内置平台，支持子域名、短链接及更具体的平台域名', () => {
@@ -134,7 +152,6 @@ test('跳转链接按域名识别内置平台，支持子域名、短链接及�
     ['https://bodian.kuwo.cn/', 101904722],
     ['https://bodian-oia.kuwo.cn/', 101904722],
     ['https://tim.qq.com/', 1105296740],
-    ['https://im.qq.com/', 35055],
     ['https://ys.mihoyo.com/', 1110976923],
     ['https://genshin.hoyoverse.com/', 1110976923]
   ] as const
@@ -154,11 +171,11 @@ test('跳转链接识别遵守显式平台与链接字段优先级，未知域�
     100497308
   )
   for (const field of ['_platform', 'platform', 'source']) {
-    assert.equal(normalizeRequest({ ...input, url, [field]: 'txqq' }).platform.appid, 35055)
+    assert.equal(normalizeRequest({ ...input, url, [field]: 'default' }).platform.appid, 102021671)
   }
   assert.equal(
-    normalizeRequest({ ...input, url, _platform: 'qq', platform: 'txqq', source: '163' }).platform
-      .appid,
+    normalizeRequest({ ...input, url, _platform: 'qq', platform: 'default', source: '163' })
+      .platform.appid,
     100497308
   )
   const custom = { appid: 200079, appname: 'com.sing.client', appsign: '' }
@@ -170,6 +187,7 @@ test('跳转链接识别遵守显式平台与链接字段优先级，未知域�
   assert.throws(() => normalizeRequest({ ...input, url, _platform: 'unknown' }), /未知音卡平台/)
   for (const unknown of [
     'https://example.com/song',
+    'https://im.qq.com/',
     'https://example.com/?next=https://music.163.com/song',
     'https://example.com/#y.qq.com',
     'https://music.163.com.example.com/song',

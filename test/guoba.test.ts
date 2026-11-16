@@ -168,9 +168,9 @@ test('锅巴根入口导出十项配置，JSON 编辑字段保持完整内容', 
   const { options } = schema.componentProps as {
     options: Array<{ label: string; value: string }>
   }
-  assert.equal(options.length, 12)
+  assert.equal(options.length, 11)
   assert.match(options.find(({ value }) => value === 'default')!.label, /102021671/)
-  assert.match(options.find(({ value }) => value === 'txqq')!.label, /QQ 本体/)
+  assert.ok(!options.some(({ value }) => value === 'txqq'))
   assert.match(options.find(({ value }) => value === 'qq')!.label, /QQ 音乐/)
   for (const { value } of options) {
     const saved = await info.setConfigData({ defaultPlatform: value }, context)
@@ -263,6 +263,7 @@ test('锅巴拒绝坏字段，校验失败保持原配置和已挂载路由', as
     { enabled: 'true' },
     { defaultPlatform: '' },
     { defaultPlatform: 'unknown' },
+    { defaultPlatform: 'txqq' },
     { defaultPlatform: 123 },
     { platforms: JSON.stringify({ bad: { appid: 1, appname: 'com.test.app', appsign: 'bad' } }) }
   ]) {

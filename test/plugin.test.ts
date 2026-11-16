@@ -113,7 +113,7 @@ test('默认平台指令持久保存并立即用于 Handler，非法平台保留
   const { instance, cards, hostRoot } = await fixture(t)
   const rule = instance.rule.find((entry) => entry.fnc === 'setPlatform')
   assert.equal(rule?.permission, 'master')
-  assert.ok(rule && new RegExp(rule.reg).test('#设置音乐签名平台 txqq'))
+  assert.ok(rule && new RegExp(rule.reg).test('#设置音乐签名平台 default'))
   const request = {
     type: 'custom',
     title: '平台测试',
@@ -129,7 +129,7 @@ test('默认平台指令持久保存并立即用于 Handler，非法平台保留
   assert.match(replies.at(-1)!, /用法/)
   for (const [platform, appid] of [
     ['qq', 100497308],
-    ['txqq', 35055],
+    ['netease', 100495085],
     ['default', 102021671],
     ['qq', 100497308],
     ['default', 102021671]
@@ -143,8 +143,10 @@ test('默认平台指令持久保存并立即用于 Handler，非法平台保留
     )
     assert.equal(yaml.defaultPlatform, platform)
   }
-  await instance.setPlatform({ msg: '#设置音乐签名平台 不存在', reply })
-  assert.match(replies.at(-1)!, /设置失败.*未知音卡平台/)
+  for (const platform of ['不存在', 'txqq']) {
+    await instance.setPlatform({ msg: `#设置音乐签名平台 ${platform}`, reply })
+    assert.match(replies.at(-1)!, /设置失败.*未知音卡平台/)
+  }
   const raw = await instance.signCard({}, request, rejectSign)
   assert.equal(JSON.parse(raw).meta.music.appid, 102021671)
   assert.equal(cards.length, 3, '切换默认平台隔离缓存，回到相同平台复用旧卡')
@@ -1013,4 +1015,38 @@ test('已有 YAML 时以 YAML 为准，不用旧 JSON 覆盖', async (t) => {
   )
   assert.equal(saved.botId, '123456789')
   assert.equal(saved.timeoutMs, 15000)
+})
+
+for (const source of ['yaml', 'legacy'] as const) {
+  test(`${source} 中的旧内置 txqq 默认平台自动迁移并保存，Handler 使用新平台`, async (t) => {
+    const settings = { defaultPlatform: ' TxQq ', timeoutMs: 9876, botId: '123456789' }
+    const { instance, directory, hostRoot, stack } = await fixture(t, {}, { [source]: settings })
+    const saved: Config = YAML.parse(
+      await readFile(join(hostRoot, 'config/music-card-sign.yaml'), 'utf8')
+    )
+    assert.equal(saved.defaultPlatform, 'default')
+    assert.equal(saved.timeoutMs, settings.timeoutMs)
+    assert.equal(saved.botId, settings.botId)
+    assert.equal(stack.length, 3)
+    const raw = await instance.signCard({}, cachedInput, rejectSign)
+    assert.equal(JSON.parse(raw).meta.music.appid, 102021671)
+    if (source === 'legacy') {
+      assert.deepEqual(
+        JSON.parse(await readFile(join(directory, 'config/config/config.json'), 'utf8')),
+        settings
+      )
+    }
+  })
+}
+
+test('用户自定义 txqq 平台保留映射和默认设置', async (t) => {
+  const settings = { defaultPlatform: 'txqq', platforms: { txqq: { appid: 200079 } } }
+  const { instance, hostRoot } = await fixture(t, {}, { yaml: settings })
+  const saved: Config = YAML.parse(
+    await readFile(join(hostRoot, 'config/music-card-sign.yaml'), 'utf8')
+  )
+  assert.equal(saved.defaultPlatform, settings.defaultPlatform)
+  assert.deepEqual(saved.platforms, settings.platforms)
+  const raw = await instance.signCard({}, cachedInput, rejectSign)
+  assert.equal(JSON.parse(raw).meta.music.appid, 200079)
 })

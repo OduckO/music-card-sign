@@ -22,11 +22,6 @@ const platforms: Record<string, AppPlatform> = {
     appname: '',
     appsign: ''
   },
-  txqq: {
-    appid: 35055,
-    appname: 'com.tencent.mobileqq',
-    appsign: 'a6b745bf24a2c277527716f6f36eb68d'
-  },
   qq: {
     appid: 100497308,
     appname: 'com.tencent.qqmusic',
@@ -93,7 +88,6 @@ const platformDomains: Record<string, string> = {
   'bodian.kuwo.cn': 'bodian',
   'bodian-oia.kuwo.cn': 'bodian',
   'tim.qq.com': 'tim',
-  'im.qq.com': 'txqq',
   'ys.mihoyo.com': 'yuanshen',
   'genshin.hoyoverse.com': 'yuanshen'
 }
