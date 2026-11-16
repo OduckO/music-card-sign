@@ -158,7 +158,7 @@ test('锅巴根入口导出十项配置，JSON 编辑字段保持完整内容', 
   const data = info.getConfigData()
   assert.equal(data.enabled, true)
   assert.equal(data.targetId, '')
-  assert.equal(data.defaultPlatform, 'txqq')
+  assert.equal(data.defaultPlatform, 'default')
   assert.deepEqual(JSON.parse(data.platforms), {})
   assert.equal(JSON.parse(data.testMusic).title, '晴天')
   assert.equal(info.schemas.find(({ field }) => field === 'apiKey')?.component, 'InputPassword')
@@ -168,7 +168,8 @@ test('锅巴根入口导出十项配置，JSON 编辑字段保持完整内容', 
   const { options } = schema.componentProps as {
     options: Array<{ label: string; value: string }>
   }
-  assert.equal(options.length, 11)
+  assert.equal(options.length, 12)
+  assert.match(options.find(({ value }) => value === 'default')!.label, /102021671/)
   assert.match(options.find(({ value }) => value === 'txqq')!.label, /QQ 本体/)
   assert.match(options.find(({ value }) => value === 'qq')!.label, /QQ 音乐/)
   for (const { value } of options) {

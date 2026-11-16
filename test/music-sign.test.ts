@@ -34,10 +34,10 @@ function card(overrides: Partial<MusicCard['meta']['music']> = {}): MusicCard {
     ver: '0.0.0.1',
     prompt: `[分享]${overrides.title ?? '晴天'}`,
     config: { forward: true, type: 'normal' },
-    extra: JSON.stringify({ appid: overrides.appid ?? 35055, app_type: 1, uin: 123456789 }),
+    extra: JSON.stringify({ appid: overrides.appid ?? 102021671, app_type: 1, uin: 123456789 }),
     meta: {
       music: {
-        appid: 35055,
+        appid: 102021671,
         title: '晴天',
         desc: '周杰伦',
         jumpUrl: 'https://example.com/song/1',
@@ -78,12 +78,12 @@ class QQBoundary extends EventEmitter implements IcqqBot {
   }
 }
 
-test('默认 txqq 使用 QQ 本体应用信息，不把 custom 当平台', () => {
+test('默认应用使用 102021671 和空包名、签名，不把 custom 当平台', () => {
   const request = normalizeRequest({ data: { ...input, type: 'custom', content: input.singer } })
   assert.deepEqual(request.platform, {
-    appid: 35055,
-    appname: 'com.tencent.mobileqq',
-    appsign: 'a6b745bf24a2c277527716f6f36eb68d'
+    appid: 102021671,
+    appname: '',
+    appsign: ''
   })
   assert.equal(request.content.summary, '周杰伦')
   assert.equal(request.content.audio, input.audio)
@@ -181,7 +181,7 @@ test('跳转链接识别遵守显式平台与链接字段优先级，未知域�
     assert.equal(
       normalizeRequest({ ...input, url: unknown, audio: url, image: 'https://y.qq.com/cover.jpg' })
         .platform.appid,
-      35055,
+      102021671,
       unknown
     )
   }
@@ -418,7 +418,7 @@ test('先监听再 share，可接同步回传，返回完整服务端 JSON', asy
   assert.deepEqual(signed, ark)
   assert.deepEqual(bot.targets, [bot.uin])
   assert.equal(bot.shares[0].content.type, 'share')
-  assert.equal(bot.shares[0].app.appname, 'com.tencent.mobileqq')
+  assert.deepEqual(bot.shares[0].app, { appid: 102021671, appname: '', appsign: '' })
 })
 
 test('忽略他人、发给他人、其他平台或歌曲的卡，再接受自己正确私聊', async (t) => {

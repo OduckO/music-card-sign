@@ -17,6 +17,11 @@ import type {
 import { errorMessage } from '@/utils'
 
 const platforms: Record<string, AppPlatform> = {
+  default: {
+    appid: 102021671,
+    appname: '',
+    appsign: ''
+  },
   txqq: {
     appid: 35055,
     appname: 'com.tencent.mobileqq',
@@ -186,7 +191,7 @@ function platformFromUrl(data: MusicRequest) {
 export function selectPlatform(
   data: MusicRequest,
   customPlatforms: Record<string, PlatformInput>,
-  defaultPlatform = 'txqq'
+  defaultPlatform = 'default'
 ): AppPlatform {
   const selected =
     data._platform ?? data.platform ?? data.source ?? platformFromUrl(data) ?? defaultPlatform
@@ -213,7 +218,7 @@ export function selectPlatform(
 export function normalizeRequest(
   input: unknown,
   customPlatforms: Record<string, PlatformInput> = {},
-  defaultPlatform = 'txqq'
+  defaultPlatform = 'default'
 ): NormalizedRequest {
   const data = unwrap(input)
   const platform = selectPlatform(data, customPlatforms, defaultPlatform)
@@ -349,7 +354,7 @@ export class MusicSigner {
     targetId = '',
     timeoutMs = 15000,
     customPlatforms = {},
-    defaultPlatform = 'txqq',
+    defaultPlatform = 'default',
     resolveMusic,
     cache,
     onCacheError,

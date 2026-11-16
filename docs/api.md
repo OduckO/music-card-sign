@@ -70,7 +70,7 @@ ID 查询需要取得歌名、歌手、跳转地址和可用音频地址，封�
 
 ## 自定义平台
 
-`defaultPlatform` 默认是 `txqq`，表示 QQ 本体；`qq` 表示 QQ 音乐。可通过锅巴或 `#设置音乐签名平台 <平台名>` 保存默认平台，HTTP、Handler 和命令共用此设置。
+`defaultPlatform` 默认是 `default`，应用 ID 为 `102021671`，`appname` 和 `appsign` 均为空。可通过锅巴或 `#设置音乐签名平台 <平台名>` 保存默认平台，HTTP、Handler 和命令共用此设置；已有配置可发送 `#设置音乐签名平台 default` 切换。
 
 平台选择顺序为：显式 `_platform`（兼容 `platform/source`）→ 歌曲跳转链接识别 → `defaultPlatform`。
 
@@ -92,20 +92,22 @@ ID 查询需要取得歌名、歌手、跳转地址和可用音频地址，封�
 
 更具体的域名优先，例如 `5sing.kugou.com` 使用 `5sing`。未知域名使用默认平台；已知短链接域名按表识别，其他短链接需显式指定 `_platform`。
 
-`txqq` 的应用信息为：
+`default` 使用以下应用信息，将此扩展与歌曲字段合并可强制使用该应用：
 
 ```json
 {
-  "appid": 35055,
-  "appname": "com.tencent.mobileqq",
-  "appsign": "a6b745bf24a2c277527716f6f36eb68d"
+  "_platform": {
+    "appid": 102021671,
+    "appname": "",
+    "appsign": ""
+  }
 }
 ```
 
-`_platform` 只控制音卡的应用身份，不改变 ID 查询来源。例如，网易云歌曲仍由 `163` 查询，同时以 QQ 音乐应用身份生成卡片：
+`_platform` 只控制音卡的应用身份，不改变 ID 查询来源。例如，网易云歌曲仍由 `163` 查询，同时以默认应用身份生成卡片：
 
 ```json
-{ "type": "163", "id": "186016", "_platform": "qq" }
+{ "type": "163", "id": "186016", "_platform": "default" }
 ```
 
 直接提交歌曲信息时也可指定平台：
@@ -121,7 +123,7 @@ ID 查询需要取得歌名、歌手、跳转地址和可用音频地址，封�
 }
 ```
 
-预置平台名称为 `txqq`、`qq`、`netease`（别名 `163`）、`kuwo`、`kugou`、`migu`、`bilibili`、`5sing`、`bodian`、`tim`、`yuanshen`。
+预置平台名称为 `default`、`txqq`、`qq`、`netease`（别名 `163`）、`kuwo`、`kugou`、`migu`、`bilibili`、`5sing`、`bodian`、`tim`、`yuanshen`。`txqq` 表示 QQ 本体，`qq` 表示 QQ 音乐。
 
 还可直接传入应用信息。将下面片段与歌曲字段合并后提交：
 

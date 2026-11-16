@@ -18,7 +18,7 @@ export async function help(e: CommandEvent) {
       '#音乐签名状态：查看服务和签名账号',
       '#设置音乐签名Bot <QQ号>：选择 icqq 签名账号；填「自动」恢复自动选择',
       '#设置音乐签名联系人 <QQ号>：设置收卡联系人；填「自己」恢复发给自己',
-      '#设置音乐签名平台 <平台名>：设置默认平台，如 txqq、qq 或自定义名称',
+      '#设置音乐签名平台 <平台名>：设置默认平台，如 default、netease 或自定义名称',
       '#开启音乐签名服务 / #关闭音乐签名服务',
       '#音之测测：重新签名并发送测试音卡',
       '#音之测测 {请求JSON}：临时测试指定歌曲',
@@ -107,7 +107,7 @@ export async function setPlatform(e: CommandEvent) {
     .trim()
     .toLowerCase()
   if (!value) {
-    await e.reply('用法：#设置音乐签名平台 txqq，或填写 qq、netease 等内置或自定义平台名。')
+    await e.reply('用法：#设置音乐签名平台 default，或填写 qq、netease 等内置或自定义平台名。')
     return true
   }
   let message: string

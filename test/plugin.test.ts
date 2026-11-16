@@ -129,7 +129,10 @@ test('默认平台指令持久保存并立即用于 Handler，非法平台保留
   assert.match(replies.at(-1)!, /用法/)
   for (const [platform, appid] of [
     ['qq', 100497308],
-    ['txqq', 35055]
+    ['txqq', 35055],
+    ['default', 102021671],
+    ['qq', 100497308],
+    ['default', 102021671]
   ] as const) {
     await instance.setPlatform({ msg: `#设置音乐签名平台 ${platform}`, reply })
     assert.match(replies.at(-1)!, new RegExp(`已设为 ${platform}`))
@@ -143,8 +146,8 @@ test('默认平台指令持久保存并立即用于 Handler，非法平台保留
   await instance.setPlatform({ msg: '#设置音乐签名平台 不存在', reply })
   assert.match(replies.at(-1)!, /设置失败.*未知音卡平台/)
   const raw = await instance.signCard({}, request, rejectSign)
-  assert.equal(JSON.parse(raw).meta.music.appid, 35055)
-  assert.equal(cards.length, 2, '切换默认平台隔离缓存，回到相同平台复用旧卡')
+  assert.equal(JSON.parse(raw).meta.music.appid, 102021671)
+  assert.equal(cards.length, 3, '切换默认平台隔离缓存，回到相同平台复用旧卡')
 })
 
 test('ICQQ 音卡直接使用 Bot SDK 发送到群聊或私聊，不经宿主 reply 加工', async (t) => {
@@ -800,7 +803,7 @@ test('开发者注册 ID 来源后通过音卡 Handler 查询，精确缓存命�
   const data = { type: 'my-plugin', id: 'track:00123' }
   const raw = await instance.signCard(e, data, rejectSign)
   assert.equal(JSON.parse(raw).meta.music.title, '开发者歌曲')
-  assert.equal(JSON.parse(raw).meta.music.appid, 35055, '自定义来源默认使用 txqq 音卡身份')
+  assert.equal(JSON.parse(raw).meta.music.appid, 102021671, '自定义来源使用配置的默认音卡身份')
   assert.equal(await instance.signCard(e, data, rejectSign), raw)
   assert.equal(queries, 1)
   assert.equal(cards.length, 1)

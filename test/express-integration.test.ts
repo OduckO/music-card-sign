@@ -111,7 +111,7 @@ test('实际云崽 Express：POST 经 body 解析与路径挂载后仍返回原�
   const app = Object.assign(express(), { quiet: [] as string[] })
   app.use(express.json())
   const raw =
-    '{\n"view":"music","prompt":"[分享]测试","extra":"opaque-server-field","meta":{"music":{"appid":35055,"title":"测试","desc":"歌手","jumpUrl":"https://example.com/song","musicUrl":"https://example.com/audio.mp3","preview":""}}\n}'
+    '{\n"view":"music","prompt":"[分享]测试","extra":"opaque-server-field","meta":{"music":{"appid":102021671,"title":"测试","desc":"歌手","jumpUrl":"https://example.com/song","musicUrl":"https://example.com/audio.mp3","preview":""}}\n}'
   const bot: IcqqBot & EventEmitter = Object.assign(new EventEmitter(), {
     uin: 123456789,
     isOnline: () => true,
