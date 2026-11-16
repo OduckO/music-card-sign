@@ -3,6 +3,6 @@ export declare class MusicCardSign extends plugin<'message'> {
     constructor();
     init(): Promise<void>;
     onUnload(): Promise<void>;
-    accept(e: MusicEvent): false | "return";
+    accept(e: MusicEvent): Promise<false | "return">;
     signCard(e: Pick<CommandEvent, 'self_id'>, data: MusicRequest, reject: (message: string) => never, options?: SignOptions): Promise<string>;
 }

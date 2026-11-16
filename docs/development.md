@@ -64,9 +64,9 @@ music-card-sign/
 └── package.json
 ```
 
-应用按功能拆分为独立的 `plugin` 子类，规则和事件入口放在 `src/apps/`，业务逻辑复用 `src/modules/`。`MusicCardSign` 持有服务初始化、清理和 `music.sign` Handler；测试、发卡与管理应用共用服务，不重复挂载 HTTP 或监听器。
+应用按功能拆分为独立的 `plugin` 子类，规则和事件入口放在 `src/apps/`，业务逻辑复用 `src/modules/`。应用文件只声明类和入口；服务模块在 `init()` 中动态导入，命令模块在执行指令时动态导入。`MusicCardSign` 持有服务初始化、清理和 `music.sign` Handler；测试、发卡与管理应用共用服务，不重复挂载 HTTP 或监听器。
 
-`src/index.ts` 调用加载模块，自动扫描 `lib/apps/` 当前层的 JS，并行导入后按文件名顺序汇总 `apps`，交给云崽本体实例化并注册。单个文件导入失败会记录文件名和原始错误；签名服务应用失败会继续抛出错误。加载器不缓存模块、不递归扫描，也不另设导入计时，加载超时由本体管理。
+`src/index.ts` 调用加载模块，自动扫描 `lib/apps/` 当前层的 JS，并行导入后按文件名顺序汇总 `apps`，交给云崽本体实例化并注册。单个文件导入失败会记录文件名和原始错误；签名服务应用失败会继续抛出错误。加载器不递归扫描，也不另设加载超时，加载超时由本体管理。
 
 新增应用时，在 `src/apps/` 添加 TS 文件并导出命名的 `plugin` 子类，构建后自动加载，无需修改入口。类名须唯一；新增应用只声明自己的命令，不要重复初始化签名服务。写法可参考 [DF 插件的应用目录](https://github.com/KaguyaJs/Yunzai-DF-Plugin/tree/dev/src/apps)。
 
