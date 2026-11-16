@@ -1,6 +1,7 @@
 enabled: true
 botId: ''
 targetId: ''
+defaultPlatform: txqq
 path: /music_card/card
 timeoutMs: 15000
 localPort: 0

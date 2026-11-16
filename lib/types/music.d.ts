@@ -77,6 +77,7 @@ export interface MusicCard extends Record<string, unknown> {
     };
 }
 export interface MusicEvent {
+    message_id?: string;
     message?: Array<{
         type: string;
         data?: unknown;
@@ -159,6 +160,7 @@ export interface SignerOptions {
     targetId?: string | number;
     timeoutMs?: number;
     customPlatforms?: Record<string, PlatformInput>;
+    defaultPlatform?: string;
     resolveMusic?: ResolveMusic;
     cache?: CardCache;
     onCacheError?: (error: unknown) => void;
@@ -171,7 +173,7 @@ export interface PendingRequest {
     finish: (error?: Error | null, card?: MusicCard) => void;
 }
 export interface Subscription {
-    items: Set<PendingRequest>;
+    requests: Map<string, PendingRequest>;
     listener: (event: MusicEvent) => void;
     disposers: Array<() => void>;
 }

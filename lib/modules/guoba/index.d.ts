@@ -25,6 +25,7 @@ export declare function supportGuoba(): {
             enabled: boolean;
             botId: string;
             targetId: string;
+            defaultPlatform: string;
             path: string;
             timeoutMs: number;
             localPort: number;

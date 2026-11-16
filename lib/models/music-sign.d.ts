@@ -1,4 +1,4 @@
-import type { AppPlatform, CardCache, IcqqBot, MusicCard, MusicRequest, NormalizedRequest, PendingRequest, PlatformInput, ResolveMusic, SignerOptions, SignOptions, Subscription } from '../types/index.js';
+import type { AppPlatform, CardCache, IcqqBot, MusicCard, MusicEvent, MusicRequest, NormalizedRequest, PendingRequest, PlatformInput, ResolveMusic, SignerOptions, SignOptions, Subscription } from '../types/index.js';
 export declare function cardText(card: MusicCard): string;
 export declare class MusicSignError extends Error {
     readonly status: number;
@@ -9,14 +9,15 @@ export declare class MusicSignError extends Error {
         fields: string[];
     });
 }
-export declare function selectPlatform(data: MusicRequest, customPlatforms: Record<string, PlatformInput>): AppPlatform;
-export declare function normalizeRequest(input: unknown, customPlatforms?: Record<string, PlatformInput>): NormalizedRequest;
+export declare function selectPlatform(data: MusicRequest, customPlatforms: Record<string, PlatformInput>, defaultPlatform?: string): AppPlatform;
+export declare function normalizeRequest(input: unknown, customPlatforms?: Record<string, PlatformInput>, defaultPlatform?: string): NormalizedRequest;
 export declare class MusicSigner {
     readonly getBots: SignerOptions['getBots'];
     botId: string | number;
     readonly targetId: string;
     readonly timeoutMs: number;
     readonly customPlatforms: Record<string, PlatformInput>;
+    readonly defaultPlatform: string;
     readonly resolveMusic?: ResolveMusic;
     readonly cache?: CardCache;
     readonly onCacheError?: (error: unknown) => void;
@@ -26,14 +27,17 @@ export declare class MusicSigner {
     readonly inflight: Map<string, Promise<MusicCard>>;
     readonly submissions: Map<string, Promise<MusicCard>>;
     readonly listeners: Map<IcqqBot, Subscription>;
+    readonly echoes: Map<string, number>;
     closed: boolean;
-    constructor({ getBots, botId, targetId, timeoutMs, customPlatforms, resolveMusic, cache, onCacheError, onLog }: SignerOptions);
+    constructor({ getBots, botId, targetId, timeoutMs, customPlatforms, defaultPlatform, resolveMusic, cache, onCacheError, onLog }: SignerOptions);
     bots(): IcqqBot[];
     sign(input: unknown, { forceFresh }?: SignOptions): Promise<MusicCard>;
     signRequest(bot: IcqqBot, data: MusicRequest, platform: AppPlatform, identity: string, key: string, forceFresh: boolean, context: string): Promise<MusicCard>;
     submit(bot: IcqqBot, request: NormalizedRequest, key: string, context: string): Promise<MusicCard>;
     send(bot: IcqqBot, request: NormalizedRequest, key: string, context: string): Promise<MusicCard>;
     unlisten(bot: IcqqBot): void;
+    isSigningEcho(event: MusicEvent): boolean;
+    markEcho(event: MusicEvent, botId: number, targetId: string): void;
     listen(bot: IcqqBot): Subscription;
     status(): {
         enabled: boolean;

@@ -1,4 +1,4 @@
-import type { CommandEvent, Config, MusicRequest, SignOptions } from '../../types/index.js';
+import type { CommandEvent, Config, MusicEvent, MusicRequest, SignOptions } from '../../types/index.js';
 export declare function startService(): Promise<void>;
 export declare function stopService(): Promise<void>;
 export declare function getServiceStatus(): Promise<{
@@ -8,6 +8,7 @@ export declare function getServiceStatus(): Promise<{
     targetId: string;
 } | undefined>;
 export declare function getTestMusic(): Promise<MusicRequest>;
+export declare function isSigningEcho(event: MusicEvent): boolean;
 export declare function updateSettings(patch: Partial<Config>): Promise<void>;
 export declare function setServiceEnabled(enabled: boolean): Promise<string>;
 export declare function setSigningBot(botId: string): Promise<string>;
