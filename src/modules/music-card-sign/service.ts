@@ -14,6 +14,7 @@ import { errorMessage } from '@/utils'
 import { MusicSigner, cardText, selectPlatform } from '@/models/music-sign'
 import { mountService } from '@/models/http'
 import { MusicCardCache } from '@/models/music-cache'
+import { resolveWithHandler } from './resolver'
 
 const settings = config.config
 let service: { signer: MusicSigner; unmount: () => Promise<void> } | null = null
@@ -51,6 +52,7 @@ async function start() {
     timeoutMs: settings.timeoutMs,
     customPlatforms: settings.platforms,
     defaultPlatform: settings.defaultPlatform,
+    resolveMusic: resolveWithHandler,
     cache: new MusicCardCache(path.join(PluginPath, 'data/music-card-cache')),
     onCacheError: (error) => logger.warn(`[音卡缓存] ${errorMessage(error)}`),
     onLog: (level, message) => logger[level](`[音卡签名] ${message}`)

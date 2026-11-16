@@ -5,7 +5,14 @@ import { readFile, writeFile, readdir } from 'node:fs/promises'
 import fs from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { CacheRecord, Config, MusicCard, MusicRequest, MusicEvent } from '../src/types'
+import type {
+  CacheRecord,
+  Config,
+  MusicCard,
+  MusicRequest,
+  MusicEvent,
+  ResolverContext
+} from '../src/types'
 import type * as MusicInfoModule from '../src/models/music-info'
 import { fixture, command } from './helpers/plugin'
 import type { FixtureCommandEvent, FixtureReply, FixtureResponse } from './helpers/plugin'
@@ -813,6 +820,101 @@ test('开发者注册 ID 来源后通过音卡 Handler 查询，精确缓存命�
   const custom = await instance.signCard(e, { ...data, _platform: platform }, rejectSign)
   assert.equal(JSON.parse(custom).meta.music.appid, 200079)
   assert.equal(queries, 2)
+})
+
+test('按来源调用歌曲查询 Handler，共用 HTTP 与精确缓存，移除后恢复直接注册来源', async (t) => {
+  const { instance, bot, cards, directory, handlers, stack } = await fixture(t)
+  const { registerMusicResolver } = (await import(
+    pathToFileURL(join(directory, 'lib/models/music-info.js')).href
+  )) as typeof MusicInfoModule
+  const info = {
+    title: 'Handler 歌曲',
+    singer: 'Handler 歌手',
+    url: 'https://example.com/song',
+    audio: 'https://example.com/audio.mp3'
+  }
+  const unregister = registerMusicResolver('my-plugin', () => ({ ...info, title: '直接注册歌曲' }))
+  t.after(unregister)
+  let queries = 0
+  let context: ResolverContext | undefined
+  handlers.add({
+    key: 'music.info.my-plugin',
+    ns: 'example/music-source.js',
+    fn: (received, data) => {
+      queries++
+      context = received
+      assert.equal(data.id, 'track:00123')
+      assert.equal(data.type, 'my-plugin')
+      assert.equal(received.type, data.type)
+      assert.equal(received.signal.aborted, false)
+      assert.equal(typeof received.json, 'function')
+      return info
+    }
+  })
+  const data = { type: 'my-plugin', id: 'track:00123' }
+  const raw = await instance.signCard({ self_id: bot.uin }, data, rejectSign)
+  assert.equal(JSON.parse(raw).meta.music.title, info.title)
+  assert.equal(context?.signal.aborted, true)
+  assert.equal(await instance.signCard({ self_id: bot.uin }, data, rejectSign), raw)
+  assert.equal(queries, 1)
+  assert.equal(cards.length, 1)
+  const response: FixtureResponse = {
+    statusCode: 0,
+    body: '',
+    writeHead(code) {
+      this.statusCode = code
+    },
+    end(body) {
+      this.body = body
+    }
+  }
+  await stack[1].handle(
+    { method: 'POST', url: '/', headers: {}, body: { ...data, prompt: 'HTTP 查询' } },
+    response
+  )
+  assert.equal(response.statusCode, 200)
+  assert.equal(JSON.parse(response.body).meta.music.title, info.title)
+  assert.equal(queries, 2)
+  handlers.del('example/music-source.js')
+  const fallback = await instance.signCard({}, { ...data, prompt: '卸载后的查询' }, rejectSign)
+  assert.equal(JSON.parse(fallback).meta.music.title, '直接注册歌曲')
+  assert.equal(queries, 2)
+  unregister()
+  await assert.rejects(
+    instance.signCard({}, { ...data, prompt: '来源已卸载' }, rejectSign),
+    /未注册该音乐来源/
+  )
+})
+
+test('歌曲查询 Handler 的错误、无效字段和超时在提交前失败，超时中止查询信号', async (t) => {
+  const { instance, bot, cards, handlers } = await fixture(t, { timeoutMs: 25 })
+  const entry = { key: 'music.info.handler-test', ns: 'example/handler-test.js' }
+  const data = { type: 'handler-test', id: 'track:00123' }
+  handlers.add({
+    ...entry,
+    fn: () => {
+      throw new Error('开发者 API 查询失败')
+    }
+  })
+  await assert.rejects(instance.signCard({}, data, rejectSign), /开发者 API 查询失败/)
+  handlers.add({
+    ...entry,
+    fn: () => ({ title: '测试', singer: '歌手', url: 'https://example.com/song', audio: '' })
+  })
+  await assert.rejects(instance.signCard({}, data, rejectSign), /可用音频 URL/)
+  let signal: AbortSignal | undefined
+  handlers.add({
+    ...entry,
+    fn: (context) => {
+      signal = context.signal
+      return new Promise(() => {})
+    }
+  })
+  await assert.rejects(instance.signCard({}, data, rejectSign), /解析超时/)
+  assert.equal(signal?.aborted, true)
+  assert.equal(cards.length, 0)
+  assert.equal(bot.listenerCount('sync.message'), 0)
+  assert.equal(bot.listenerCount('message.private'), 0)
 })
 
 test('回传失败不写入缓存，音之测测绕过已有缓存检测当前回传能力', async (t) => {

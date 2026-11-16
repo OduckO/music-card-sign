@@ -13,7 +13,8 @@ import type {
   ShareContent,
   AppPlatform,
   HttpRequest,
-  MusicEvent
+  MusicEvent,
+  ResolverContext
 } from '../../src/types'
 import YAML from 'yaml'
 
@@ -79,6 +80,17 @@ export interface PluginFixture {
   logs: Array<{ level: string; message: string }>
   directory: string
   hostRoot: string
+  handlers: FixtureHandlers
+}
+
+export interface FixtureHandlers {
+  add: (entry: {
+    key: string
+    ns: string
+    priority?: number
+    fn: (context: ResolverContext, data: { type: string; id: string }) => unknown
+  }) => void
+  del: (namespace: string, key?: string) => void
 }
 
 export const command = (msg: string): FixtureCommandEvent => ({
@@ -104,6 +116,37 @@ export async function fixture(
   await mkdir(join(hostRoot, 'config'), { recursive: true })
   await symlink(join(projectRoot, 'node_modules'), join(hostRoot, 'node_modules'), 'junction')
   await writeFile(join(hostRoot, 'package.json'), '{"type":"module"}')
+  await writeFile(
+    join(hostRoot, 'lib/plugins/handler.js'),
+    `const events = new Map()
+const Handler = {
+  add(entry) {
+    Handler.del(entry.ns, entry.key)
+    const handlers = events.get(entry.key) || []
+    handlers.push({ priority: 500, ...entry })
+    events.set(entry.key, handlers.sort((a, b) => a.priority - b.priority))
+  },
+  del(ns, key) {
+    for (const name of key ? [key] : events.keys()) {
+      const remaining = (events.get(name) || []).filter(entry => entry.ns !== ns)
+      if (remaining.length) events.set(name, remaining)
+      else events.delete(name)
+    }
+  },
+  has(key) { return events.has(key) },
+  async call(key, context, data) {
+    let result
+    for (const entry of events.get(key) || []) {
+      let done = true
+      result = await entry.fn.call(entry.self, context, data, () => { done = false })
+      if (done) return result
+    }
+    return result
+  }
+}
+export default Handler
+`
+  )
   await writeFile(
     join(hostRoot, 'lib/plugins/config.js'),
     `import fs from 'node:fs/promises'
@@ -161,6 +204,9 @@ export default async function makeConfig(name, config) {
       }
     }
   })
+  const { default: handlers } = (await import(
+    pathToFileURL(join(hostRoot, 'lib/plugins/handler.js')).href
+  )) as { default: FixtureHandlers }
   if (persisted.noAddCleanup) Reflect.deleteProperty(plugin.prototype, 'addCleanup')
   const cards: string[] = []
   const targets: number[] = []
@@ -243,5 +289,5 @@ export default async function makeConfig(name, config) {
     await import(pathToFileURL(join(directory, 'lib/modules/music-card-sign/service.js')).href)
   ).stopService
   await instance.init()
-  return { instance, bot, stack, cards, targets, logs, directory, hostRoot }
+  return { instance, bot, stack, cards, targets, logs, directory, hostRoot, handlers }
 }

@@ -127,9 +127,9 @@ export async function sendMusicCard(e: CustomEvent) {
 
 ## 扩展 ID 查询
 
-按普通云崽插件的方式编写，代码放在开发者自己的插件目录，在该插件的 `init()` 中调用 `registerMusicResolver(type, resolver)`。注册完成后，音卡服务收到对应的 `type + id` 请求，就会调用你的函数查询歌曲。
+按普通云崽插件的方式编写。可以在插件的 `handler` 中声明 `music.info.<来源名>`，也可以在 `init()` 中调用 `registerMusicResolver(type, resolver)`。音卡服务收到对应的 `type + id` 请求时，调用你的函数查询歌曲。
 
-这个扩展是同一云崽进程中的函数注册。已有插件无需另建项目或另开 HTTP 服务；歌曲 API、登录信息和配置继续由自己的插件管理。
+代码可以放在开发者自己的插件包中，也可以是 `plugins/example/` 下的单个 JS 文件。两种方式都在同一个云崽进程中运行，歌曲 API、登录信息和配置由提供查询的插件管理。
 
 ### 文件放在哪里
 
@@ -149,12 +149,81 @@ Yunzai/
 
 已有命令应用时，可把注册与清理逻辑合并进它的生命周期。新建 `src/apps/music-source.ts` 时，使用自己的插件加载器加载此应用；本例按 TS 模板导出插件类，运行前需构建自己的插件。
 
-| 插件形式     | 注册代码位置                                     | 从该位置导入音卡模块                             |
-| ------------ | ------------------------------------------------ | ------------------------------------------------ |
-| TS 模板插件  | `my-plugin/src/apps/` 或 `my-plugin/src/models/` | `../../../music-card-sign/lib/models/music-info` |
-| 普通 JS 插件 | `my-plugin/apps/` 或 `my-plugin/models/`         | `../../music-card-sign/lib/models/music-info.js` |
+| 插件形式       | 注册代码位置                                     | 从该位置导入音卡模块                             |
+| -------------- | ------------------------------------------------ | ------------------------------------------------ |
+| TS 模板插件    | `my-plugin/src/apps/` 或 `my-plugin/src/models/` | `../../../music-card-sign/lib/models/music-info` |
+| 普通 JS 插件   | `my-plugin/apps/` 或 `my-plugin/models/`         | `../../music-card-sign/lib/models/music-info.js` |
+| 单文件 JS 插件 | `example/music-source.js`                        | `../music-card-sign/lib/models/music-info.js`    |
 
-TS 示例使用无扩展名导入，编译时通过自己的 `tsc-alias` 补齐 ESM 路径。普通 JS 插件直接导入运行文件，需要 `.js` 扩展名。文件层级改变时，相对路径也要调整；始终导入已安装音卡插件的 `lib` 模块。
+上表的导入路径用于直接注册。Handler 方式只需在应用中声明查询方法。TS 示例使用无扩展名导入，编译时通过自己的 `tsc-alias` 补齐 ESM 路径；普通 JS 直接导入运行文件时需要 `.js` 扩展名。
+
+### 单文件 JS 插件
+
+将下面内容保存为云崽根目录下的 `plugins/example/music-source.js`，修改 API 地址和字段映射后重启云崽。`example` 目录中的 JS 文件由云崽直接加载，`plugin` 类由本体提供，无需编译或创建插件包入口。加载方式见云崽文档的 [插件加载](https://yunzai-bot.com/dev/load.html)。
+
+以下完整示例使用下一节的 API 响应格式：
+
+```javascript
+export class MusicSource extends plugin {
+  constructor() {
+    super({
+      name: '我的音乐来源',
+      dsc: '提供歌曲 ID 查询',
+      event: 'message',
+      priority: 1000,
+      handler: [{ key: 'music.info.my-plugin', fn: 'resolveMusic' }],
+      rule: []
+    })
+  }
+
+  async resolveMusic(context, { id }) {
+    const response = await context.json('https://music-api.example.com/song/detail', { id })
+    const song = response.data
+    if (response.code !== 0 || !song) {
+      throw new Error(response.message || '查询歌曲失败')
+    }
+    if (song.id !== id) throw new Error('API 返回的歌曲 ID 与请求不符')
+    return {
+      title: song.name,
+      singer: song.artist,
+      url: song.link,
+      audio: song.playUrl,
+      image: song.cover || ''
+    }
+  }
+}
+```
+
+`music-api.example.com` 是示例地址。来源名为 `my-plugin`，对应 Handler 名称 `music.info.my-plugin`。保存并加载后可发送：
+
+```text
+#音之测测 {"type":"my-plugin","id":"track:00123","_platform":"default"}
+```
+
+如果歌曲查询函数已经由其他插件导出，单文件 JS 也可以调用它。以下调用下一节 `my-plugin` 编译后导出的 `resolveOwnMusic`；使用其他插件时，替换为对方实际导出的路径和函数：
+
+```javascript
+import { resolveOwnMusic } from '../my-plugin/lib/models/music-resolver.js'
+
+export class MusicSource extends plugin {
+  constructor() {
+    super({
+      name: '音乐来源桥接',
+      dsc: '调用其他插件的歌曲查询',
+      event: 'message',
+      priority: 1000,
+      handler: [{ key: 'music.info.my-plugin', fn: 'resolveMusic' }],
+      rule: []
+    })
+  }
+
+  resolveMusic(context, { id }) {
+    return resolveOwnMusic(id, context)
+  }
+}
+```
+
+这两份单文件示例选择一份使用。被调用的函数需返回下文的标准歌曲字段；来源名由 Handler 的 key 决定，与 JS 文件名无关。
 
 ### 1. 查询自己的 API 并返回歌曲字段
 
@@ -193,7 +262,7 @@ interface SongApiResponse {
   }
 }
 
-const resolveOwnMusic: MusicResolver = async (id, { json }) => {
+export const resolveOwnMusic: MusicResolver = async (id, { json }) => {
   const response = (await json('https://music-api.example.com/song/detail', {
     id
   })) as SongApiResponse
@@ -224,7 +293,37 @@ export function installOwnMusicResolver() {
 
 ### 2. 在云崽应用中注册并清理
 
-在自己的 `src/apps/music-source.ts` 中导出应用：
+下面两种方式任选一种，均可放在自己的 `src/apps/music-source.ts`。
+
+#### 方式一：声明查询 Handler
+
+```typescript
+import { resolveOwnMusic } from '../models/music-resolver'
+import type { ResolverContext } from '../../../music-card-sign/lib/types/music'
+
+export class MusicSource extends plugin<'message'> {
+  constructor() {
+    super({
+      name: '我的音乐来源',
+      dsc: '提供歌曲 ID 查询',
+      event: 'message',
+      priority: 1000,
+      handler: [{ key: 'music.info.my-plugin', fn: 'resolveMusic' }],
+      rule: []
+    })
+  }
+
+  resolveMusic(context: ResolverContext, { id }: { id: string }) {
+    return resolveOwnMusic(id, context)
+  }
+}
+```
+
+云崽加载应用时注册 Handler，卸载时按应用的 namespace 移除，因此这份写法无需在 `init()` 中注册查询函数或保存注销函数。相同 key 有多个 Handler 时，沿用云崽的 priority 顺序。
+
+查询方法的第一个参数是音卡服务创建的 `ResolverContext`，第二个参数为 `{ type, id }`。这里的 context 提供 `signal/json/fetchImpl`，用于歌曲查询；它没有聊天事件的 `reply` 或 `runtime`。Handler 必须返回标准歌曲信息，查询失败时抛出错误。
+
+#### 方式二：直接注册查询函数
 
 ```typescript
 import { installOwnMusicResolver } from '../models/music-resolver'
@@ -266,7 +365,7 @@ TRSS 提供 `addCleanup` 时，清理会注销来源，恢复会重新注册；J
 
 ### 3. 构建、加载并发起 ID 请求
 
-构建自己的 TS 插件并重启云崽，确认自己的应用已加载。音卡服务和开发者插件必须运行在同一个云崽进程；单独执行文件或在另一个进程注册，不会改变当前音卡服务的注册表。
+TS 插件先构建，再重启云崽；`plugins/example/` 中的单文件 JS 可直接加载。确认提供查询的应用已加载。音卡服务和开发者插件必须运行在同一个云崽进程。
 
 由主人先发送测试指令：
 
@@ -282,7 +381,7 @@ HTTP 向签名地址 POST 同一请求：
 { "type": "my-plugin", "id": "track:00123", "_platform": "default" }
 ```
 
-HTTP 成功时返回完整音卡 JSON；在自己的聊天命令中使用此请求，则按 [Handler 接入](#handler-接入) 调用并发送。HTTP、Handler 和测试命令共用已注册的查询函数。
+HTTP 成功时返回完整音卡 JSON；在自己的聊天命令中使用此请求，则按 [Handler 接入](#handler-接入) 调用并发送。HTTP、`music.sign` 和测试命令都支持上述两种查询接法。
 
 ### 解析器参数与返回值
 
@@ -332,6 +431,8 @@ ID 查询返回的 `title` 和 `singer` 会去掉两端空白，地址会验证�
 | `_platform: "default"` | 强制使用哪组应用信息提交分享           |
 | 配置 `platforms`       | 给音卡应用信息命名，不注册歌曲查询函数 |
 
+音卡服务优先调用对应的 `music.info.<type>` Handler，没有对应 Handler 时使用 `registerMusicResolver()` 注册的函数，再使用内置来源。Handler 移除后，未命中缓存的请求按这个顺序继续查询；同一原始请求的历史缓存仍可复用。Handler 返回无效字段或抛出错误时，直接报告失败。
+
 平台在调用查询函数前确定。请求未携带跳转链接或显式平台时，采用配置的 `defaultPlatform`；返回的网易云、QQ 音乐等链接用于卡片跳转，不会重新选择平台。请求中已经提供的歌曲字段会覆盖查询返回的同名字段，所以只按 ID 查询时建议提交上面的最小请求。
 
 ID 请求的精确缓存保存的是完整音卡 JSON。命中缓存时跳过解析器，不会重新访问自己的歌曲 API；并发相同请求共用一次查询。更新 API、切换登录态或播放地址失效后，用 `#音之测测 {请求JSON}` 强制重新查询与签名，成功后更新缓存。
@@ -350,21 +451,23 @@ export async function queryMusicById(id: string) {
 }
 ```
 
-`options` 可传 `timeoutMs`、`fetchImpl` 和 `resolvers`。本次调用的 `resolvers[type]` 优先于全局注册，其次使用内置来源；直接调用不会改变全局注册，也不会替整个音卡服务配置查询函数。
+`options` 可传 `timeoutMs`、`fetchImpl` 和 `resolvers`。本次调用的 `resolvers[type]` 优先于全局注册，其次使用内置来源。直接调用 `resolveMusicInfo()` 使用函数注册表；声明式查询 Handler 由音卡服务调用。需要在同一进程中直接查询 Handler 来源时，可调用 `lib/modules/music-card-sign/resolver` 导出的 `resolveWithHandler(type, id, options)`，调用级 `resolvers[type]` 仍优先。
 
 ### 接入检查
 
-| 现象                         | 检查方法                                                                |
-| ---------------------------- | ----------------------------------------------------------------------- |
-| 找不到模块                   | 核对两个插件是否并列安装、导入路径层级及 `music-card-sign/lib` 是否存在 |
-| 提示未注册该音乐来源         | 确认自己的应用已加载且执行了 `init()`，请求 `type` 与注册名完全一致     |
-| 放进 `models/` 后没有生效    | 模型文件需由已加载的应用导入，并在生命周期中调用注册函数                |
-| API 没有收到请求             | 用 `#音之测测` 排除缓存，并检查音卡服务开关、在线 icqq 账号和来源注册   |
-| API 成功，但歌曲信息校验失败 | 核对字段映射，ID 查询要求非空 `title/singer` 及有效 `url/audio`         |
-| 设置了 ID 却没有查询         | 请求中有歌名时走完整歌曲模式；只传 ID 时省略 `title/song/name`          |
-| 卡片平台与返回链接不同       | 平台在查询前确定；用 `_platform` 指定应用，或调整请求跳转地址及默认平台 |
-| 改了 API 后仍返回旧卡        | 精确缓存命中会跳过查询，用测试命令强制重新生成                          |
-| 查询一直等待或超时后仍发请求 | 检查 API 客户端的超时与 `signal` 支持                                   |
+| 现象                         | 检查方法                                                                          |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| 找不到模块                   | 核对两个插件是否并列安装、导入路径层级及 `music-card-sign/lib` 是否存在           |
+| 提示未注册该音乐来源         | 确认应用已加载；Handler key 或直接注册的来源名需与请求 `type` 一致                |
+| 放进 `models/` 后没有生效    | 模型文件需由已加载的应用导入，并在生命周期中调用注册函数                          |
+| 单文件 JS 没有被加载         | 确认位于 `plugins/example/` 且导出插件类；直接导入其他 JS 模块时填写 `.js` 扩展名 |
+| 查询 Handler 没有被调用      | key 应为 `music.info.<type>`，与请求的 `type` 完全一致；用测试命令排除缓存        |
+| API 没有收到请求             | 用 `#音之测测` 排除缓存，并检查音卡服务开关、在线 icqq 账号和来源注册             |
+| API 成功，但歌曲信息校验失败 | 核对字段映射，ID 查询要求非空 `title/singer` 及有效 `url/audio`                   |
+| 设置了 ID 却没有查询         | 请求中有歌名时走完整歌曲模式；只传 ID 时省略 `title/song/name`                    |
+| 卡片平台与返回链接不同       | 平台在查询前确定；用 `_platform` 指定应用，或调整请求跳转地址及默认平台           |
+| 改了 API 后仍返回旧卡        | 精确缓存命中会跳过查询，用测试命令强制重新生成                                    |
+| 查询一直等待或超时后仍发请求 | 检查 API 客户端的超时与 `signal` 支持                                             |
 
 ## 测试与资源释放
 
