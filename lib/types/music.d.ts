@@ -31,7 +31,7 @@ export interface MusicRequest extends Record<string, unknown> {
     jump?: string;
     jumpUrl?: string;
     link?: string;
-    audio?: string;
+    audio?: string | null;
     voice?: string;
     musicUrl?: string;
     image?: string;
