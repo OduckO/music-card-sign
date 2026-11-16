@@ -288,10 +288,10 @@ export default async function makeConfig(name, config) {
       Object.assign(globalThis, { plugin: pluginClass })
     }
   }
-  const { apps } = (await import(pathToFileURL(join(directory, 'index.js')).href)) as {
-    apps: { MusicCardSign: new () => FixturePlugin }
+  const { MusicCardSign } = (await import(pathToFileURL(join(directory, 'index.js')).href)) as {
+    MusicCardSign: new () => FixturePlugin
   }
-  const instance = new apps.MusicCardSign()
+  const instance = new MusicCardSign()
   loaded.instance = instance
   loaded.stopService = (
     await import(pathToFileURL(join(directory, 'lib/modules/music-card-sign/service.js')).href)
