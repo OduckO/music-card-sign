@@ -93,7 +93,7 @@ await replyCard(e, raw)
 
 账号按请求 `self_id` / `bot_id`、配置 `botId`、当前 ICQQ 事件账号、唯一在线 icqq 账号的顺序选择。OneBot v11 会话账号不会覆盖签名账号。
 
-音卡平台按 `_platform`、`platform`、`source`、请求跳转链接识别结果、配置 `defaultPlatform` 的顺序选择。只识别跳转地址，`audio` 不参与；未知链接及未携带跳转地址的 ID 请求使用默认平台，默认是 QQ 本体 `txqq`。`type` 仅用于 ID 查询来源。命令和锅巴修改默认平台后，Handler 同时生效。
+音卡平台按 `_platform`、`platform`、`source`、请求跳转链接识别结果、配置 `defaultPlatform` 的顺序选择。只识别跳转地址，`audio` 不参与；未知链接及未携带跳转地址的 ID 请求使用默认平台 `default`，应用信息为 `appid: 102021671`、`appname: ""`、`appsign: ""`。`type` 仅用于 ID 查询来源。命令和锅巴修改默认平台后，Handler 同时生效。
 
 扩展平台的 `PlatformInput` 只要求 `appid`，`appname`、`appsign` 和兼容字段 `app_sign` 可省略或为空；提交时省略的字段使用空字符串。
 
