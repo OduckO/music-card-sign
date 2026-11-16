@@ -34,12 +34,11 @@ music-card-sign/
 ├── index.js                         # 云崽入口，加载 lib/index.js
 ├── guoba.support.js                 # 锅巴入口，加载编译后的配置模块
 ├── src/
-│   ├── index.ts                      # 导出已加载应用，报告单文件失败
-│   ├── dir.ts                        # 插件、应用和资源路径
+│   ├── index.ts                      # 直接导出 MusicCardSign 插件类
+│   ├── dir.ts                        # 插件和资源路径
 │   ├── apps/music-card-sign.ts        # 命令、Handler 注册与模块调用
 │   ├── config/index.ts               # 云崽配置工具与旧配置迁移
 │   ├── models/                       # 签名、歌曲查询、精确缓存和 HTTP
-│   ├── modules/loader/index.ts        # 同层应用并行加载与错误隔离
 │   ├── modules/guoba/index.ts         # 锅巴表单、校验和配置保存
 │   ├── modules/music-card-sign/
 │   │   ├── service.ts                # 服务生命周期、配置保存和签名调用
@@ -61,9 +60,9 @@ music-card-sign/
 └── package.json
 ```
 
-应用加载参照 DF 插件的逐文件错误处理和 kkkkkk 的同层扫描方式：只并行导入 `lib/apps/` 当前这一层的 JS，按文件名顺序登记应用。每个文件最多等待 5 秒，缺依赖、导入抛错或超时都会记录文件名和错误，其他有效应用继续加载；核心 `MusicCardSign` 加载失败时，入口仍会报错。
+`src/index.ts` 直接导出继承 `plugin` 的 `MusicCardSign`，根入口转交编译后的导出。云崽本体负责实例化、执行 `init()`、注册命令与 Handler，以及卸载和加载超时。插件不再扫描 `lib/apps/` 或另设导入计时；音卡模块导入失败会直接交给本体报告。
 
-第三方 ID 查询扩展放在自己的插件或 `plugins/example/`，由云崽本体加载；不要复制到音卡的 `lib/apps/`。Node 无法取消已经开始的模块导入，超时文件之后即使完成也不会加入本次应用注册表。
+第三方 ID 查询扩展放在自己的插件或 `plugins/example/`，由云崽本体加载；不要复制到音卡的 `lib/apps/`。
 
 ## 类型与代码规范
 

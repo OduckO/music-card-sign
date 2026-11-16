@@ -6,8 +6,6 @@ export declare const PluginPath: string;
 export declare const RootDir: string;
 /** 编译输出目录 */
 export declare const libDir: string;
-/** 应用目录 */
-export declare const AppsDir: string;
 /** 插件名称 */
 export declare const PluginName: string;
 /** 插件资源存放目录 */
