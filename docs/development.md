@@ -46,6 +46,7 @@ music-card-sign/
 │   ├── modules/guoba/index.ts         # 锅巴表单、校验和配置保存
 │   ├── modules/music-card-sign/
 │   │   ├── service.ts                # 服务生命周期、配置保存和签名调用
+│   │   ├── dispatch.ts               # 按需加载并执行命令
 │   │   ├── commands.ts               # 命令解析和音之测测
 │   │   ├── send.ts                   # 按会话适配器发送完整音卡 JSON
 │   │   └── update.ts                 # 调用云崽本体更新器
@@ -64,7 +65,9 @@ music-card-sign/
 └── package.json
 ```
 
-应用按功能拆分为独立的 `plugin` 子类，规则和事件入口放在 `src/apps/`，业务逻辑复用 `src/modules/`。应用文件只声明类和入口；服务模块在 `init()` 中动态导入，命令模块在执行指令时动态导入。`MusicCardSign` 持有服务初始化、清理和 `music.sign` Handler；测试、发卡与管理应用共用服务，不重复挂载 HTTP 或监听器。
+应用按功能拆分为独立的 `plugin` 子类，规则和事件入口放在 `src/apps/`，业务逻辑复用 `src/modules/`。服务模块在 `init()` 中动态导入；测试和管理应用静态导入轻量的 `runCommand` 入口，由 `dispatch.ts` 在执行指令时加载命令或更新模块。`MusicCardSign` 持有服务初始化、清理和 `music.sign` Handler；测试、发卡与管理应用共用服务，不重复挂载 HTTP 或监听器。
+
+签名应用的 `accept` 同步跳过群聊、非私聊和其他用户消息，只对可能属于签名 Bot 的私聊回包调用服务检查。SDK 监听按需注册，回包匹配成功或字段错误时立即结束等待并释放监听；完整 JSON 返回后，缓存在后台写入。
 
 `src/index.ts` 调用加载模块，自动扫描 `lib/apps/` 当前层的 JS，并行导入后按文件名顺序汇总 `apps`，交给云崽本体实例化并注册。单个文件导入失败会记录文件名和原始错误；签名服务应用失败会继续抛出错误。加载器不递归扫描，也不另设加载超时，加载超时由本体管理。
 

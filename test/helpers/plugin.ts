@@ -50,7 +50,7 @@ export interface FixtureApp {
 
 export interface FixturePlugin extends FixtureApp, Pick<MusicCardSign, 'init' | 'signCard'> {
   onUnload: () => Promise<void>
-  accept: (event: MusicEvent) => Promise<'return' | false>
+  accept: (event: MusicEvent) => false | Promise<'return' | false>
 }
 
 export interface FixtureTestApp extends FixtureApp {

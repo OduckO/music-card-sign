@@ -1,4 +1,5 @@
 import type { CommandEvent } from '@/types'
+import { runCommand } from '@/modules/music-card-sign/dispatch'
 
 export class MusicCardTest extends plugin<'message'> {
   constructor() {
@@ -15,13 +16,11 @@ export class MusicCardTest extends plugin<'message'> {
     })
   }
 
-  async probe(e: CommandEvent) {
-    const { probe } = await import('@/modules/music-card-sign/commands')
-    return probe(e)
+  probe(e: CommandEvent) {
+    return runCommand('probe', e)
   }
 
-  async forwardCard(e: CommandEvent) {
-    const { forwardCard } = await import('@/modules/music-card-sign/commands')
-    return forwardCard(e)
+  forwardCard(e: CommandEvent) {
+    return runCommand('forwardCard', e)
   }
 }

@@ -32,9 +32,14 @@ export class MusicCardSign extends plugin<'message'> {
     return stopService()
   }
 
-  async accept(e: MusicEvent) {
-    const { isSigningEcho } = await import('@/modules/music-card-sign/service')
-    return isSigningEcho(e) ? 'return' : false
+  accept(e: MusicEvent) {
+    if (e.group_id || (e.message_type && e.message_type !== 'private')) return false
+    const from = e.from_id ?? e.user_id ?? e.sender?.user_id
+    if (e.self_id !== undefined && from !== undefined && String(from) !== String(e.self_id))
+      return false
+    return import('@/modules/music-card-sign/service').then(({ isSigningEcho }) =>
+      isSigningEcho(e) ? 'return' : false
+    )
   }
 
   async signCard(

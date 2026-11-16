@@ -103,10 +103,39 @@ test('入口仅导入应用类，配置、服务、命令和更新模块按需�
   assert.equal(stack.length, 0)
   assert.equal(logs.filter(({ message }) => message.includes('导入完成')).length, 3)
   await assert.rejects(instance.init(), /配置运行模块/)
-  await assert.rejects(instance.accept({}), /配置运行模块/)
+  await assert.rejects(async () => instance.accept({}), /配置运行模块/)
   await assert.rejects(testApp.probe(command('#音之测测')), /命令运行模块/)
   await assert.rejects(manageApp.update(command('#音乐签名更新')), /更新运行模块/)
   assert.equal(stack.length, 0)
+})
+
+test('普通消息同步跳过 accept，不加载服务，自身私聊回包仍按需检查', async (t) => {
+  const { instance } = await fixture(
+    t,
+    {},
+    {
+      deferInit: true,
+      appFiles: {
+        '../modules/music-card-sign/service.js': "throw new Error('签名服务运行模块')"
+      }
+    }
+  )
+  for (const event of [
+    { group_id: 123456789 },
+    { message_type: 'group' },
+    { self_id: 123456789, from_id: 987654321 },
+    { self_id: 123456789, user_id: 987654321 },
+    { self_id: 123456789, sender: { user_id: 987654321 } }
+  ]) {
+    const result = instance.accept(event)
+    if (result instanceof Promise) await result
+    assert.equal(result, false, '普通消息应同步返回，不创建导入等待')
+  }
+  await assert.rejects(
+    async () => instance.accept({ self_id: 123456789, from_id: '123456789' }),
+    /签名服务运行模块/
+  )
+  await assert.rejects(async () => instance.accept({}), /签名服务运行模块/)
 })
 
 test('音卡核心应用加载失败时保留原始错误，不返回空应用假装成功', async (t) => {
