@@ -79,6 +79,28 @@ test('实际 HTTP：用户请求的封面被 QQ 转存后成功返回，错误�
   const response = await fetch(url, options)
   assert.equal(response.status, 200)
   assert.equal(await response.text(), raw)
+  const withoutAudio: Record<string, unknown> = { ...request }
+  delete withoutAudio.audio
+  for (const body of [
+    withoutAudio,
+    { ...withoutAudio, audio: '' },
+    { ...withoutAudio, audio: null }
+  ]) {
+    delete ark.meta.music.musicUrl
+    raw = JSON.stringify(ark)
+    const emptyAudio = await fetch(url, { ...options, body: JSON.stringify(body) })
+    assert.equal(emptyAudio.status, 200)
+    assert.match(emptyAudio.headers.get('content-type') ?? '', /application\/json/)
+    assert.equal(await emptyAudio.text(), raw)
+  }
+  const invalidAudio = { ...request, audio: 'invalid' }
+  const invalid = await fetch(url, { ...options, body: JSON.stringify(invalidAudio) })
+  assert.equal(invalid.status, 400)
+  assert.match(invalid.headers.get('content-type') ?? '', /application\/json/)
+  assert.deepEqual(await invalid.json(), {
+    error: 'audio 必须是 http(s) URL',
+    request: invalidAudio
+  })
   ark.meta.music.musicUrl = 'https://example.com/wrong.mp3'
   raw = JSON.stringify(ark)
   const failed = await fetch(url, options)

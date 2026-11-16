@@ -90,6 +90,42 @@ test('默认应用使用 102021671 和空包名、签名，不把 custom 当平�
   assert.throws(() => normalizeRequest({ ...input, url: 'file:///etc/passwd' }), /http/i)
 })
 
+test('audio 省略、空字符串或 null 可签名，精确缓存分别复用且回传后释放监听', async (t) => {
+  const bot = new QQBoundary()
+  const signer = new MusicSigner({
+    getBots: () => [bot],
+    cache: await diskCache(t),
+    timeoutMs: 100
+  })
+  t.after(() => signer.close())
+  const withoutAudio: MusicRequest = { ...input }
+  delete withoutAudio.audio
+  const requests = [
+    withoutAudio,
+    { ...withoutAudio, audio: '' },
+    { ...withoutAudio, audio: null }
+  ] satisfies MusicRequest[]
+  bot.onShare = (content) => {
+    assert.equal(content.audio, '')
+    const ark = card({ musicUrl: '', preview: `https://qq.ugcimg.cn/cover/${bot.shares.length}` })
+    if (bot.shares.length === 1) delete ark.meta.music.musicUrl
+    bot.deliver(ark)
+  }
+  for (const [index, request] of requests.entries()) {
+    const signed = await signer.sign(request)
+    assert.equal(signed.meta.music.preview, `https://qq.ugcimg.cn/cover/${index + 1}`)
+    assert.equal(cardText(await signer.sign(request)), cardText(signed))
+    assert.equal(bot.shares.length, index + 1, '省略、空字符串和 null 的原始请求分别缓存')
+    assert.equal(signer.status().pending, 0)
+    assert.equal(bot.listenerCount('sync.message'), 0)
+    assert.equal(bot.listenerCount('message.private'), 0)
+  }
+  for (const audio of ['file:///music.mp3', 'invalid']) {
+    await assert.rejects(signer.sign({ ...withoutAudio, audio }), /audio 必须是 http\(s\) URL/)
+  }
+  assert.equal(bot.shares.length, requests.length, '非空无效音频地址在提交前返回错误')
+})
+
 test('默认平台独立于歌曲来源，显式平台覆盖默认配置且支持自定义名称', () => {
   for (const type of ['custom', 'qq', '163', 'my-plugin']) {
     assert.equal(normalizeRequest({ ...input, type }, {}, 'default').platform.appid, 102021671)

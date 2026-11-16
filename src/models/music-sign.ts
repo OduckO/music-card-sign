@@ -227,7 +227,7 @@ export function normalizeRequest(
       summary: text(data.singer ?? data.artist ?? data.content ?? data.desc, 'singer'),
       content: text(data.prompt, 'prompt') || `[分享]${title}`,
       url: webUrl(data.jump ?? data.jumpUrl ?? data.url ?? data.link, 'url', true),
-      audio: webUrl(data.audio ?? data.voice ?? data.musicUrl, 'audio', true),
+      audio: webUrl(data.audio ?? data.voice ?? data.musicUrl, 'audio'),
       image: webUrl(data.image ?? data.cover ?? data.pic, 'image')
     }
   }
