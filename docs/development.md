@@ -93,7 +93,9 @@ await replyCard(e, raw)
 
 账号按请求 `self_id` / `bot_id`、配置 `botId`、当前 ICQQ 事件账号、唯一在线 icqq 账号的顺序选择。OneBot v11 会话账号不会覆盖签名账号。
 
-音卡平台按 `_platform`、`platform`、`source`、配置 `defaultPlatform` 的顺序选择，默认是 QQ 本体 `txqq`；`type` 仅用于 ID 查询来源。命令和锅巴修改默认平台后，Handler 同时生效。
+音卡平台按 `_platform`、`platform`、`source`、请求跳转链接识别结果、配置 `defaultPlatform` 的顺序选择。只识别跳转地址，`audio` 不参与；未知链接及未携带跳转地址的 ID 请求使用默认平台，默认是 QQ 本体 `txqq`。`type` 仅用于 ID 查询来源。命令和锅巴修改默认平台后，Handler 同时生效。
+
+扩展平台的 `PlatformInput` 只要求 `appid`，`appname`、`appsign` 和兼容字段 `app_sign` 可省略或为空；提交时省略的字段使用空字符串。
 
 分享目标使用配置的 `targetId`，为空时使用选中的签名账号。捕获要求发送者为该签名账号、接收者为分享目标，并匹配歌曲与平台字段。联系人无需回复；设置目标会重建服务并取消旧等待。
 

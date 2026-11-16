@@ -251,7 +251,7 @@ test('音之测测使用默认歌曲，发送完整回包并报告耗时，命�
     true
   )
   assert.equal(JSON.parse(cards[0]).meta.music.title, '晴天')
-  assert.equal(JSON.parse(cards[0]).meta.music.appid, 35055)
+  assert.equal(JSON.parse(cards[0]).meta.music.appid, 100495085)
   assert.ok(typeof replies[0] === 'string')
   assert.match(replies[0], /音之测测开始/)
   assert.deepEqual(replies[1], { type: 'json', data: cards[0] })

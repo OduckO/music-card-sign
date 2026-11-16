@@ -74,6 +74,24 @@ const platforms: Record<string, AppPlatform> = {
   }
 }
 const aliases: Record<string, string> = { 163: 'netease' }
+const platformDomains: Record<string, string> = {
+  'y.qq.com': 'qq',
+  'music.163.com': 'netease',
+  '163cn.tv': 'netease',
+  'kuwo.cn': 'kuwo',
+  'kugou.com': 'kugou',
+  'migu.cn': 'migu',
+  'bilibili.com': 'bilibili',
+  'b23.tv': 'bilibili',
+  '5sing.kugou.com': '5sing',
+  '5sing.com': '5sing',
+  'bodian.kuwo.cn': 'bodian',
+  'bodian-oia.kuwo.cn': 'bodian',
+  'tim.qq.com': 'tim',
+  'im.qq.com': 'txqq',
+  'ys.mihoyo.com': 'yuanshen',
+  'genshin.hoyoverse.com': 'yuanshen'
+}
 const httpsDomains = [
   'gtimg.cn',
   'qq.com',
@@ -148,12 +166,30 @@ function webUrl(value: unknown, field: string, required = false) {
   return result
 }
 
+function platformFromUrl(data: MusicRequest) {
+  const value = data.jump ?? data.jumpUrl ?? data.url ?? data.link
+  if (!value) return
+  let hostname: string
+  try {
+    hostname = new URL(value).hostname.replace(/\.$/, '')
+  } catch {
+    return
+  }
+  while (hostname) {
+    if (Object.hasOwn(platformDomains, hostname)) return platformDomains[hostname]
+    const dot = hostname.indexOf('.')
+    if (dot < 0) return
+    hostname = hostname.slice(dot + 1)
+  }
+}
+
 export function selectPlatform(
   data: MusicRequest,
   customPlatforms: Record<string, PlatformInput>,
   defaultPlatform = 'txqq'
 ): AppPlatform {
-  const selected = data._platform ?? data.platform ?? data.source ?? defaultPlatform
+  const selected =
+    data._platform ?? data.platform ?? data.source ?? platformFromUrl(data) ?? defaultPlatform
   let platform: PlatformInput | undefined
   if (selected && typeof selected === 'object' && !Array.isArray(selected))
     platform = selected as PlatformInput
@@ -167,7 +203,8 @@ export function selectPlatform(
     throw new MusicSignError('平台 appid 必须是正整数')
   const appname = text(platform.appname, 'appname')
   const appsign = text(platform.appsign ?? platform.app_sign, 'appsign')
-  if (!/^[\w.]+$/.test(appname)) throw new MusicSignError('平台 appname 必须是应用包名')
+  if (appname && !/^[\w.]+$/.test(appname))
+    throw new MusicSignError('平台 appname 必须为空或应用包名')
   if (appsign && !/^[a-f\d]{32}$/i.test(appsign))
     throw new MusicSignError('平台 appsign 必须为空或 32 位十六进制应用 hash')
   return { appid, appname, appsign }

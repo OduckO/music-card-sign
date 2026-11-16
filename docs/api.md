@@ -34,17 +34,17 @@
 
 QQ 可能将封面转存并改写 `preview`，返回的音卡会保留新地址。音乐平台已知域名的 HTTP 封面和跳转地址会升级为 HTTPS，音频地址保持输入值。缓存按完整原始请求区分，改变封面地址仍会重新签名。
 
-| 字段        | 必需 | 说明                                                     |
-| ----------- | ---- | -------------------------------------------------------- |
-| `type`      | 否   | ID 查询来源；直接提交完整歌曲字段时可用 `custom`         |
-| `title`     | 是   | 歌曲名                                                   |
-| `url`       | 是   | 歌曲跳转地址，HTTP(S) URL                                |
-| `audio`     | 是   | 音频地址，HTTP(S) URL                                    |
-| `singer`    | 否   | 歌手；也支持 `content`，优先使用 `singer`                |
-| `image`     | 否   | 封面 HTTP(S) URL，可省略或为空                           |
-| `prompt`    | 否   | 分享提示文字，默认 `[分享]` 加歌曲名                     |
-| `self_id`   | 否   | 指定生成音卡的 icqq 账号，优先于配置中的 `botId`         |
-| `_platform` | 否   | 隐藏扩展，指定音卡的应用身份；缺省使用 `defaultPlatform` |
+| 字段        | 必需 | 说明                                             |
+| ----------- | ---- | ------------------------------------------------ |
+| `type`      | 否   | ID 查询来源；直接提交完整歌曲字段时可用 `custom` |
+| `title`     | 是   | 歌曲名                                           |
+| `url`       | 是   | 歌曲跳转地址，HTTP(S) URL                        |
+| `audio`     | 是   | 音频地址，HTTP(S) URL                            |
+| `singer`    | 否   | 歌手；也支持 `content`，优先使用 `singer`        |
+| `image`     | 否   | 封面 HTTP(S) URL，可省略或为空                   |
+| `prompt`    | 否   | 分享提示文字，默认 `[分享]` 加歌曲名             |
+| `self_id`   | 否   | 指定生成音卡的 icqq 账号，优先于配置中的 `botId` |
+| `_platform` | 否   | 显式指定音卡平台，优先于跳转链接识别及默认配置   |
 
 HTTP 请求按 `self_id`、配置 `botId`、唯一在线 icqq 账号的顺序选择账号。Handler 和命令还可使用当前事件账号，见 [开发指南](development.md#handler-接入)。
 
@@ -66,11 +66,31 @@ ID 查询需要取得歌名、歌手、跳转地址和可用音频地址，封�
 { "type": "my-plugin", "id": "track:00123" }
 ```
 
-该来源需要先由插件注册。内置与自定义来源均使用配置的默认音卡平台，可通过 `_platform` 切换；精确缓存命中时会直接返回历史音卡，跳过查询。
+该来源需要先由插件注册。ID 请求未携带跳转地址时使用默认音卡平台；携带时按该地址识别平台，可通过 `_platform` 强制指定。精确缓存命中时会直接返回历史音卡，跳过查询。
 
 ## 自定义平台
 
 `defaultPlatform` 默认是 `txqq`，表示 QQ 本体；`qq` 表示 QQ 音乐。可通过锅巴或 `#设置音乐签名平台 <平台名>` 保存默认平台，HTTP、Handler 和命令共用此设置。
+
+平台选择顺序为：显式 `_platform`（兼容 `platform/source`）→ 歌曲跳转链接识别 → `defaultPlatform`。
+
+只识别 `jump`、`jumpUrl`、`url`、`link` 中按此顺序取到的地址；`audio`、`musicUrl` 和封面不参与平台选择。识别按域名及子域名匹配，不访问链接，也不读取查询参数中的其他地址。以下域名及其子域名可自动识别：
+
+| 跳转域名                                 | 平台       |
+| ---------------------------------------- | ---------- |
+| `y.qq.com`                               | `qq`       |
+| `music.163.com`、`163cn.tv`              | `netease`  |
+| `kuwo.cn`                                | `kuwo`     |
+| `kugou.com`                              | `kugou`    |
+| `migu.cn`                                | `migu`     |
+| `bilibili.com`、`b23.tv`                 | `bilibili` |
+| `5sing.kugou.com`、`5sing.com`           | `5sing`    |
+| `bodian.kuwo.cn`、`bodian-oia.kuwo.cn`   | `bodian`   |
+| `tim.qq.com`                             | `tim`      |
+| `im.qq.com`                              | `txqq`     |
+| `ys.mihoyo.com`、`genshin.hoyoverse.com` | `yuanshen` |
+
+更具体的域名优先，例如 `5sing.kugou.com` 使用 `5sing`。未知域名使用默认平台；已知短链接域名按表识别，其他短链接需显式指定 `_platform`。
 
 `txqq` 的应用信息为：
 
@@ -108,14 +128,12 @@ ID 查询需要取得歌名、歌手、跳转地址和可用音频地址，封�
 ```json
 {
   "_platform": {
-    "appid": 200079,
-    "appname": "com.sing.client",
-    "appsign": "3fa2b7951bbf704a052bd2364f3e3ee1"
+    "appid": 200079
   }
 }
 ```
 
-`appid` 为正整数，`appname` 为应用包名。`appsign` 支持别名 `app_sign`，可传 `""` 或省略；非空时填写 32 位十六进制应用 hash。
+`appid` 为必填正整数。`appname` 可省略或为空，非空时填写应用包名；`appsign` 支持别名 `app_sign`，可省略或为空，非空时填写 32 位十六进制应用 hash。省略的 `appname/appsign` 在提交时使用空字符串。
 
 也可在用户配置的 `platforms` 中给同一组应用信息命名，之后通过 `_platform` 引用该名称，或将 `defaultPlatform` 设置为此名称。锅巴支持同时保存平台映射和默认名称。
 
@@ -205,14 +223,14 @@ console.log(result)
 
 推荐使用上述 JSON POST 字段。接口还接受 GET 查询参数、表单和 `data/params` 包装；查询参数与请求体合并时，请求体字段优先。
 
-| 用途         | 字段优先顺序                                                    |
-| ------------ | --------------------------------------------------------------- |
-| 签名账号     | `self_id`、`bot_id`                                             |
-| 歌曲名       | `title`、`song`、`name`                                         |
-| 歌手         | `singer`、`artist`、`content`、`desc`                           |
-| 跳转地址     | `jump`、`jumpUrl`、`url`、`link`                                |
-| 音频地址     | `audio`、`voice`、`musicUrl`                                    |
-| 封面         | `image`、`cover`、`pic`                                         |
-| 音卡应用身份 | `_platform`、`platform`、`source`，缺省取配置 `defaultPlatform` |
+| 用途         | 字段优先顺序                                                                        |
+| ------------ | ----------------------------------------------------------------------------------- |
+| 签名账号     | `self_id`、`bot_id`                                                                 |
+| 歌曲名       | `title`、`song`、`name`                                                             |
+| 歌手         | `singer`、`artist`、`content`、`desc`                                               |
+| 跳转地址     | `jump`、`jumpUrl`、`url`、`link`                                                    |
+| 音频地址     | `audio`、`voice`、`musicUrl`                                                        |
+| 封面         | `image`、`cover`、`pic`                                                             |
+| 音卡应用身份 | `_platform`、`platform`、`source`，缺省按跳转地址识别，未识别时取 `defaultPlatform` |
 
 除账号选择外，兼容字段按表中顺序取第一个非 `null/undefined` 值；空字符串仍算已提供。`type` 不参与音卡平台选择。不同字段名称和包装方式会保留在精确缓存身份中，缓存规则见 [README](../README.md#缓存)。

@@ -27,6 +27,7 @@ export async function help(e: CommandEvent) {
       '',
       `API：POST ${config.config.path}，提交 JSON 歌曲信息。`,
       '自定义歌曲：type=custom，必填 title/url/audio，可选 singer/image。',
+      '平台选择：显式 _platform > 跳转链接识别 > 默认配置；audio 不参与识别。',
       'ID 模式、自定义平台和接口鉴权见文档：',
       'https://github.com/OduckO/music-card-sign'
     ].join('\n')

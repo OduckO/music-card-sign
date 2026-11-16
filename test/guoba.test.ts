@@ -188,7 +188,7 @@ test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号、联系
     url: 'https://example.com/song',
     audio: 'https://example.com/audio.mp3'
   }
-  const platforms = { 'custom-app': { appid: 200079, appname: 'com.sing.client', app_sign: '' } }
+  const platforms = { 'custom-app': { appid: 200079 } }
   const saved = await guoba.configInfo.setConfigData(
     {
       botId: String(bot.uin),

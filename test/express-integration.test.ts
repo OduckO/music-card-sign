@@ -5,7 +5,7 @@ import { EventEmitter } from 'node:events'
 import express from 'express'
 import { mountService } from '../src/models/http'
 import { MusicSigner } from '../src/models/music-sign'
-import type { HttpSigner, IcqqBot, MusicCard } from '../src/types'
+import type { AppPlatform, HttpSigner, IcqqBot, MusicCard, ShareContent } from '../src/types'
 
 test('实际 HTTP：用户请求的封面被 QQ 转存后成功返回，错误回包立即返回 JSON 详情', async (t) => {
   const request = {
@@ -21,10 +21,10 @@ test('实际 HTTP：用户请求的封面被 QQ 转存后成功返回，错误�
     view: 'music',
     prompt: '[分享]晴天',
     config: { token: 'offline-qq-token', forward: 1, type: 'normal' },
-    extra: Object.assign({ appid: 35055 }, { app_type: 1, uin: 3228049612 }),
+    extra: Object.assign({ appid: 100495085 }, { app_type: 1, uin: 3228049612 }),
     meta: {
       music: {
-        appid: 35055,
+        appid: 100495085,
         title: request.title,
         desc: request.singer,
         jumpUrl: request.url,
@@ -39,7 +39,8 @@ test('实际 HTTP：用户请求的封面被 QQ 转存后成功返回，错误�
     uin: 3228049612,
     online: true,
     pickFriend: () => ({
-      share: async () => {
+      share: async (_content: ShareContent, platform: AppPlatform) => {
+        assert.equal(platform.appid, 100495085)
         if (submissionError) throw submissionError
         return bot.emit('sync.message', {
           from_id: bot.uin,

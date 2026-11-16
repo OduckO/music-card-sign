@@ -115,6 +115,121 @@ test('默认平台独立于歌曲来源，显式平台覆盖默认配置且支�
   )
 })
 
+test('跳转链接按域名识别内置平台，支持子域名、短链接及更具体的平台域名', () => {
+  const cases = [
+    ['https://y.qq.com/n/ryqq/songDetail/00123', 100497308],
+    ['https://I.Y.QQ.COM/v8/playsong.html?songmid=00123', 100497308],
+    ['https://music.163.com/#/song?id=186016', 100495085],
+    ['https://y.music.163.com/m/song?id=186016', 100495085],
+    ['https://music.163.com./song?id=186016', 100495085],
+    ['https://163cn.tv/abcd', 100495085],
+    ['http://www.kuwo.cn/play_detail/123', 100243533],
+    ['https://www.kugou.com/song/#hash=abc', 205141],
+    ['https://music.migu.cn/v3/music/song/123', 1101053067],
+    ['https://www.bilibili.com/audio/au123', 100951776],
+    ['https://b23.tv/abcd', 100951776],
+    ['https://5sing.kugou.com/yc/123.html', 200079],
+    ['https://5sing.com/yc/123.html', 200079],
+    ['https://bd.kuwo.cn/play_detail/123', 100243533],
+    ['https://bodian.kuwo.cn/', 101904722],
+    ['https://bodian-oia.kuwo.cn/', 101904722],
+    ['https://tim.qq.com/', 1105296740],
+    ['https://im.qq.com/', 35055],
+    ['https://ys.mihoyo.com/', 1110976923],
+    ['https://genshin.hoyoverse.com/', 1110976923]
+  ] as const
+  for (const [url, appid] of cases) {
+    assert.equal(normalizeRequest({ ...input, url }, {}, 'qq').platform.appid, appid, url)
+  }
+})
+
+test('跳转链接识别遵守显式平台与链接字段优先级，未知域名回退默认且不识别 audio', () => {
+  const url = 'https://music.163.com/song?id=186016'
+  for (const field of ['jump', 'jumpUrl', 'url', 'link']) {
+    const data = { ...input, url: undefined, [field]: url }
+    assert.equal(normalizeRequest({ data }).platform.appid, 100495085, field)
+  }
+  assert.equal(
+    normalizeRequest({ ...input, jump: 'https://y.qq.com/song/1', url }).platform.appid,
+    100497308
+  )
+  for (const field of ['_platform', 'platform', 'source']) {
+    assert.equal(normalizeRequest({ ...input, url, [field]: 'txqq' }).platform.appid, 35055)
+  }
+  assert.equal(
+    normalizeRequest({ ...input, url, _platform: 'qq', platform: 'txqq', source: '163' }).platform
+      .appid,
+    100497308
+  )
+  const custom = { appid: 200079, appname: 'com.sing.client', appsign: '' }
+  assert.deepEqual(normalizeRequest({ ...input, url, _platform: custom }).platform, custom)
+  assert.deepEqual(
+    normalizeRequest({ ...input, url, _platform: 'mine' }, { mine: custom }).platform,
+    custom
+  )
+  assert.throws(() => normalizeRequest({ ...input, url, _platform: 'unknown' }), /未知音卡平台/)
+  for (const unknown of [
+    'https://example.com/song',
+    'https://example.com/?next=https://music.163.com/song',
+    'https://example.com/#y.qq.com',
+    'https://music.163.com.example.com/song',
+    'https://notmusic.163.com/song',
+    'https://notkugou.com/song',
+    'http://constructor/song',
+    'http://__proto__/song'
+  ]) {
+    assert.equal(
+      normalizeRequest({ ...input, url: unknown, audio: url, image: 'https://y.qq.com/cover.jpg' })
+        .platform.appid,
+      35055,
+      unknown
+    )
+  }
+  assert.equal(normalizeRequest(input, {}, 'qq').platform.appid, 100497308)
+})
+
+test('扩展平台允许省略 appname 与 appsign，非空包名仍需合法', () => {
+  for (const optional of [{}, { appname: '' }, { appname: '', app_sign: '' }]) {
+    assert.deepEqual(
+      normalizeRequest({
+        ...input,
+        url: 'https://music.163.com/song?id=186016',
+        _platform: { appid: 200079, ...optional }
+      }).platform,
+      { appid: 200079, appname: '', appsign: '' }
+    )
+  }
+  assert.throws(
+    () => normalizeRequest({ ...input, _platform: { appid: 200079, appname: 'invalid/package' } }),
+    /appname/
+  )
+})
+
+test('跳转链接识别用于实际分享和精确缓存，显式扩展平台可只传 appid', async (t) => {
+  const bot = new QQBoundary()
+  const cache = await diskCache(t)
+  const signer = new MusicSigner({ getBots: () => [bot], cache, timeoutMs: 1000 })
+  const other = new MusicSigner({
+    getBots: () => [bot],
+    cache,
+    timeoutMs: 1000,
+    defaultPlatform: 'qq'
+  })
+  t.after(() => signer.close())
+  t.after(() => other.close())
+  bot.onShare = (content, app) => bot.deliver(card({ appid: app.appid, jumpUrl: content.url }))
+  const data = { ...input, url: 'https://music.163.com/song?id=186016' }
+  const signed = await signer.sign(data)
+  assert.equal(signed.meta.music.appid, 100495085)
+  assert.equal(cardText(await signer.sign(data)), cardText(signed))
+  assert.equal(cardText(await other.sign(data)), cardText(signed))
+  assert.equal(bot.shares.length, 1, '识别后的实际平台相同，默认配置变化仍复用相同请求')
+  const forced = await signer.sign({ ...data, _platform: { appid: 200079 } })
+  assert.equal(forced.meta.music.appid, 200079)
+  assert.deepEqual(bot.shares[1].app, { appid: 200079, appname: '', appsign: '' })
+  assert.equal(bot.shares.length, 2, '显式平台变化单独签名和缓存')
+})
+
 test('多个等待歌曲时，回包只校验对应请求，其他音卡不扫描等待字段', async (t) => {
   const bot = new QQBoundary()
   const signer = new MusicSigner({ getBots: () => [bot], timeoutMs: 1000 })
