@@ -1,5 +1,6 @@
 import type { CommandEvent, MusicEvent, MusicRequest, SignOptions } from '@/types'
 import { errorMessage } from '@/utils'
+import { signingEchoes } from '@/models/music-echo'
 
 export class MusicCardSign extends plugin<'message'> {
   constructor() {
@@ -33,6 +34,7 @@ export class MusicCardSign extends plugin<'message'> {
   }
 
   accept(e: MusicEvent) {
+    if (signingEchoes.has(e)) return 'return'
     if (e.group_id || (e.message_type && e.message_type !== 'private')) return false
     const from = e.from_id ?? e.user_id ?? e.sender?.user_id
     if (e.self_id !== undefined && from !== undefined && String(from) !== String(e.self_id))

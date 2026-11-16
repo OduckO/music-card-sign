@@ -268,7 +268,8 @@ test('本次签名回包在 accept 终止后续识别，其他消息和分享照
   await testApp.probe(command('#音之测测'))
   await Promise.all(dispatches)
   assert.equal(otherPluginCalls, 0)
-  assert.equal(await instance.accept(echoes[0]), 'return')
+  assert.equal(instance.accept(echoes[0]), 'return', '已标记回包应同步返回，不等待导入服务')
+  assert.equal(await instance.accept({ ...echoes[0] }), 'return', '不同对象仍通过消息 ID 匹配')
   await dispatch({
     self_id: bot.uin,
     from_id: 234567890,

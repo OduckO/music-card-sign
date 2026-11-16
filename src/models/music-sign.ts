@@ -15,6 +15,7 @@ import type {
   Subscription
 } from '@/types'
 import { errorMessage } from '@/utils'
+import { signingEchoes } from './music-echo'
 
 const platforms: Record<string, AppPlatform> = {
   default: {
@@ -103,7 +104,6 @@ const httpsDomains = [
   'bilibili.com'
 ]
 const rawCards = new WeakMap<MusicCard, string>()
-const signingEchoes = new WeakSet<MusicEvent>()
 
 export function cardText(card: MusicCard) {
   return rawCards.get(card) ?? JSON.stringify(card)
@@ -491,13 +491,10 @@ export class MusicSigner {
   ): Promise<MusicCard> {
     // 仅凭这些字段识别本次回包；其余字段不同的请求需串行，才能明确报告错误。
     const group = `${bot.uin}:${musicKey(requestFields(request))}`
-    const previous = this.submissions.get(group) ?? Promise.resolve()
+    const previous = this.submissions.get(group)
     const operation = previous
-      .catch(() => {})
-      .then(() => {
-        if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
-        return this.send(bot, request, key, context)
-      })
+      ? previous.catch(() => {}).then(() => this.send(bot, request, key, context))
+      : this.send(bot, request, key, context)
     this.submissions.set(group, operation)
     try {
       return await operation
@@ -507,6 +504,7 @@ export class MusicSigner {
   }
 
   send(bot: IcqqBot, request: NormalizedRequest, key: string, context: string): Promise<MusicCard> {
+    if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
     const targetId = Number(this.targetId || bot.uin)
     const started = performance.now()
     const subscription = this.listen(bot)

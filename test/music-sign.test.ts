@@ -79,6 +79,29 @@ class QQBoundary extends EventEmitter implements IcqqBot {
   }
 }
 
+test('空队列立即注册等待项，下一微任务提交，关闭前尚未提交的请求不发送', async (t) => {
+  const bot = new QQBoundary()
+  const signer = new MusicSigner({ getBots: () => [bot] })
+  t.after(() => signer.close())
+  bot.onShare = () => bot.deliver(card())
+  const signing = signer.sign(input)
+  assert.equal(signer.status().pending, 1)
+  assert.equal(bot.listenerCount('sync.message'), 1)
+  assert.equal(bot.shares.length, 0)
+  await Promise.resolve()
+  assert.equal(bot.shares.length, 1)
+  assert.deepEqual(await signing, card())
+
+  const rejected = assert.rejects(signer.sign(input), /关闭/)
+  await signer.close()
+  await rejected
+  assert.equal(bot.shares.length, 1)
+  assert.equal(signer.status().pending, 0)
+  assert.equal(signer.inflight.size, 0)
+  assert.equal(signer.submissions.size, 0)
+  assert.equal(signer.listeners.size, 0)
+})
+
 test('完整回包立即返回，不等待缓存落盘或分享回执，落盘期间精确复用', async (t) => {
   const bot = new QQBoundary()
   const entered = Promise.withResolvers<void>()
