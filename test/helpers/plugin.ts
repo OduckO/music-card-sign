@@ -50,7 +50,7 @@ export interface FixtureApp {
 
 export interface FixturePlugin extends FixtureApp, Pick<MusicCardSign, 'init' | 'signCard'> {
   onUnload: () => Promise<void>
-  accept: (event: MusicEvent) => 'return' | false
+  accept: (event: MusicEvent) => Promise<'return' | false>
 }
 
 export interface FixtureTestApp extends FixtureApp {
@@ -120,6 +120,7 @@ export async function fixture(
     yaml?: Partial<Config>
     guobaFirst?: boolean
     noAddCleanup?: boolean
+    deferInit?: boolean
     appFiles?: Record<string, string>
   } = {}
 ): Promise<PluginFixture> {
@@ -313,10 +314,12 @@ export default async function makeConfig(name, config) {
   const testApp = new apps.MusicCardTest()
   const manageApp = new apps.MusicCardManage()
   loaded.instance = instance
-  loaded.stopService = (
-    await import(pathToFileURL(join(directory, 'lib/modules/music-card-sign/service.js')).href)
-  ).stopService
-  await instance.init()
+  if (!persisted.deferInit) {
+    loaded.stopService = (
+      await import(pathToFileURL(join(directory, 'lib/modules/music-card-sign/service.js')).href)
+    ).stopService
+    await instance.init()
+  }
   return {
     instance,
     testApp,

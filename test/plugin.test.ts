@@ -58,7 +58,7 @@ for (const [scenario, source] of [
   })
 }
 
-test('应用加载自动发现同层插件，不扫描嵌套示例目录', async (t) => {
+test('入口只发现 apps 同层插件，不扫描根目录、模型或嵌套目录', async (t) => {
   const { directory, stack } = await fixture(
     t,
     {},
@@ -66,7 +66,11 @@ test('应用加载自动发现同层插件，不扫描嵌套示例目录', async
       appFiles: {
         'additional.js': 'export class Additional extends plugin {}',
         'examples/unrelated.js': "throw new Error('示例目录不应被执行')",
-        'examples/waiting.js': 'await new Promise(() => {})'
+        'examples/waiting.js': 'await new Promise(() => {})',
+        '../../example/unrelated.js': "throw new Error('根目录示例不应被执行')",
+        '../models/unrelated.js': "throw new Error('无关模型不应被执行')",
+        '../modules/unrelated.js': "throw new Error('无关模块不应被执行')",
+        '../../unrelated.js': "throw new Error('根目录脚本不应被执行')"
       }
     }
   )
@@ -81,6 +85,28 @@ test('应用加载自动发现同层插件，不扫描嵌套示例目录', async
   ])
   assert.ok(apps.Additional.prototype instanceof plugin)
   assert.equal(stack.length, 3)
+})
+
+test('入口仅导入应用类，配置、服务、命令和更新模块按需加载', async (t) => {
+  const { instance, testApp, manageApp, stack, logs } = await fixture(
+    t,
+    {},
+    {
+      deferInit: true,
+      appFiles: {
+        '../config/index.js': "export default {}; throw new Error('配置运行模块')",
+        '../modules/music-card-sign/commands.js': "throw new Error('命令运行模块')",
+        '../modules/music-card-sign/update.js': "throw new Error('更新运行模块')"
+      }
+    }
+  )
+  assert.equal(stack.length, 0)
+  assert.equal(logs.filter(({ message }) => message.includes('导入完成')).length, 3)
+  await assert.rejects(instance.init(), /配置运行模块/)
+  await assert.rejects(instance.accept({}), /配置运行模块/)
+  await assert.rejects(testApp.probe(command('#音之测测')), /命令运行模块/)
+  await assert.rejects(manageApp.update(command('#音乐签名更新')), /更新运行模块/)
+  assert.equal(stack.length, 0)
 })
 
 test('音卡核心应用加载失败时保留原始错误，不返回空应用假装成功', async (t) => {
@@ -186,11 +212,12 @@ test('云崽 init 挂载服务，主人音卡命令直接发送捕获 JSON，卸
 test('本次签名回包在 accept 终止后续识别，其他消息和分享照常分发', async (t) => {
   const { instance, bot, cards, testApp } = await fixture(t)
   let otherPluginCalls = 0
-  const dispatch = (event: MusicEvent) => {
-    if (instance.accept(event) !== 'return') otherPluginCalls++
+  const dispatch = async (event: MusicEvent) => {
+    if ((await instance.accept(event)) !== 'return') otherPluginCalls++
   }
   // sync 和私聊回包可能是不同对象；私聊与其父级 message 共享事件。
-  bot.on('message', dispatch)
+  const dispatches: Promise<void>[] = []
+  bot.on('message', (event: MusicEvent) => dispatches.push(dispatch(event)))
   const pick = bot.pickFriend
   const echoes: MusicEvent[] = []
   bot.pickFriend = (id) => ({
@@ -210,15 +237,16 @@ test('本次签名回包在 accept 终止后续识别，其他消息和分享照
     }
   })
   await testApp.probe(command('#音之测测'))
+  await Promise.all(dispatches)
   assert.equal(otherPluginCalls, 0)
-  assert.equal(instance.accept(echoes[0]), 'return')
-  dispatch({
+  assert.equal(await instance.accept(echoes[0]), 'return')
+  await dispatch({
     self_id: bot.uin,
     from_id: 234567890,
     to_id: bot.uin,
     message: [{ type: 'json', data: cards[0] }]
   })
-  dispatch({
+  await dispatch({
     self_id: bot.uin,
     from_id: bot.uin,
     to_id: bot.uin,

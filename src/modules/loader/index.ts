@@ -7,6 +7,7 @@ import { errorMessage } from '@/utils'
 type PluginClass = new () => plugin
 
 export async function loadApps() {
+  logger.info(`[${PluginName}] 仅加载应用目录 ${AppsDir}`)
   const files = (await readdir(AppsDir, { withFileTypes: true }))
     .filter((entry) => entry.isFile() && entry.name.endsWith('.js'))
     .map((entry) => entry.name)

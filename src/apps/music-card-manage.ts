@@ -1,13 +1,4 @@
 import type { CommandEvent } from '@/types'
-import {
-  help,
-  status,
-  toggle,
-  setBot,
-  setTarget,
-  setPlatform
-} from '@/modules/music-card-sign/commands'
-import { updatePlugin } from '@/modules/music-card-sign/update'
 
 export class MusicCardManage extends plugin<'message'> {
   constructor() {
@@ -45,31 +36,38 @@ export class MusicCardManage extends plugin<'message'> {
     })
   }
 
-  help(e: CommandEvent) {
+  async help(e: CommandEvent) {
+    const { help } = await import('@/modules/music-card-sign/commands')
     return help(e)
   }
 
-  status(e: CommandEvent) {
+  async status(e: CommandEvent) {
+    const { status } = await import('@/modules/music-card-sign/commands')
     return status(e)
   }
 
-  toggle(e: CommandEvent) {
+  async toggle(e: CommandEvent) {
+    const { toggle } = await import('@/modules/music-card-sign/commands')
     return toggle(e)
   }
 
-  setBot(e: CommandEvent) {
+  async setBot(e: CommandEvent) {
+    const { setBot } = await import('@/modules/music-card-sign/commands')
     return setBot(e)
   }
 
-  setTarget(e: CommandEvent) {
+  async setTarget(e: CommandEvent) {
+    const { setTarget } = await import('@/modules/music-card-sign/commands')
     return setTarget(e)
   }
 
-  setPlatform(e: CommandEvent) {
+  async setPlatform(e: CommandEvent) {
+    const { setPlatform } = await import('@/modules/music-card-sign/commands')
     return setPlatform(e)
   }
 
-  update(e: CommandEvent) {
+  async update(e: CommandEvent) {
+    const { updatePlugin } = await import('@/modules/music-card-sign/update')
     return updatePlugin(e)
   }
 }
