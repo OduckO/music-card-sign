@@ -11,6 +11,7 @@ import type { Result } from 'trss-yunzai/guoba'
 import type { supportGuoba } from '../src/modules/guoba'
 import type ConfigModule from '../src/config'
 import type { Config } from '../src/types'
+import { selectPlatform } from '../src/models/music-sign'
 import { fixture, command } from './helpers/plugin'
 import type { FixtureReply, FixtureResponse } from './helpers/plugin'
 
@@ -161,6 +162,21 @@ test('锅巴根入口导出十项配置，JSON 编辑字段保持完整内容', 
   assert.deepEqual(JSON.parse(data.platforms), {})
   assert.equal(JSON.parse(data.testMusic).title, '晴天')
   assert.equal(info.schemas.find(({ field }) => field === 'apiKey')?.component, 'InputPassword')
+  const schema = info.schemas.find(({ field }) => field === 'defaultPlatform')
+  assert.ok(schema)
+  assert.equal(schema.component, 'AutoComplete')
+  const { options } = schema.componentProps as {
+    options: Array<{ label: string; value: string }>
+  }
+  assert.equal(options.length, 11)
+  assert.match(options.find(({ value }) => value === 'txqq')!.label, /QQ 本体/)
+  assert.match(options.find(({ value }) => value === 'qq')!.label, /QQ 音乐/)
+  for (const { value } of options) {
+    const saved = await info.setConfigData({ defaultPlatform: value }, context)
+    assert.equal(saved.isOk, true, saved.message)
+    assert.equal(info.getConfigData().defaultPlatform, value)
+    assert.doesNotThrow(() => selectPlatform({ _platform: value }, {}))
+  }
 })
 
 test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号、联系人及自定义平台', async (t) => {

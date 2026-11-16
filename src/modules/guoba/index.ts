@@ -50,9 +50,26 @@ const schemas: Schemas<FormConfig> = [
   {
     field: 'defaultPlatform',
     label: '默认签名平台',
-    component: 'Input',
+    component: 'AutoComplete',
     bottomHelpMessage:
-      '默认 txqq（QQ 本体）；qq 为 QQ 音乐，也可填写下方自定义平台名。请求的 _platform 可覆盖。'
+      '选择内置平台，或输入下方自定义平台 JSON 中的名称。默认 txqq（QQ 本体），请求的 _platform 可覆盖。',
+    componentProps: {
+      placeholder: '选择平台或输入自定义平台名',
+      filterOption: false,
+      options: [
+        { label: 'QQ 本体（txqq）', value: 'txqq' },
+        { label: 'QQ 音乐（qq）', value: 'qq' },
+        { label: '网易云音乐（netease / 163）', value: 'netease' },
+        { label: '酷我音乐（kuwo）', value: 'kuwo' },
+        { label: '酷狗音乐（kugou）', value: 'kugou' },
+        { label: '咪咕音乐（migu）', value: 'migu' },
+        { label: '哔哩哔哩（bilibili）', value: 'bilibili' },
+        { label: '5sing（5sing）', value: '5sing' },
+        { label: '波点音乐（bodian）', value: 'bodian' },
+        { label: 'TIM（tim）', value: 'tim' },
+        { label: '原神（yuanshen）', value: 'yuanshen' }
+      ]
+    }
   },
   {
     field: 'testMusic',
