@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve as resolvePath, sep } from 'node:path'
 import { MusicSigner, MusicSignError, normalizeRequest, cardText } from '../src/models/music-sign'
 import { MusicCardCache } from '../src/models/music-cache'
+import { Trapper } from 'triptrap'
 import type {
   AppPlatform,
   CacheRecord,
@@ -78,6 +79,103 @@ class QQBoundary extends EventEmitter implements IcqqBot {
   }
 }
 
+test('完整回包立即返回，不等待缓存落盘或分享回执，落盘期间精确复用', async (t) => {
+  const bot = new QQBoundary()
+  const entered = Promise.withResolvers<void>()
+  const release = Promise.withResolvers<void>()
+  const shareReply = Promise.withResolvers<void>()
+  const records = new Map<string, CacheRecord>()
+  const signer = new MusicSigner({
+    getBots: () => [bot],
+    cache: {
+      get: async (key) => records.get(key) ?? null,
+      set: async (key, raw, request) => {
+        entered.resolve()
+        await release.promise
+        records.set(key, { version: 1, key, raw, request })
+      }
+    }
+  })
+  t.after(async () => {
+    release.resolve()
+    shareReply.resolve()
+    await signer.close()
+  })
+  bot.onShare = () => {
+    bot.deliver({ ...card(), server_field: String(bot.shares.length) })
+    return shareReply.promise
+  }
+  let returned = false
+  const signing = signer.sign(input).then((signed) => {
+    returned = true
+    return signed
+  })
+  await entered.promise
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(returned, true, '已收到完整 JSON 时不应等待磁盘写入')
+  const signed = await signing
+  assert.equal(cardText(await signer.sign(input)), cardText(signed))
+  assert.equal(bot.shares.length, 1, '落盘期间相同请求直接复用已收到的原卡')
+  await signer.sign({ ...input, image: 'https://example.com/other.jpg' })
+  assert.equal(bot.shares.length, 2, '请求体有任何差异都不能复用')
+  const fresh = await signer.sign(input, { forceFresh: true })
+  assert.equal(fresh.server_field, '3')
+  assert.equal(cardText(await signer.sign(input)), cardText(fresh))
+  release.resolve()
+  await signer.close()
+  assert.ok([...records.values()].some(({ raw }) => raw === cardText(fresh)))
+  assert.ok([...records.values()].every(({ raw }) => raw !== cardText(signed)))
+  assert.equal(signer.cacheWrites.size, 0)
+  assert.equal(signer.status().pending, 0)
+  assert.equal(bot.listenerCount('sync.message'), 0)
+})
+
+for (const protocol of ['EventEmitter', 'triptrap'] as const) {
+  test(`${protocol} 在后续业务监听抛错前捕获回包，立即成功或返回字段错误`, async (t) => {
+    const bot = new QQBoundary()
+    const events = new Trapper()
+    let downstream = 0
+    const fail = () => {
+      downstream++
+      throw new Error('其他插件处理失败')
+    }
+    if (protocol === 'triptrap') {
+      Object.assign(bot, {
+        on: (name: string, listener: (event: MusicEvent) => void) => events.trap(name, listener),
+        prependListener: undefined
+      })
+      events.trap('message.private', fail)
+    } else {
+      bot.on('message.private', fail)
+    }
+    const signer = new MusicSigner({ getBots: () => [bot], timeoutMs: 1000 })
+    t.after(() => signer.close())
+    let invalid = false
+    bot.onShare = () => {
+      const event: MusicEvent = {
+        self_id: bot.uin,
+        from_id: bot.uin,
+        to_id: bot.uin,
+        message: [{ type: 'json', data: JSON.stringify(card(invalid ? { desc: '错误歌手' } : {})) }]
+      }
+      if (protocol === 'triptrap') {
+        events.trip('message.private.friend', event)
+        events.trip('message.private', event)
+      } else {
+        bot.emit('message.private', event)
+      }
+    }
+    assert.equal(cardText(await signer.sign(input)), JSON.stringify(card()))
+    invalid = true
+    await assert.rejects(signer.sign(input), /回传字段不匹配：desc/)
+    assert.equal(downstream, 2, '保留其他监听，捕获回包后不吞掉它们的执行')
+    assert.equal(signer.status().pending, 0)
+    assert.equal(bot.listenerCount('sync.message'), 0)
+    assert.equal(events.listeners('message.private.friend').length, 0)
+    assert.equal(events.listeners('message.private.self').length, 0)
+  })
+}
+
 test('默认应用使用 102021671 和空包名、签名，不把 custom 当平台', () => {
   const request = normalizeRequest({ data: { ...input, type: 'custom', content: input.singer } })
   assert.deepEqual(request.platform, {
@@ -91,13 +189,13 @@ test('默认应用使用 102021671 和空包名、签名，不把 custom 当平�
 })
 
 test('audio 省略、空字符串或 null 可签名，精确缓存分别复用且回传后释放监听', async (t) => {
+  t.after(() => signer.close())
   const bot = new QQBoundary()
   const signer = new MusicSigner({
     getBots: () => [bot],
     cache: await diskCache(t),
     timeoutMs: 100
   })
-  t.after(() => signer.close())
   const withoutAudio: MusicRequest = { ...input }
   delete withoutAudio.audio
   const requests = [
@@ -260,6 +358,8 @@ test('扩展平台允许省略 appname 与 appsign，非空包名仍需合法', 
 })
 
 test('跳转链接识别用于实际分享和精确缓存，显式扩展平台可只传 appid', async (t) => {
+  t.after(() => signer.close())
+  t.after(() => other.close())
   const bot = new QQBoundary()
   const cache = await diskCache(t)
   const signer = new MusicSigner({ getBots: () => [bot], cache, timeoutMs: 1000 })
@@ -269,19 +369,18 @@ test('跳转链接识别用于实际分享和精确缓存，显式扩展平台�
     timeoutMs: 1000,
     defaultPlatform: 'qq'
   })
-  t.after(() => signer.close())
-  t.after(() => other.close())
   bot.onShare = (content, app) => bot.deliver(card({ appid: app.appid, jumpUrl: content.url }))
   const data = { ...input, url: 'https://music.163.com/song?id=186016' }
   const signed = await signer.sign(data)
   assert.equal(signed.meta.music.appid, 100495085)
   assert.equal(cardText(await signer.sign(data)), cardText(signed))
-  assert.equal(cardText(await other.sign(data)), cardText(signed))
-  assert.equal(bot.shares.length, 1, '识别后的实际平台相同，默认配置变化仍复用相同请求')
   const forced = await signer.sign({ ...data, _platform: { appid: 200079 } })
   assert.equal(forced.meta.music.appid, 200079)
   assert.deepEqual(bot.shares[1].app, { appid: 200079, appname: '', appsign: '' })
   assert.equal(bot.shares.length, 2, '显式平台变化单独签名和缓存')
+  await signer.close()
+  assert.equal(cardText(await other.sign(data)), cardText(signed))
+  assert.equal(bot.shares.length, 2, '识别后的实际平台相同，默认配置变化仍复用相同请求')
 })
 
 test('多个等待歌曲时，回包只校验对应请求，其他音卡不扫描等待字段', async (t) => {
@@ -690,6 +789,10 @@ async function diskCache(t: TestContext) {
 }
 
 test('不同 prompt 的并发请求分别匹配回包并保存各自缓存', async (t) => {
+  t.after(async () => {
+    await signer.close()
+    await Promise.allSettled([first, second])
+  })
   const bot = new QQBoundary()
   const signer = new MusicSigner({
     getBots: () => [bot],
@@ -700,10 +803,6 @@ test('不同 prompt 的并发请求分别匹配回包并保存各自缓存', asy
   const second = signer.sign({ ...input, prompt: 'Second prompt' })
   first.catch(() => {})
   second.catch(() => {})
-  t.after(async () => {
-    signer.close()
-    await Promise.allSettled([first, second])
-  })
   // 两次分享已提交，第一张回包只能完成第一项。
   while (bot.shares.length < 2) await new Promise((resolve) => setImmediate(resolve))
   bot.deliver({ ...card(), prompt: 'First prompt' })
@@ -716,6 +815,8 @@ test('不同 prompt 的并发请求分别匹配回包并保存各自缓存', asy
 })
 
 test('关闭等待旧缓存写入完成，重启后的刷新不会被旧卡覆盖', async (t) => {
+  let restarted: MusicSigner | undefined
+  t.after(() => restarted?.close())
   const cache = await diskCache(t)
   const bot = new QQBoundary()
   const signer = new MusicSigner({ getBots: () => [bot], cache })
@@ -746,8 +847,7 @@ test('关闭等待旧缓存写入完成，重启后的刷新不会被旧卡覆�
     release.resolve()
     await closing
     await oldRequest
-    const restarted = new MusicSigner({ getBots: () => [bot], cache })
-    t.after(() => restarted.close())
+    restarted = new MusicSigner({ getBots: () => [bot], cache })
     bot.onShare = () => bot.deliver({ ...card(), server_field: '新卡' })
     await restarted.sign(input, { forceFresh: true })
     assert.equal((await restarted.sign(input)).server_field, '新卡')
@@ -761,6 +861,7 @@ test('关闭等待旧缓存写入完成，重启后的刷新不会被旧卡覆�
 })
 
 test('ID 缓存命中直接返回旧 JSON，不再查询歌曲平台', async (t) => {
+  t.after(() => signer.close())
   const bot = new QQBoundary()
   let queries = 0
   const signer = new MusicSigner({
@@ -771,7 +872,6 @@ test('ID 缓存命中直接返回旧 JSON，不再查询歌曲平台', async (t)
       return input
     }
   })
-  t.after(() => signer.close())
   bot.onShare = (_content, app) => bot.deliver(card({ appid: app.appid }))
   const request = { type: '163', id: '000186016', _platform: 'qq' } satisfies MusicRequest
   const raw = cardText(await signer.sign(request))
@@ -783,6 +883,8 @@ test('ID 缓存命中直接返回旧 JSON，不再查询歌曲平台', async (t)
 })
 
 test('缓存隔离签名账号及应用三元组，原请求相同也不能跨账号或平台配置复用', async (t) => {
+  const signers: MusicSigner[] = []
+  t.after(() => Promise.all(signers.map((signer) => signer.close())))
   const cache = await diskCache(t)
   const configurations: AppPlatform[] = [
     {
@@ -811,7 +913,7 @@ test('缓存隔离签名账号及应用三元组，原请求相同也不能跨�
         cache,
         customPlatforms: { home: config }
       })
-      t.after(() => signer.close())
+      signers.push(signer)
       bot.onShare = () => bot.deliver(card({ appid: config.appid }))
       await signer.sign({ ...input, _platform: 'home' })
       assert.equal(bot.shares.length, 1)
@@ -887,6 +989,7 @@ test('异步缓存读取期间修改调用方对象不会污染签名请求', as
 })
 
 test('缓存目录无法写入时仍返回本次成功签出的音卡并释放资源', async (t) => {
+  t.after(() => signer.close())
   const bot = new QQBoundary()
   const cache = await diskCache(t)
   await writeFile(cache.directory, '占用缓存目录路径的文件')
@@ -896,9 +999,9 @@ test('缓存目录无法写入时仍返回本次成功签出的音卡并释放�
     cache,
     onCacheError: (error) => errors.push(error)
   })
-  t.after(() => signer.close())
   bot.onShare = () => bot.deliver(card())
   assert.deepEqual(await signer.sign(input), card())
+  await signer.close()
   assert.ok(errors.length > 0)
   assert.equal(signer.status().pending, 0)
   assert.equal(bot.listenerCount('sync.message'), 0)

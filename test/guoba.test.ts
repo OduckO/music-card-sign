@@ -76,6 +76,7 @@ test('锅巴保存取消 triptrap 等待请求，只释放插件自己的监听�
   t.after(disposeHost)
   Object.assign(bot, {
     on: events.trap.bind(events),
+    prependListener: undefined,
     removeListener: undefined,
     emit: (event: string, ...args: unknown[]) => {
       events.trip(event, ...args)

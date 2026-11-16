@@ -657,6 +657,53 @@ test('OneBot 开始通知没有回执时仍进入签名并发送音卡', async (
   assert.ok(logs.some(({ message }) => /读取测试配置/.test(message)))
 })
 
+test('音卡收到即转发，测试完成不等待开始通知回执或缓存落盘', async (t) => {
+  const { directory, cards, testApp } = await fixture(t)
+  const cacheEntered = Promise.withResolvers<void>()
+  const cacheRelease = Promise.withResolvers<void>()
+  const noticeReply = Promise.withResolvers<true>()
+  const replies: FixtureReply[] = []
+  const rename = fs.rename
+  fs.rename = async (...args) => {
+    if (String(args[1]).startsWith(join(directory, 'data/music-card-cache'))) {
+      cacheEntered.resolve()
+      await cacheRelease.promise
+    }
+    return rename(...args)
+  }
+  let completed = false
+  const sending = testApp
+    .probe({
+      bot: { adapter: { name: 'OneBotv11' } },
+      msg: '#音之测测',
+      reply: async (message) => {
+        replies.push(message)
+        if (typeof message === 'string' && message.includes('音之测测开始')) {
+          return noticeReply.promise
+        }
+        return true
+      }
+    })
+    .then(() => {
+      completed = true
+    })
+  try {
+    await cacheEntered.promise
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.equal(cards.length, 1)
+    assert.ok(
+      replies.some((message) => typeof message === 'object'),
+      '缓存落盘前已开始转发'
+    )
+    assert.equal(completed, true, '命令完成不等待开始通知回执')
+  } finally {
+    cacheRelease.resolve()
+    noticeReply.resolve(true)
+    await sending
+    fs.rename = rename
+  }
+})
+
 test('测试开始通知抛错时仍签名，错误写入通知日志', async (t) => {
   const { cards, logs, testApp } = await fixture(t)
   await testApp.probe({
@@ -857,6 +904,8 @@ test('损坏缓存不返回错误卡片，重新签成功后修复文件', async
   const { instance, bot, cards, directory } = await fixture(t)
   const e = { self_id: bot.uin }
   await instance.signCard(e, cachedInput, rejectSign)
+  const cleanup = instance.cleanup[0]
+  await cleanup.dispose()
   const cacheDirectory = join(directory, 'data/music-card-cache')
   const [filename] = await readdir(cacheDirectory)
   const path = join(cacheDirectory, filename)
@@ -864,10 +913,13 @@ test('损坏缓存不返回错误卡片，重新签成功后修复文件', async
   const wrong: MusicCard = JSON.parse(stored.raw)
   wrong.meta.music.title = '另一首歌'
   await writeFile(path, JSON.stringify({ ...stored, raw: JSON.stringify(wrong) }))
+  await cleanup.restore()
   const repaired = await instance.signCard(e, cachedInput, rejectSign)
   assert.equal(JSON.parse(repaired).meta.music.title, '缓存测试')
   assert.equal(cards.length, 2)
+  await cleanup.dispose()
   await writeFile(path, '{broken')
+  await cleanup.restore()
   await instance.signCard(e, cachedInput, rejectSign)
   assert.equal(cards.length, 3)
 })

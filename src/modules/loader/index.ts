@@ -12,14 +12,34 @@ export async function loadApps() {
     .map((entry) => entry.name)
     .toSorted()
   const results = await Promise.allSettled(
-    files.map(
-      (file) => import(pathToFileURL(join(AppsDir, file)).href) as Promise<Record<string, unknown>>
-    )
+    files.map(async (file) => {
+      const started = performance.now()
+      logger.info(`[${PluginName}] 应用 ${file} 开始导入`)
+      try {
+        const app = (await import(pathToFileURL(join(AppsDir, file)).href)) as Record<
+          string,
+          unknown
+        >
+        logger.info(
+          `[${PluginName}] 应用 ${file} 导入完成，${Math.round(performance.now() - started)} ms`
+        )
+        return app
+      } catch (error) {
+        logger.error(
+          `[${PluginName}] 应用 ${file} 导入失败：${errorMessage(error)}，${Math.round(performance.now() - started)} ms`,
+          error
+        )
+        throw error
+      }
+    })
   )
   const apps: Record<string, PluginClass> = {}
   for (const [index, result] of results.entries()) {
+    if (result.status === 'rejected') {
+      if (files[index] === 'music-card-sign.js') throw result.reason
+      continue
+    }
     try {
-      if (result.status === 'rejected') throw result.reason
       const entries = Object.entries(result.value).filter(
         (entry): entry is [string, PluginClass] =>
           typeof entry[1] === 'function' && entry[1].prototype instanceof plugin

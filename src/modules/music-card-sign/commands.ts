@@ -140,7 +140,7 @@ export async function probe(e: CommandEvent) {
   const started = performance.now()
   let phase = '读取测试配置'
   logger.info(`[音卡指令] 音之测测开始 Bot=${e.self_id ?? '未知'} 适配器=${adapterName(e)}`)
-  const progress = replyNotice(e, '音之测测开始，正在检查 icqq 签名与 JSON 回传，请稍候。')
+  void replyNotice(e, '音之测测开始，正在检查 icqq 签名与 JSON 回传，请稍候。')
   try {
     logger.info('[音卡指令] 正在读取测试配置')
     const defaultMusic = await getTestMusic()
@@ -156,9 +156,11 @@ export async function probe(e: CommandEvent) {
       },
       { forceFresh: true }
     )
+    const signedAt = performance.now()
     phase = '当前会话发送'
     await replyCard(e, raw)
-    const message = `音之测测通过，耗时 ${Math.round(performance.now() - started)} ms。\n已捕获签名 Bot 发出的音卡 JSON，并发送到当前会话。`
+    const forwardedAt = performance.now()
+    const message = `音之测测通过，耗时 ${Math.round(forwardedAt - started)} ms。\n签名/回传 ${Math.round(signedAt - started)} ms，当前会话发送回执 ${Math.round(forwardedAt - signedAt)} ms。\n已捕获签名 Bot 发出的音卡 JSON，并发送到当前会话。`
     logger.info(`[音卡指令] ${message}`)
     await replyNotice(e, message)
   } catch (error) {
@@ -167,8 +169,6 @@ export async function probe(e: CommandEvent) {
       e,
       `音之测测失败（${phase}，${Math.round(performance.now() - started)} ms）：${errorMessage(error)}`
     )
-  } finally {
-    await progress
   }
   return true
 }

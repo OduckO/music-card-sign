@@ -98,6 +98,7 @@ export interface MusicEvent {
 export interface IcqqBot {
   uin: number
   on: (event: string, listener: (event: MusicEvent) => void) => unknown
+  prependListener?: (event: string, listener: (event: MusicEvent) => void) => unknown
   removeListener?: (event: string, listener: (event: MusicEvent) => void) => unknown
   isOnline?: () => boolean
   online?: boolean
