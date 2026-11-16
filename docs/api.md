@@ -76,7 +76,7 @@ ID 查询需要取得歌名、歌手、跳转地址和可用音频地址，封�
 
 ```json
 {
-  "appid": 100686848,
+  "appid": 35055,
   "appname": "com.tencent.mobileqq",
   "appsign": "a6b745bf24a2c277527716f6f36eb68d"
 }

@@ -34,10 +34,10 @@ function card(overrides: Partial<MusicCard['meta']['music']> = {}): MusicCard {
     ver: '0.0.0.1',
     prompt: `[分享]${overrides.title ?? '晴天'}`,
     config: { forward: true, type: 'normal' },
-    extra: JSON.stringify({ appid: overrides.appid ?? 100686848, app_type: 1, uin: 123456789 }),
+    extra: JSON.stringify({ appid: overrides.appid ?? 35055, app_type: 1, uin: 123456789 }),
     meta: {
       music: {
-        appid: 100686848,
+        appid: 35055,
         title: '晴天',
         desc: '周杰伦',
         jumpUrl: 'https://example.com/song/1',
@@ -81,7 +81,7 @@ class QQBoundary extends EventEmitter implements IcqqBot {
 test('默认 txqq 使用 QQ 本体应用信息，不把 custom 当平台', () => {
   const request = normalizeRequest({ data: { ...input, type: 'custom', content: input.singer } })
   assert.deepEqual(request.platform, {
-    appid: 100686848,
+    appid: 35055,
     appname: 'com.tencent.mobileqq',
     appsign: 'a6b745bf24a2c277527716f6f36eb68d'
   })
@@ -92,7 +92,7 @@ test('默认 txqq 使用 QQ 本体应用信息，不把 custom 当平台', () =>
 
 test('默认平台独立于歌曲来源，显式平台覆盖默认配置且支持自定义名称', () => {
   for (const type of ['custom', 'qq', '163', 'my-plugin']) {
-    assert.equal(normalizeRequest({ ...input, type }, {}, 'txqq').platform.appid, 100686848)
+    assert.equal(normalizeRequest({ ...input, type }, {}, 'txqq').platform.appid, 35055)
   }
   assert.equal(normalizeRequest(input, {}, 'qq').platform.appid, 100497308)
   assert.equal(

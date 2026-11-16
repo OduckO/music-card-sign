@@ -126,7 +126,7 @@ QQ 转存封面时会返回新的 `preview` 地址，插件接受这张音卡。
 
 从旧 JS 版升级时，若用户 YAML 尚不存在，会迁移插件中的 `config/config/config.json` 并保留旧文件；已有 YAML 时以 YAML 为准。
 
-默认平台 `txqq` 使用 QQ 本体应用信息：`appid: 100686848`、`appname: com.tencent.mobileqq`、`appsign: a6b745bf24a2c277527716f6f36eb68d`。`qq` 仍表示 QQ 音乐，可发送 `#设置音乐签名平台 qq` 切换。
+默认平台 `txqq` 使用 QQ 本体应用信息：`appid: 35055`、`appname: com.tencent.mobileqq`、`appsign: a6b745bf24a2c277527716f6f36eb68d`。`qq` 仍表示 QQ 音乐，可发送 `#设置音乐签名平台 qq` 切换。
 
 请求中的 `_platform` 优先于默认配置。`type` 只选择 ID 查询来源，例如 `type: "163"` 查询网易云歌曲，未指定 `_platform` 时仍使用配置的默认音卡平台。
 

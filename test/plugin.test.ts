@@ -129,7 +129,7 @@ test('默认平台指令持久保存并立即用于 Handler，非法平台保留
   assert.match(replies.at(-1)!, /用法/)
   for (const [platform, appid] of [
     ['qq', 100497308],
-    ['txqq', 100686848]
+    ['txqq', 35055]
   ] as const) {
     await instance.setPlatform({ msg: `#设置音乐签名平台 ${platform}`, reply })
     assert.match(replies.at(-1)!, new RegExp(`已设为 ${platform}`))
@@ -143,7 +143,7 @@ test('默认平台指令持久保存并立即用于 Handler，非法平台保留
   await instance.setPlatform({ msg: '#设置音乐签名平台 不存在', reply })
   assert.match(replies.at(-1)!, /设置失败.*未知音卡平台/)
   const raw = await instance.signCard({}, request, rejectSign)
-  assert.equal(JSON.parse(raw).meta.music.appid, 100686848)
+  assert.equal(JSON.parse(raw).meta.music.appid, 35055)
   assert.equal(cards.length, 2, '切换默认平台隔离缓存，回到相同平台复用旧卡')
 })
 
@@ -251,7 +251,7 @@ test('音之测测使用默认歌曲，发送完整回包并报告耗时，命�
     true
   )
   assert.equal(JSON.parse(cards[0]).meta.music.title, '晴天')
-  assert.equal(JSON.parse(cards[0]).meta.music.appid, 100686848)
+  assert.equal(JSON.parse(cards[0]).meta.music.appid, 35055)
   assert.ok(typeof replies[0] === 'string')
   assert.match(replies[0], /音之测测开始/)
   assert.deepEqual(replies[1], { type: 'json', data: cards[0] })
@@ -800,7 +800,7 @@ test('开发者注册 ID 来源后通过音卡 Handler 查询，精确缓存命�
   const data = { type: 'my-plugin', id: 'track:00123' }
   const raw = await instance.signCard(e, data, rejectSign)
   assert.equal(JSON.parse(raw).meta.music.title, '开发者歌曲')
-  assert.equal(JSON.parse(raw).meta.music.appid, 100686848, '自定义来源默认使用 txqq 音卡身份')
+  assert.equal(JSON.parse(raw).meta.music.appid, 35055, '自定义来源默认使用 txqq 音卡身份')
   assert.equal(await instance.signCard(e, data, rejectSign), raw)
   assert.equal(queries, 1)
   assert.equal(cards.length, 1)

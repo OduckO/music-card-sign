@@ -18,7 +18,7 @@ import { errorMessage } from '@/utils'
 
 const platforms: Record<string, AppPlatform> = {
   txqq: {
-    appid: 100686848,
+    appid: 35055,
     appname: 'com.tencent.mobileqq',
     appsign: 'a6b745bf24a2c277527716f6f36eb68d'
   },
