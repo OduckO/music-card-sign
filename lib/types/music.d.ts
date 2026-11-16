@@ -7,7 +7,7 @@ export interface AppPlatform {
 }
 export interface PlatformInput {
     appid: number | string;
-    appname: string;
+    appname?: string;
     appsign?: string;
     app_sign?: string;
 }
