@@ -34,11 +34,15 @@ music-card-sign/
 ├── index.js                         # 云崽入口，加载 lib/index.js
 ├── guoba.support.js                 # 锅巴入口，加载编译后的配置模块
 ├── src/
-│   ├── index.ts                      # 直接导出 MusicCardSign 插件类
-│   ├── dir.ts                        # 插件和资源路径
-│   ├── apps/music-card-sign.ts        # 命令、Handler 注册与模块调用
+│   ├── index.ts                      # 自动加载 apps 并导出给云崽
+│   ├── dir.ts                        # 插件、应用和资源路径
+│   ├── apps/
+│   │   ├── music-card-sign.ts         # 服务生命周期、回包识别与签名 Handler
+│   │   ├── music-card-test.ts         # 音之测测与签名发卡指令
+│   │   └── music-card-manage.ts       # 帮助、设置、服务开关与更新指令
 │   ├── config/index.ts               # 云崽配置工具与旧配置迁移
 │   ├── models/                       # 签名、歌曲查询、精确缓存和 HTTP
+│   ├── modules/loader/index.ts        # 同层应用自动发现与逐文件错误处理
 │   ├── modules/guoba/index.ts         # 锅巴表单、校验和配置保存
 │   ├── modules/music-card-sign/
 │   │   ├── service.ts                # 服务生命周期、配置保存和签名调用
@@ -60,7 +64,11 @@ music-card-sign/
 └── package.json
 ```
 
-`src/index.ts` 直接导出继承 `plugin` 的 `MusicCardSign`，根入口转交编译后的导出。云崽本体负责实例化、执行 `init()`、注册命令与 Handler，以及卸载和加载超时。插件不再扫描 `lib/apps/` 或另设导入计时；音卡模块导入失败会直接交给本体报告。
+应用按功能拆分为独立的 `plugin` 子类，规则和事件入口放在 `src/apps/`，业务逻辑复用 `src/modules/`。`MusicCardSign` 持有服务初始化、清理和 `music.sign` Handler；测试、发卡与管理应用共用服务，不重复挂载 HTTP 或监听器。
+
+`src/index.ts` 调用加载模块，自动扫描 `lib/apps/` 当前层的 JS，并行导入后按文件名顺序汇总 `apps`，交给云崽本体实例化并注册。单个文件导入失败会记录文件名和原始错误；签名服务应用失败会继续抛出错误。加载器不缓存模块、不递归扫描，也不另设导入计时，加载超时由本体管理。
+
+新增应用时，在 `src/apps/` 添加 TS 文件并导出命名的 `plugin` 子类，构建后自动加载，无需修改入口。类名须唯一；新增应用只声明自己的命令，不要重复初始化签名服务。写法可参考 [DF 插件的应用目录](https://github.com/KaguyaJs/Yunzai-DF-Plugin/tree/dev/src/apps)。
 
 第三方 ID 查询扩展放在自己的插件或 `plugins/example/`，由云崽本体加载；不要复制到音卡的 `lib/apps/`。
 

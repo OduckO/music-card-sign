@@ -6,9 +6,9 @@ import { fixture, command } from './helpers/plugin'
 import type { FixtureReply, FixtureCommandEvent } from './helpers/plugin'
 
 test('更新、强制更新和日志交给本体更新器，仅指定本插件并保留原事件', async (t) => {
-  const { instance, hostRoot, directory, bot, logs } = await fixture(t)
-  assert.equal(typeof instance.update, 'function')
-  const rule = instance.rule.find((entry) => entry.fnc === 'update')
+  const { hostRoot, directory, bot, logs, manageApp } = await fixture(t)
+  assert.equal(typeof manageApp.update, 'function')
+  const rule = manageApp.rule.find((entry) => entry.fnc === 'update')
   assert.equal(rule?.permission, 'master')
   assert.ok(rule)
   await mkdir(join(directory, '.git'))
@@ -51,7 +51,7 @@ test('更新、强制更新和日志交给本体更新器，仅指定本插件�
       configurable: false
     })
     Object.defineProperty(e, 'logFnc', { value: '[1564571378][音乐签名更新]' })
-    assert.equal(await instance.update(e), true)
+    assert.equal(await manageApp.update(e), true)
     assert.equal(replies.length, 1)
     assert.deepEqual(JSON.parse(String(replies[0])), {
       method: entry.method,
@@ -67,10 +67,10 @@ test('更新、强制更新和日志交给本体更新器，仅指定本插件�
 })
 
 test('解压安装的更新请求提示缺少 Git，不调用本体更新器', async (t) => {
-  const { instance, logs } = await fixture(t)
-  assert.equal(typeof instance.update, 'function')
+  const { logs, manageApp } = await fixture(t)
+  assert.equal(typeof manageApp.update, 'function')
   const replies: FixtureReply[] = []
-  await instance.update({
+  await manageApp.update({
     msg: '#音乐签名更新',
     reply: async (message) => {
       replies.push(message)
@@ -82,7 +82,7 @@ test('解压安装的更新请求提示缺少 Git，不调用本体更新器', a
 })
 
 test('本体拒绝更新时记录日志，未回复则提示，已回复则不重复', async (t) => {
-  const { instance, hostRoot, directory, logs } = await fixture(t)
+  const { hostRoot, directory, logs, manageApp } = await fixture(t)
   await mkdir(join(directory, '.git'))
   await mkdir(join(hostRoot, 'plugins/other'))
   await writeFile(
@@ -106,7 +106,7 @@ test('本体拒绝更新时记录日志，未回复则提示，已回复则不�
       }
     }
     Object.defineProperty(e, 'isMaster', { value: isMaster })
-    assert.equal(await instance.update(e), true)
+    assert.equal(await manageApp.update(e), true)
     assert.equal(replies.length, 1)
     if (isMaster) assert.equal(replies[0], '正在更新，请稍候再试')
     else assert.match(String(replies[0]), /本体更新器未执行.*更新/)
@@ -119,8 +119,8 @@ test('本体拒绝更新时记录日志，未回复则提示，已回复则不�
 })
 
 test('本体更新器抛出的错误记录日志，并回到发指令的会话', async (t) => {
-  const { instance, hostRoot, directory, logs } = await fixture(t)
-  assert.equal(typeof instance.update, 'function')
+  const { hostRoot, directory, logs, manageApp } = await fixture(t)
+  assert.equal(typeof manageApp.update, 'function')
   await mkdir(join(directory, '.git'))
   await mkdir(join(hostRoot, 'plugins/other'))
   await writeFile(
@@ -131,7 +131,7 @@ test('本体更新器抛出的错误记录日志，并回到发指令的会话',
 `
   )
   const replies: FixtureReply[] = []
-  await instance.update({
+  await manageApp.update({
     msg: '#音乐签名强制更新',
     reply: async (message) => {
       replies.push(message)
@@ -145,11 +145,11 @@ test('本体更新器抛出的错误记录日志，并回到发指令的会话',
 })
 
 test('宿主缺少更新器时音卡仍正常启动，执行更新时才报告错误', async (t) => {
-  const { instance, directory, cards } = await fixture(t)
-  assert.equal(typeof instance.update, 'function')
+  const { directory, cards, testApp, manageApp } = await fixture(t)
+  assert.equal(typeof manageApp.update, 'function')
   await mkdir(join(directory, '.git'))
   const replies: FixtureReply[] = []
-  await instance.update({
+  await manageApp.update({
     msg: '#音乐签名更新',
     reply: async (message) => {
       replies.push(message)
@@ -157,6 +157,6 @@ test('宿主缺少更新器时音卡仍正常启动，执行更新时才报告�
     }
   })
   assert.match(String(replies.at(-1)), /更新失败/)
-  await instance.probe(command('#音之测测'))
+  await testApp.probe(command('#音之测测'))
   assert.equal(cards.length, 1)
 })

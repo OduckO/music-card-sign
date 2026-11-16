@@ -68,7 +68,7 @@ async function guobaFixture(t: TestContext) {
 }
 
 test('锅巴保存取消 triptrap 等待请求，只释放插件自己的监听并能继续签名', async (t) => {
-  const { guoba, bot, instance, stack, configPath } = await guobaFixture(t)
+  const { guoba, bot, instance, stack, configPath, testApp } = await guobaFixture(t)
   const events = new Trapper()
   let hostEvents = 0
   const hostListener = () => hostEvents++
@@ -117,13 +117,13 @@ test('锅巴保存取消 triptrap 等待请求，只释放插件自己的监听�
   const yaml: Config = YAML.parse(await readFile(configPath, 'utf8'))
   assert.equal(yaml.path, '/triptrap/music')
   bot.pickFriend = originalPick
-  await instance.probe(command('#音之测测'))
+  await testApp.probe(command('#音之测测'))
   assert.equal(hostEvents, 1)
   assert.deepEqual(events.listeners('sync.message'), [hostListener])
   assert.equal(events.listeners('message.private').length, 0)
   bot.pickFriend = () => ({ share: async () => {} })
   const replies: FixtureReply[] = []
-  await instance.probe({
+  await testApp.probe({
     msg: '#音之测测',
     reply: async (message) => {
       replies.push(message)
@@ -181,7 +181,7 @@ test('锅巴根入口导出十项配置，JSON 编辑字段保持完整内容', 
 })
 
 test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号、联系人及自定义平台', async (t) => {
-  const { guoba, configPath, stack, bot, instance, cards, targets } = await guobaFixture(t)
+  const { guoba, configPath, stack, bot, cards, targets, testApp } = await guobaFixture(t)
   const testMusic = {
     type: 'custom',
     title: '锅巴测试',
@@ -236,7 +236,7 @@ test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号、联系
   )
   assert.equal(response.statusCode, 200)
   assert.equal(JSON.parse(response.body).meta.music.appid, 200079)
-  await instance.probe(command('#音之测测'))
+  await testApp.probe(command('#音之测测'))
   assert.equal(JSON.parse(cards.at(-1)!).meta.music.title, '锅巴测试')
   assert.equal(JSON.parse(cards.at(-1)!).meta.music.appid, 200079)
   assert.equal(bot.listenerCount('sync.message'), 0)
@@ -276,7 +276,7 @@ test('锅巴拒绝坏字段，校验失败保持原配置和已挂载路由', as
 })
 
 test('锅巴设置被占用的端口时恢复旧配置和可用服务', async (t) => {
-  const { guoba, stack, configPath, instance } = await guobaFixture(t)
+  const { guoba, stack, configPath, testApp } = await guobaFixture(t)
   const original = await readFile(configPath, 'utf8')
   const server = http.createServer()
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -293,7 +293,7 @@ test('锅巴设置被占用的端口时恢复旧配置和可用服务', async (t
   assert.equal(stack.length, 3)
   assert.equal(stack[1].path, '/music_card/card')
   assert.equal(guoba.configInfo.getConfigData().localPort, 0)
-  await instance.probe(command('#音之测测'))
+  await testApp.probe(command('#音之测测'))
 })
 
 test('锅巴保存失败恢复内存配置与服务，开关多次保存不重复挂载', async (t) => {

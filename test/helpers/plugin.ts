@@ -40,18 +40,30 @@ export interface FixtureCleanup {
   restore: () => Promise<void>
 }
 
-export interface FixturePlugin extends Pick<MusicCardSign, 'init' | 'signCard'> {
+export interface FixtureApp {
   priority: number
+  namespace: string
   rule: Array<PluginRule & { reg: string | RegExp }>
   cleanup: FixtureCleanup[]
+  handler?: Array<{ key: string; fn: string }>
+}
+
+export interface FixturePlugin extends FixtureApp, Pick<MusicCardSign, 'init' | 'signCard'> {
   onUnload: () => Promise<void>
+  accept: (event: MusicEvent) => 'return' | false
+}
+
+export interface FixtureTestApp extends FixtureApp {
   forwardCard: (event: FixtureCommandEvent) => Promise<boolean>
   probe: (event: FixtureCommandEvent) => Promise<boolean>
+}
+
+export interface FixtureManageApp extends FixtureApp {
+  help: (event: FixtureCommandEvent<string>) => Promise<boolean>
   toggle: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setBot: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setTarget: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setPlatform: (event: FixtureCommandEvent<string>) => Promise<boolean>
-  accept: (event: MusicEvent) => 'return' | false
   update: (event: FixtureCommandEvent) => Promise<boolean>
   status: (event: Pick<FixtureCommandEvent<string>, 'reply'>) => Promise<boolean>
 }
@@ -73,6 +85,8 @@ export interface FixtureRouterLayer {
 
 export interface PluginFixture {
   instance: FixturePlugin
+  testApp: FixtureTestApp
+  manageApp: FixtureManageApp
   bot: IcqqBot & EventEmitter
   stack: FixtureRouterLayer[]
   cards: string[]
@@ -288,14 +302,32 @@ export default async function makeConfig(name, config) {
       Object.assign(globalThis, { plugin: pluginClass })
     }
   }
-  const { MusicCardSign } = (await import(pathToFileURL(join(directory, 'index.js')).href)) as {
-    MusicCardSign: new () => FixturePlugin
+  const { apps } = (await import(pathToFileURL(join(directory, 'index.js')).href)) as {
+    apps: {
+      MusicCardSign: new () => FixturePlugin
+      MusicCardTest: new () => FixtureTestApp
+      MusicCardManage: new () => FixtureManageApp
+    }
   }
-  const instance = new MusicCardSign()
+  const instance = new apps.MusicCardSign()
+  const testApp = new apps.MusicCardTest()
+  const manageApp = new apps.MusicCardManage()
   loaded.instance = instance
   loaded.stopService = (
     await import(pathToFileURL(join(directory, 'lib/modules/music-card-sign/service.js')).href)
   ).stopService
   await instance.init()
-  return { instance, bot, stack, cards, targets, logs, directory, hostRoot, handlers }
+  return {
+    instance,
+    testApp,
+    manageApp,
+    bot,
+    stack,
+    cards,
+    targets,
+    logs,
+    directory,
+    hostRoot,
+    handlers
+  }
 }
