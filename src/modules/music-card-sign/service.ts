@@ -1,10 +1,17 @@
 import config from '@/config'
 import { PluginPath } from '@/dir'
 import path from 'node:path'
-import type { BotCandidate, CommandEvent, Config, MusicRequest, SignOptions } from '@/types'
+import type {
+  BotCandidate,
+  CommandEvent,
+  Config,
+  MusicEvent,
+  MusicRequest,
+  SignOptions
+} from '@/types'
 import type { ExpressHost } from '@/models/http'
 import { errorMessage } from '@/utils'
-import { MusicSigner, cardText } from '@/models/music-sign'
+import { MusicSigner, cardText, selectPlatform } from '@/models/music-sign'
 import { mountService } from '@/models/http'
 import { MusicCardCache } from '@/models/music-cache'
 
@@ -34,7 +41,7 @@ function getBots() {
 async function start() {
   if (service || !settings.enabled) return
   logger.info(
-    `[音卡签名] 正在启动，签名 Bot=${settings.botId || '自动'}，接收联系人=${settings.targetId || '签名 Bot 自己'}，回传超时=${settings.timeoutMs} ms`
+    `[音卡签名] 正在启动，签名 Bot=${settings.botId || '自动'}，接收联系人=${settings.targetId || '签名 Bot 自己'}，默认平台=${settings.defaultPlatform}，回传超时=${settings.timeoutMs} ms`
   )
   if (!Bot.express?.use) throw new Error('音卡签名插件需要云崽 Bot.express')
   const signer = new MusicSigner({
@@ -43,6 +50,7 @@ async function start() {
     targetId: settings.targetId,
     timeoutMs: settings.timeoutMs,
     customPlatforms: settings.platforms,
+    defaultPlatform: settings.defaultPlatform,
     cache: new MusicCardCache(path.join(PluginPath, 'data/music-card-cache')),
     onCacheError: (error) => logger.warn(`[音卡缓存] ${errorMessage(error)}`),
     onLog: (level, message) => logger[level](`[音卡签名] ${message}`)
@@ -94,8 +102,17 @@ export async function getTestMusic() {
   return settings.testMusic
 }
 
+export function isSigningEcho(event: MusicEvent) {
+  return service?.signer.isSigningEcho(event) ?? false
+}
+
 export function updateSettings(patch: Partial<Config>) {
   return serialize(async () => {
+    selectPlatform(
+      {},
+      patch.platforms ?? settings.platforms,
+      patch.defaultPlatform ?? settings.defaultPlatform
+    )
     const previous = { ...settings }
     Object.assign(settings, patch)
     try {

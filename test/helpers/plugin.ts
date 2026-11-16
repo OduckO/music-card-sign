@@ -7,7 +7,14 @@ import { join, resolve as resolvePath, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { PluginOptions, PluginRule } from 'trss-yunzai'
 import type { MusicCardSign } from '../../src/apps/music-card-sign'
-import type { Config, IcqqBot, ShareContent, AppPlatform, HttpRequest } from '../../src/types'
+import type {
+  Config,
+  IcqqBot,
+  ShareContent,
+  AppPlatform,
+  HttpRequest,
+  MusicEvent
+} from '../../src/types'
 import YAML from 'yaml'
 
 const projectRoot = process.cwd()
@@ -33,6 +40,7 @@ export interface FixtureCleanup {
 }
 
 export interface FixturePlugin extends Pick<MusicCardSign, 'init' | 'signCard'> {
+  priority: number
   rule: Array<PluginRule & { reg: string | RegExp }>
   cleanup: FixtureCleanup[]
   onUnload: () => Promise<void>
@@ -41,6 +49,8 @@ export interface FixturePlugin extends Pick<MusicCardSign, 'init' | 'signCard'> 
   toggle: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setBot: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setTarget: (event: FixtureCommandEvent<string>) => Promise<boolean>
+  setPlatform: (event: FixtureCommandEvent<string>) => Promise<boolean>
+  accept: (event: MusicEvent) => 'return' | false
   update: (event: FixtureCommandEvent) => Promise<boolean>
   status: (event: Pick<FixtureCommandEvent<string>, 'reply'>) => Promise<boolean>
 }
@@ -182,6 +192,7 @@ export default async function makeConfig(name, config) {
         )
         cards.push(raw)
         bot.emit('sync.message', {
+          message_id: `signed:${cards.length}`,
           from_id: bot.uin,
           to_id: id,
           message: [{ type: 'json', data: raw }]

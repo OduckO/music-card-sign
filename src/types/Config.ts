@@ -4,6 +4,7 @@ export interface Config {
   enabled: boolean
   botId: string
   targetId: string
+  defaultPlatform: string
   path: string
   timeoutMs: number
   localPort: number

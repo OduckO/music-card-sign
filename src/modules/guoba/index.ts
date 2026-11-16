@@ -48,6 +48,13 @@ const schemas: Schemas<FormConfig> = [
   },
   { component: 'SOFT_GROUP_BEGIN', label: '测试与平台扩展' },
   {
+    field: 'defaultPlatform',
+    label: '默认签名平台',
+    component: 'Input',
+    bottomHelpMessage:
+      '默认 txqq（QQ 本体）；qq 为 QQ 音乐，也可填写下方自定义平台名。请求的 _platform 可覆盖。'
+  },
+  {
     field: 'testMusic',
     label: '测试歌曲 JSON',
     component: 'InputTextArea',
@@ -119,6 +126,8 @@ function configPatch(data: Record<string, unknown>): Partial<Config> {
   if (Object.hasOwn(data, 'timeoutMs'))
     patch.timeoutMs = integerValue(data.timeoutMs, '超时', 1, 2147483647)
   if (Object.hasOwn(data, 'testMusic')) patch.testMusic = objectValue(data.testMusic, '测试歌曲')
+  if (Object.hasOwn(data, 'defaultPlatform'))
+    patch.defaultPlatform = stringValue(data.defaultPlatform, '默认签名平台').trim().toLowerCase()
   if (Object.hasOwn(data, 'platforms')) {
     const entries = objectValue(data.platforms, '平台映射')
     patch.platforms = Object.fromEntries(

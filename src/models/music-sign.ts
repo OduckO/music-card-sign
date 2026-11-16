@@ -17,6 +17,11 @@ import type {
 import { errorMessage } from '@/utils'
 
 const platforms: Record<string, AppPlatform> = {
+  txqq: {
+    appid: 100686848,
+    appname: 'com.tencent.mobileqq',
+    appsign: 'a6b745bf24a2c277527716f6f36eb68d'
+  },
   qq: {
     appid: 100497308,
     appname: 'com.tencent.qqmusic',
@@ -68,7 +73,7 @@ const platforms: Record<string, AppPlatform> = {
     appsign: '5583e6a15a9cfbe6af9c945c5b8b1a4b'
   }
 }
-const aliases: Record<string, string> = { 163: 'netease', custom: 'qq' }
+const aliases: Record<string, string> = { 163: 'netease' }
 const httpsDomains = [
   'gtimg.cn',
   'qq.com',
@@ -81,6 +86,7 @@ const httpsDomains = [
   'bilibili.com'
 ]
 const rawCards = new WeakMap<MusicCard, string>()
+const signingEchoes = new WeakSet<MusicEvent>()
 
 export function cardText(card: MusicCard) {
   return rawCards.get(card) ?? JSON.stringify(card)
@@ -144,23 +150,16 @@ function webUrl(value: unknown, field: string, required = false) {
 
 export function selectPlatform(
   data: MusicRequest,
-  customPlatforms: Record<string, PlatformInput>
+  customPlatforms: Record<string, PlatformInput>,
+  defaultPlatform = 'txqq'
 ): AppPlatform {
-  const selected = data._platform ?? data.platform ?? data.source ?? data.type ?? 'qq'
+  const selected = data._platform ?? data.platform ?? data.source ?? defaultPlatform
   let platform: PlatformInput | undefined
   if (selected && typeof selected === 'object' && !Array.isArray(selected))
     platform = selected as PlatformInput
   else {
     const name = text(selected, '_platform').toLowerCase()
     platform = customPlatforms[aliases[name] || name] ?? platforms[aliases[name] || name]
-    if (
-      !platform &&
-      data.id !== undefined &&
-      data._platform === undefined &&
-      data.platform === undefined &&
-      data.source === undefined
-    )
-      platform = platforms.qq
     if (!platform) throw new MusicSignError(`未知音卡平台：${name}`)
   }
   const appid = Number(platform.appid)
@@ -176,10 +175,11 @@ export function selectPlatform(
 
 export function normalizeRequest(
   input: unknown,
-  customPlatforms: Record<string, PlatformInput> = {}
+  customPlatforms: Record<string, PlatformInput> = {},
+  defaultPlatform = 'txqq'
 ): NormalizedRequest {
   const data = unwrap(input)
-  const platform = selectPlatform(data, customPlatforms)
+  const platform = selectPlatform(data, customPlatforms, defaultPlatform)
   const title = text(data.title ?? data.song ?? data.name, 'title')
   if (!title) throw new MusicSignError('缺少歌曲 title')
   return {
@@ -238,26 +238,17 @@ function receivedCards(event: MusicEvent): MusicCard[] {
   return result
 }
 
-function mismatchFields(card: MusicCard, request: NormalizedRequest) {
+function musicFields(card: MusicCard): Record<string, unknown> {
   const music = card.meta.music
   let extra = card.extra
-  if (typeof extra === 'string') {
+  if ((music.appid === undefined || music.appid === null) && typeof extra === 'string') {
     try {
       extra = JSON.parse(extra)
     } catch {
       extra = null
     }
   }
-  const content = request.content
-  const expected: Record<string, unknown> = {
-    appid: request.platform.appid,
-    prompt: content.content,
-    title: content.title,
-    desc: content.summary,
-    jumpUrl: content.url,
-    musicUrl: content.audio
-  }
-  const actual: Record<string, unknown> = {
+  return {
     appid: Number(music.appid ?? (typeof extra === 'object' ? extra?.appid : undefined)),
     prompt: String(card.prompt ?? ''),
     title: String(music.title ?? ''),
@@ -265,6 +256,26 @@ function mismatchFields(card: MusicCard, request: NormalizedRequest) {
     jumpUrl: String(music.jumpUrl ?? ''),
     musicUrl: String(music.musicUrl ?? '')
   }
+}
+
+function requestFields(request: NormalizedRequest): Record<string, unknown> {
+  const content = request.content
+  return {
+    appid: request.platform.appid,
+    prompt: content.content,
+    title: content.title,
+    desc: content.summary,
+    jumpUrl: content.url,
+    musicUrl: content.audio
+  }
+}
+
+function musicKey(fields: Record<string, unknown>) {
+  return JSON.stringify([fields.appid, fields.prompt, fields.title, fields.jumpUrl])
+}
+
+function mismatchFields(card: MusicCard, request: NormalizedRequest, actual = musicFields(card)) {
+  const expected = requestFields(request)
   // QQ 会把封面转存为 preview，不能用它判断回包是否属于原请求。
   return Object.keys(expected).filter((field) => actual[field] !== expected[field])
 }
@@ -283,6 +294,7 @@ export class MusicSigner {
   readonly targetId: string
   readonly timeoutMs: number
   readonly customPlatforms: Record<string, PlatformInput>
+  readonly defaultPlatform: string
   readonly resolveMusic?: ResolveMusic
   readonly cache?: CardCache
   readonly onCacheError?: (error: unknown) => void
@@ -292,6 +304,7 @@ export class MusicSigner {
   readonly inflight = new Map<string, Promise<MusicCard>>()
   readonly submissions = new Map<string, Promise<MusicCard>>()
   readonly listeners = new Map<IcqqBot, Subscription>()
+  readonly echoes = new Map<string, number>()
   closed = false
   constructor({
     getBots,
@@ -299,6 +312,7 @@ export class MusicSigner {
     targetId = '',
     timeoutMs = 15000,
     customPlatforms = {},
+    defaultPlatform = 'txqq',
     resolveMusic,
     cache,
     onCacheError,
@@ -314,6 +328,8 @@ export class MusicSigner {
     this.targetId = target
     this.timeoutMs = timeoutMs
     this.customPlatforms = customPlatforms
+    selectPlatform({}, customPlatforms, defaultPlatform)
+    this.defaultPlatform = defaultPlatform
     this.resolveMusic = resolveMusic
     this.cache = cache
     this.onCacheError = onCacheError
@@ -349,7 +365,7 @@ export class MusicSigner {
     }
     const context = `${trace} Bot=${bot.uin} 接收 QQ=${this.targetId || bot.uin}`
     this.onLog?.('info', `${context} 已选择签名账号`)
-    const platform = selectPlatform(data, this.customPlatforms)
+    const platform = selectPlatform(data, this.customPlatforms, this.defaultPlatform)
     const identity = exactJSON([String(bot.uin), platform, data])
     const key = (forceFresh ? 'fresh:' : 'cached:') + identity
     if (this.inflight.has(key)) return this.inflight.get(key)!
@@ -427,14 +443,7 @@ export class MusicSigner {
     context: string
   ): Promise<MusicCard> {
     // 仅凭这些字段识别本次回包；其余字段不同的请求需串行，才能明确报告错误。
-    const content = request.content
-    const group = exactJSON([
-      String(bot.uin),
-      request.platform.appid,
-      content.title,
-      content.content,
-      content.url
-    ])
+    const group = `${bot.uin}:${musicKey(requestFields(request))}`
     const previous = this.submissions.get(group) ?? Promise.resolve()
     const operation = previous
       .catch(() => {})
@@ -454,6 +463,7 @@ export class MusicSigner {
     const targetId = Number(this.targetId || bot.uin)
     const started = performance.now()
     const subscription = this.listen(bot)
+    const identity = musicKey(requestFields(request))
     const { promise, resolve, reject } = Promise.withResolvers<MusicCard>()
     const item: PendingRequest = {
       request,
@@ -462,8 +472,8 @@ export class MusicSigner {
         if (this.pending.get(key) !== item) return
         clearTimeout(item.timer)
         this.pending.delete(key)
-        subscription.items.delete(item)
-        if (!subscription.items.size) this.unlisten(bot)
+        subscription.requests.delete(identity)
+        if (!subscription.requests.size) this.unlisten(bot)
         if (error) {
           this.onLog?.(
             'error',
@@ -487,7 +497,7 @@ export class MusicSigner {
       this.timeoutMs
     )
     this.pending.set(key, item)
-    subscription.items.add(item)
+    subscription.requests.set(identity, item)
     this.onLog?.(
       'info',
       `${context} 监听 message.private / sync.message，等待发送同步 JSON ${this.timeoutMs} ms`
@@ -517,11 +527,43 @@ export class MusicSigner {
     for (const dispose of subscription.disposers) dispose()
   }
 
+  isSigningEcho(event: MusicEvent) {
+    if (signingEchoes.has(event)) return true
+    if (event.group_id || (event.message_type && event.message_type !== 'private')) return false
+    const from = event.from_id ?? event.user_id ?? event.sender?.user_id
+    if (event.self_id === undefined || String(from) !== String(event.self_id) || !event.message_id)
+      return false
+    const key = `${event.self_id}:${event.to_id}:${event.message_id}`
+    const expires = this.echoes.get(key)
+    if (expires === undefined) return false
+    if (expires <= Date.now()) {
+      this.echoes.delete(key)
+      return false
+    }
+    signingEchoes.add(event)
+    return true
+  }
+
+  markEcho(event: MusicEvent, botId: number, targetId: string) {
+    signingEchoes.add(event)
+    if (!event.message_id) return
+    const now = Date.now()
+    for (const [key, expires] of this.echoes) {
+      if (expires > now) break
+      this.echoes.delete(key)
+    }
+    const key = `${botId}:${targetId}:${event.message_id}`
+    this.echoes.delete(key)
+    this.echoes.set(key, now + 30000)
+    // sync 和私聊回包可能是不同对象，只暂存消息 ID，不持有事件或卡片正文。
+    if (this.echoes.size > 256) this.echoes.delete(this.echoes.keys().next().value!)
+  }
+
   listen(bot: IcqqBot): Subscription {
     if (this.listeners.has(bot)) return this.listeners.get(bot)!
     const targetId = this.targetId || String(bot.uin)
     const subscription: Subscription = {
-      items: new Set(),
+      requests: new Map(),
       disposers: [],
       listener: (event) => {
         if (event.group_id || (event.message_type && event.message_type !== 'private')) return
@@ -529,26 +571,20 @@ export class MusicSigner {
         const from = event.from_id ?? event.user_id ?? event.sender?.user_id
         if (String(from) !== String(bot.uin) || String(event.to_id) !== targetId) return
         for (const card of receivedCards(event)) {
+          const actual = musicFields(card)
+          const item = subscription.requests.get(musicKey(actual))
+          if (!item || (event.time && event.time < item.started)) continue
+          this.markEcho(event, bot.uin, targetId)
           this.onLog?.(
             'info',
             `Bot=${bot.uin} 接收 QQ=${targetId} 捕获发送音卡 JSON，appid=${card.meta.music.appid ?? '未知'}，歌曲=${card.meta.music.title ?? '未知'}`
           )
-          for (const item of subscription.items) {
-            if (event.time && event.time < item.started) continue
-            const fields = mismatchFields(card, item.request)
-            if (!fields.length) item.finish(null, card)
-            else if (
-              !fields.some((field) => ['appid', 'prompt', 'title', 'jumpUrl'].includes(field))
+          const fields = mismatchFields(card, item.request, actual)
+          if (!fields.length) item.finish(null, card)
+          else
+            item.finish(
+              new MusicSignError(`音卡回传字段不匹配：${fields.join('、')}`, 502, { fields })
             )
-              item.finish(
-                new MusicSignError(`音卡回传字段不匹配：${fields.join('、')}`, 502, { fields })
-              )
-            else
-              this.onLog?.(
-                'warn',
-                `Bot=${bot.uin} 忽略其他音卡回包，未匹配字段=${fields.join('、')}，等待歌曲=${item.request.content.title} appid=${item.request.platform.appid}`
-              )
-          }
         }
       }
     }
@@ -589,5 +625,6 @@ export class MusicSigner {
     await Promise.allSettled(this.inflight.values())
     this.inflight.clear()
     this.submissions.clear()
+    this.echoes.clear()
   }
 }

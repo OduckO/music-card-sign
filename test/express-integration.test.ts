@@ -21,10 +21,10 @@ test('实际 HTTP：用户请求的封面被 QQ 转存后成功返回，错误�
     view: 'music',
     prompt: '[分享]晴天',
     config: { token: 'offline-qq-token', forward: 1, type: 'normal' },
-    extra: Object.assign({ appid: 100497308 }, { app_type: 1, uin: 3228049612 }),
+    extra: Object.assign({ appid: 100686848 }, { app_type: 1, uin: 3228049612 }),
     meta: {
       music: {
-        appid: 100497308,
+        appid: 100686848,
         title: request.title,
         desc: request.singer,
         jumpUrl: request.url,
@@ -110,7 +110,7 @@ test('实际云崽 Express：POST 经 body 解析与路径挂载后仍返回原�
   const app = Object.assign(express(), { quiet: [] as string[] })
   app.use(express.json())
   const raw =
-    '{\n"view":"music","prompt":"[分享]测试","extra":"opaque-server-field","meta":{"music":{"appid":100497308,"title":"测试","desc":"歌手","jumpUrl":"https://example.com/song","musicUrl":"https://example.com/audio.mp3","preview":""}}\n}'
+    '{\n"view":"music","prompt":"[分享]测试","extra":"opaque-server-field","meta":{"music":{"appid":100686848,"title":"测试","desc":"歌手","jumpUrl":"https://example.com/song","musicUrl":"https://example.com/audio.mp3","preview":""}}\n}'
   const bot: IcqqBot & EventEmitter = Object.assign(new EventEmitter(), {
     uin: 123456789,
     isOnline: () => true,

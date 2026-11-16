@@ -136,7 +136,7 @@ test('锅巴保存取消 triptrap 等待请求，只释放插件自己的监听�
   assert.equal(stack.length, 0)
 })
 
-test('锅巴根入口导出九项配置，JSON 编辑字段保持完整内容', async (t) => {
+test('锅巴根入口导出十项配置，JSON 编辑字段保持完整内容', async (t) => {
   const { guoba } = await guobaFixture(t)
   assert.equal(guoba.pluginInfo.name, 'music-card-sign')
   assert.equal(guoba.pluginInfo.isV3, true)
@@ -145,6 +145,7 @@ test('锅巴根入口导出九项配置，JSON 编辑字段保持完整内容', 
   assert.deepEqual(fields, [
     'apiKey',
     'botId',
+    'defaultPlatform',
     'enabled',
     'localPort',
     'path',
@@ -156,6 +157,7 @@ test('锅巴根入口导出九项配置，JSON 编辑字段保持完整内容', 
   const data = info.getConfigData()
   assert.equal(data.enabled, true)
   assert.equal(data.targetId, '')
+  assert.equal(data.defaultPlatform, 'txqq')
   assert.deepEqual(JSON.parse(data.platforms), {})
   assert.equal(JSON.parse(data.testMusic).title, '晴天')
   assert.equal(info.schemas.find(({ field }) => field === 'apiKey')?.component, 'InputPassword')
@@ -168,14 +170,14 @@ test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号、联系
     title: '锅巴测试',
     singer: '测试歌手',
     url: 'https://example.com/song',
-    audio: 'https://example.com/audio.mp3',
-    _platform: 'custom-app'
+    audio: 'https://example.com/audio.mp3'
   }
   const platforms = { 'custom-app': { appid: 200079, appname: 'com.sing.client', app_sign: '' } }
   const saved = await guoba.configInfo.setConfigData(
     {
       botId: String(bot.uin),
       targetId: '987654321',
+      defaultPlatform: 'custom-app',
       path: '/guoba/music',
       timeoutMs: 500,
       apiKey: 'guoba-offline-test-key',
@@ -188,6 +190,7 @@ test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号、联系
   const yaml: Config = YAML.parse(await readFile(configPath, 'utf8'))
   assert.equal(yaml.botId, String(bot.uin))
   assert.equal(yaml.targetId, '987654321')
+  assert.equal(yaml.defaultPlatform, 'custom-app')
   assert.equal(yaml.timeoutMs, 500)
   assert.deepEqual(yaml.platforms, platforms)
   assert.deepEqual(yaml.testMusic, testMusic)
@@ -218,6 +221,7 @@ test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号、联系
   assert.equal(JSON.parse(response.body).meta.music.appid, 200079)
   await instance.probe(command('#音之测测'))
   assert.equal(JSON.parse(cards.at(-1)!).meta.music.title, '锅巴测试')
+  assert.equal(JSON.parse(cards.at(-1)!).meta.music.appid, 200079)
   assert.equal(bot.listenerCount('sync.message'), 0)
   assert.deepEqual(targets, [987654321, 987654321])
 })
@@ -240,6 +244,9 @@ test('锅巴拒绝坏字段，校验失败保持原配置和已挂载路由', as
     { timeoutMs: 0 },
     { localPort: 65536 },
     { enabled: 'true' },
+    { defaultPlatform: '' },
+    { defaultPlatform: 'unknown' },
+    { defaultPlatform: 123 },
     { platforms: JSON.stringify({ bad: { appid: 1, appname: 'com.test.app', appsign: 'bad' } }) }
   ]) {
     const result = await guoba.configInfo.setConfigData(data, context)

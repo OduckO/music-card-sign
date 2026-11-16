@@ -5,7 +5,7 @@ import { readFile, writeFile, readdir } from 'node:fs/promises'
 import fs from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { CacheRecord, Config, MusicCard, MusicRequest } from '../src/types'
+import type { CacheRecord, Config, MusicCard, MusicRequest, MusicEvent } from '../src/types'
 import type * as MusicInfoModule from '../src/models/music-info'
 import { fixture, command } from './helpers/plugin'
 import type { FixtureCommandEvent, FixtureReply, FixtureResponse } from './helpers/plugin'
@@ -60,6 +60,91 @@ test('云崽 init 挂载服务，主人音卡命令直接发送捕获 JSON，卸
     instance.toggle(command('#关闭音乐签名服务'))
   ])
   assert.equal(stack.length, 0, '后执行的关闭必须关闭并发启动的服务')
+})
+
+test('本次签名回包在 accept 终止后续识别，其他消息和分享照常分发', async (t) => {
+  const { instance, bot, cards } = await fixture(t)
+  let otherPluginCalls = 0
+  const dispatch = (event: MusicEvent) => {
+    if (instance.accept(event) !== 'return') otherPluginCalls++
+  }
+  // sync 和私聊回包可能是不同对象；私聊与其父级 message 共享事件。
+  bot.on('message', dispatch)
+  const pick = bot.pickFriend
+  const echoes: MusicEvent[] = []
+  bot.pickFriend = (id) => ({
+    share: async (content, platform) => {
+      await pick(id).share(content, platform)
+      const event: MusicEvent = {
+        message_id: `signed:${cards.length}`,
+        self_id: bot.uin,
+        from_id: bot.uin,
+        to_id: id,
+        message_type: 'private',
+        message: [{ type: 'json', data: cards.at(-1) }]
+      }
+      echoes.push(event)
+      bot.emit('message.private', event)
+      bot.emit('message', event)
+    }
+  })
+  await instance.probe(command('#音之测测'))
+  assert.equal(otherPluginCalls, 0)
+  assert.equal(instance.accept(echoes[0]), 'return')
+  dispatch({
+    self_id: bot.uin,
+    from_id: 234567890,
+    to_id: bot.uin,
+    message: [{ type: 'json', data: cards[0] }]
+  })
+  dispatch({
+    self_id: bot.uin,
+    from_id: bot.uin,
+    to_id: bot.uin,
+    message: [{ type: 'text', data: '#音乐签名状态' }]
+  })
+  assert.equal(otherPluginCalls, 2)
+  assert.equal(bot.listenerCount('message.private'), 0)
+  assert.equal(bot.listenerCount('sync.message'), 0)
+  assert.ok(instance.priority < 0, 'accept 必须在分享识别插件之前执行')
+})
+
+test('默认平台指令持久保存并立即用于 Handler，非法平台保留原配置', async (t) => {
+  const { instance, cards, hostRoot } = await fixture(t)
+  const rule = instance.rule.find((entry) => entry.fnc === 'setPlatform')
+  assert.equal(rule?.permission, 'master')
+  assert.ok(rule && new RegExp(rule.reg).test('#设置音乐签名平台 txqq'))
+  const request = {
+    type: 'custom',
+    title: '平台测试',
+    url: 'https://example.com/song',
+    audio: 'https://example.com/song.mp3'
+  }
+  const replies: string[] = []
+  const reply = async (message: string) => {
+    replies.push(message)
+    return true
+  }
+  await instance.setPlatform({ msg: '#设置音乐签名平台', reply })
+  assert.match(replies.at(-1)!, /用法/)
+  for (const [platform, appid] of [
+    ['qq', 100497308],
+    ['txqq', 100686848]
+  ] as const) {
+    await instance.setPlatform({ msg: `#设置音乐签名平台 ${platform}`, reply })
+    assert.match(replies.at(-1)!, new RegExp(`已设为 ${platform}`))
+    const raw = await instance.signCard({}, request, rejectSign)
+    assert.equal(JSON.parse(raw).meta.music.appid, appid)
+    const yaml: Config = YAML.parse(
+      await readFile(join(hostRoot, 'config/music-card-sign.yaml'), 'utf8')
+    )
+    assert.equal(yaml.defaultPlatform, platform)
+  }
+  await instance.setPlatform({ msg: '#设置音乐签名平台 不存在', reply })
+  assert.match(replies.at(-1)!, /设置失败.*未知音卡平台/)
+  const raw = await instance.signCard({}, request, rejectSign)
+  assert.equal(JSON.parse(raw).meta.music.appid, 100686848)
+  assert.equal(cards.length, 2, '切换默认平台隔离缓存，回到相同平台复用旧卡')
 })
 
 test('ICQQ 音卡直接使用 Bot SDK 发送到群聊或私聊，不经宿主 reply 加工', async (t) => {
@@ -166,7 +251,7 @@ test('音之测测使用默认歌曲，发送完整回包并报告耗时，命�
     true
   )
   assert.equal(JSON.parse(cards[0]).meta.music.title, '晴天')
-  assert.equal(JSON.parse(cards[0]).meta.music.appid, 100497308)
+  assert.equal(JSON.parse(cards[0]).meta.music.appid, 100686848)
   assert.ok(typeof replies[0] === 'string')
   assert.match(replies[0], /音之测测开始/)
   assert.deepEqual(replies[1], { type: 'json', data: cards[0] })
@@ -715,7 +800,7 @@ test('开发者注册 ID 来源后通过音卡 Handler 查询，精确缓存命�
   const data = { type: 'my-plugin', id: 'track:00123' }
   const raw = await instance.signCard(e, data, rejectSign)
   assert.equal(JSON.parse(raw).meta.music.title, '开发者歌曲')
-  assert.equal(JSON.parse(raw).meta.music.appid, 100497308, '自定义来源默认使用 QQ 音卡身份')
+  assert.equal(JSON.parse(raw).meta.music.appid, 100686848, '自定义来源默认使用 txqq 音卡身份')
   assert.equal(await instance.signCard(e, data, rejectSign), raw)
   assert.equal(queries, 1)
   assert.equal(cards.length, 1)

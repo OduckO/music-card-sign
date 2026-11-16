@@ -12,6 +12,7 @@ import type {
   CacheRecord,
   IcqqBot,
   MusicCard,
+  MusicEvent,
   MusicInfo,
   MusicRequest,
   ShareContent
@@ -33,10 +34,10 @@ function card(overrides: Partial<MusicCard['meta']['music']> = {}): MusicCard {
     ver: '0.0.0.1',
     prompt: `[分享]${overrides.title ?? '晴天'}`,
     config: { forward: true, type: 'normal' },
-    extra: JSON.stringify({ appid: 100497308, app_type: 1, uin: 123456789 }),
+    extra: JSON.stringify({ appid: overrides.appid ?? 100686848, app_type: 1, uin: 123456789 }),
     meta: {
       music: {
-        appid: 100497308,
+        appid: 100686848,
         title: '晴天',
         desc: '周杰伦',
         jumpUrl: 'https://example.com/song/1',
@@ -77,12 +78,108 @@ class QQBoundary extends EventEmitter implements IcqqBot {
   }
 }
 
-test('默认 QQ 并接受协议常用别名，不把 custom 当平台', () => {
+test('默认 txqq 使用 QQ 本体应用信息，不把 custom 当平台', () => {
   const request = normalizeRequest({ data: { ...input, type: 'custom', content: input.singer } })
-  assert.equal(request.platform.appid, 100497308)
+  assert.deepEqual(request.platform, {
+    appid: 100686848,
+    appname: 'com.tencent.mobileqq',
+    appsign: 'a6b745bf24a2c277527716f6f36eb68d'
+  })
   assert.equal(request.content.summary, '周杰伦')
   assert.equal(request.content.audio, input.audio)
   assert.throws(() => normalizeRequest({ ...input, url: 'file:///etc/passwd' }), /http/i)
+})
+
+test('默认平台独立于歌曲来源，显式平台覆盖默认配置且支持自定义名称', () => {
+  for (const type of ['custom', 'qq', '163', 'my-plugin']) {
+    assert.equal(normalizeRequest({ ...input, type }, {}, 'txqq').platform.appid, 100686848)
+  }
+  assert.equal(normalizeRequest(input, {}, 'qq').platform.appid, 100497308)
+  assert.equal(
+    normalizeRequest({ ...input, _platform: 'qq' }, {}, 'txqq').platform.appid,
+    100497308
+  )
+  assert.equal(
+    normalizeRequest({ ...input, _platform: '163' }, {}, 'txqq').platform.appid,
+    100495085
+  )
+  const app = { appid: 200079, appname: 'com.sing.client', app_sign: '' }
+  assert.deepEqual(normalizeRequest(input, { mine: app }, 'mine').platform, {
+    appid: 200079,
+    appname: 'com.sing.client',
+    appsign: ''
+  })
+  assert.throws(
+    () => new MusicSigner({ getBots: () => [], defaultPlatform: 'unknown' }),
+    /未知音卡平台/
+  )
+})
+
+test('多个等待歌曲时，回包只校验对应请求，其他音卡不扫描等待字段', async (t) => {
+  const bot = new QQBoundary()
+  const signer = new MusicSigner({ getBots: () => [bot], timeoutMs: 1000 })
+  t.after(() => signer.close())
+  const requests = Array.from({ length: 64 }, (_, index) =>
+    signer.sign({ ...input, title: `歌曲${index}` }).catch((error: unknown) => error)
+  )
+  await new Promise<void>((resolve) => setImmediate(resolve))
+  assert.equal(bot.shares.length, 64)
+  let comparisons = 0
+  for (const { request } of signer.pending.values()) {
+    const summary = request.content.summary
+    Object.defineProperty(request.content, 'summary', {
+      get: () => {
+        comparisons++
+        return summary
+      }
+    })
+  }
+  bot.deliver(card({ title: '其他歌曲' }))
+  assert.equal(comparisons, 0, '不属于等待请求的回包无需比较歌手和音频')
+  bot.deliver(card({ title: '歌曲31' }))
+  assert.deepEqual(await requests[31], card({ title: '歌曲31' }))
+  assert.equal(comparisons, 1, '只校验命中的一首歌')
+  await signer.close()
+  await Promise.all(requests)
+  assert.equal(bot.listenerCount('sync.message'), 0)
+  assert.equal(bot.listenerCount('message.private'), 0)
+})
+
+test('回包标记只关联相同账号、联系人和消息 ID，短期记录有上限且关闭释放', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1800000000000 })
+  const bot = new QQBoundary()
+  const targetId = 987654321
+  const signer = new MusicSigner({ getBots: () => [bot], targetId })
+  t.after(() => signer.close())
+  const event = (message_id: string): MusicEvent => ({
+    self_id: bot.uin,
+    from_id: bot.uin,
+    to_id: targetId,
+    message_type: 'private',
+    message_id,
+    message: [{ type: 'json', data: JSON.stringify(card()) }]
+  })
+  bot.onShare = () => bot.emit('sync.message', event(`signed:${bot.shares.length}`))
+  await signer.sign(input)
+  assert.equal(signer.isSigningEcho(event('signed:1')), true)
+  assert.equal(signer.isSigningEcho({ ...event('signed:1'), from_id: 111222333 }), false)
+  assert.equal(signer.isSigningEcho({ ...event('signed:1'), self_id: 111222333 }), false)
+  assert.equal(signer.isSigningEcho({ ...event('signed:1'), to_id: bot.uin }), false)
+  assert.equal(signer.isSigningEcho({ ...event('signed:1'), group_id: 12345 }), false)
+  assert.equal(signer.isSigningEcho(event('other')), false)
+  t.mock.timers.tick(30000)
+  assert.equal(signer.isSigningEcho(event('signed:1')), false)
+  assert.equal(signer.echoes.size, 0)
+  for (let index = 0; index < 257; index++) await signer.sign(input, { forceFresh: true })
+  assert.equal(signer.echoes.size, 256)
+  assert.equal(signer.isSigningEcho(event('signed:2')), false)
+  assert.equal(signer.isSigningEcho(event('signed:258')), true)
+  assert.equal(signer.pending.size, 0)
+  assert.equal(signer.listeners.size, 0)
+  assert.equal(signer.inflight.size, 0)
+  assert.equal(signer.submissions.size, 0)
+  await signer.close()
+  assert.equal(signer.echoes.size, 0)
 })
 
 test('已知音乐域名的封面和跳转链接升级 HTTPS，音频与其他域名保持原值', () => {
@@ -206,7 +303,7 @@ test('先监听再 share，可接同步回传，返回完整服务端 JSON', asy
   assert.deepEqual(signed, ark)
   assert.deepEqual(bot.targets, [bot.uin])
   assert.equal(bot.shares[0].content.type, 'share')
-  assert.equal(bot.shares[0].app.appname, 'com.tencent.qqmusic')
+  assert.equal(bot.shares[0].app.appname, 'com.tencent.mobileqq')
 })
 
 test('忽略他人、发给他人、其他平台或歌曲的卡，再接受自己正确私聊', async (t) => {
@@ -406,7 +503,7 @@ test('同一 ID 的并发请求在歌曲查询前去重', async (t) => {
     }
   })
   t.after(() => signer.close())
-  bot.onShare = () => bot.deliver(card())
+  bot.onShare = (_content, app) => bot.deliver(card({ appid: app.appid }))
   await Promise.all(
     Array.from({ length: 20 }, () => signer.sign({ type: '163', id: '000186016', _platform: 'qq' }))
   )
@@ -506,7 +603,7 @@ test('ID 缓存命中直接返回旧 JSON，不再查询歌曲平台', async (t)
     }
   })
   t.after(() => signer.close())
-  bot.onShare = () => bot.deliver(card())
+  bot.onShare = (_content, app) => bot.deliver(card({ appid: app.appid }))
   const request = { type: '163', id: '000186016', _platform: 'qq' } satisfies MusicRequest
   const raw = cardText(await signer.sign(request))
   assert.equal(cardText(await signer.sign(request)), raw)

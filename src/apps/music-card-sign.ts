@@ -1,11 +1,17 @@
-import type { CommandEvent, MusicRequest, SignOptions } from '@/types'
-import { startService, stopService, signCard } from '@/modules/music-card-sign/service'
+import type { CommandEvent, MusicEvent, MusicRequest, SignOptions } from '@/types'
+import {
+  startService,
+  stopService,
+  signCard,
+  isSigningEcho
+} from '@/modules/music-card-sign/service'
 import {
   help,
   status,
   toggle,
   setBot,
   setTarget,
+  setPlatform,
   forwardCard,
   probe
 } from '@/modules/music-card-sign/commands'
@@ -18,12 +24,17 @@ export class MusicCardSign extends plugin<'message'> {
       name: '本地 icqq 音卡签名',
       dsc: '分享给指定联系人并捕获音卡 JSON，提供签名 API 与当前会话转发',
       event: 'message',
-      priority: 5000,
+      priority: -Infinity,
       namespace: 'music-card-sign',
       handler: [{ key: 'music.sign', fn: 'signCard' }],
       rule: [
         { reg: '^#音乐签名(?:帮助)?$', fnc: 'help', permission: 'master' },
         { reg: '^#音乐签名状态$', fnc: 'status', permission: 'master' },
+        {
+          reg: '^#设置音乐签名平台(?:\\s+[\\s\\S]+)?$',
+          fnc: 'setPlatform',
+          permission: 'master'
+        },
         {
           reg: '^#设置音乐签名(?:[Bb][Oo][Tt]|账号)(?:\\s+[\\s\\S]+)?$',
           fnc: 'setBot',
@@ -62,6 +73,10 @@ export class MusicCardSign extends plugin<'message'> {
     return stopService()
   }
 
+  accept(e: MusicEvent) {
+    return isSigningEcho(e) ? 'return' : false
+  }
+
   help(e: CommandEvent) {
     return help(e)
   }
@@ -80,6 +95,10 @@ export class MusicCardSign extends plugin<'message'> {
 
   setTarget(e: CommandEvent) {
     return setTarget(e)
+  }
+
+  setPlatform(e: CommandEvent) {
+    return setPlatform(e)
   }
 
   signCard(
