@@ -1,1 +1,1 @@
-export { MusicCardSign } from './apps/music-card-sign.js';
+export declare const apps: Record<string, new () => plugin>;
