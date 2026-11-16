@@ -32,6 +32,61 @@ async function finishedWithin(promise: Promise<unknown>, timeoutMs = 1000) {
   }
 }
 
+for (const [scenario, source] of [
+  ['缺少依赖', "import 'missing-music-card-test-dependency'"],
+  ['导入抛错', "throw new Error('其他应用初始化失败')"],
+  ['导入一直等待', 'await new Promise(() => {})']
+] as const) {
+  test(`应用加载按文件隔离，其他应用${scenario}不阻断启动和测试指令`, async (t) => {
+    const loading = fixture(t, {}, { appFiles: { 'unrelated.js': source } })
+    await assert.doesNotReject(async () => {
+      assert.equal(await finishedWithin(loading, 6000), true, '其他应用不应拖住音卡加载')
+    })
+    const { instance, stack, cards, logs } = await loading
+    assert.equal(stack.length, 3)
+    assert.ok(
+      logs.some(({ level, message }) => level === 'error' && message.includes('unrelated.js')),
+      '失败日志应定位到具体文件'
+    )
+    assert.equal(await instance.probe(command('#音之测测')), true)
+    assert.equal(cards.length, 1)
+  })
+}
+
+test('应用加载保留同层有效插件，不扫描嵌套示例目录', async (t) => {
+  const { directory, stack } = await fixture(
+    t,
+    {},
+    {
+      appFiles: {
+        'additional.js': 'export class Additional extends plugin {}',
+        'examples/unrelated.js': "throw new Error('示例目录不应被执行')"
+      }
+    }
+  )
+  const { apps } = (await import(pathToFileURL(join(directory, 'index.js')).href)) as {
+    apps: Record<string, unknown>
+  }
+  assert.deepEqual(Object.keys(apps), ['Additional', 'MusicCardSign'])
+  assert.equal(stack.length, 3)
+})
+
+test('音卡核心应用加载失败时保留原始错误，不返回空应用假装成功', async (t) => {
+  await assert.rejects(
+    fixture(
+      t,
+      {},
+      {
+        appFiles: {
+          'music-card-sign.js':
+            "export class MusicCardSign extends plugin {}; throw new Error('音卡核心依赖失败')"
+        }
+      }
+    ),
+    /音卡核心依赖失败/
+  )
+})
+
 test('云崽 init 挂载服务，主人音卡命令直接发送捕获 JSON，卸载释放资源', async (t) => {
   const { instance, bot, stack, cards } = await fixture(t)
   const replies: FixtureReply[] = []

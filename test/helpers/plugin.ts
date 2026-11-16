@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { mkdtemp, cp, rm, readFile, writeFile, mkdir, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve as resolvePath, sep } from 'node:path'
+import { dirname, join, resolve as resolvePath, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { PluginOptions, PluginRule } from 'trss-yunzai'
 import type { MusicCardSign } from '../../src/apps/music-card-sign'
@@ -106,6 +106,7 @@ export async function fixture(
     yaml?: Partial<Config>
     guobaFirst?: boolean
     noAddCleanup?: boolean
+    appFiles?: Record<string, string>
   } = {}
 ): Promise<PluginFixture> {
   const hostRoot = await mkdtemp(join(tmpdir(), 'music-card-plugin-'))
@@ -165,6 +166,13 @@ export default async function makeConfig(name, config) {
   process.chdir(hostRoot)
   for (const file of ['index.js', 'guoba.support.js', 'package.json', 'lib', 'resources'])
     await cp(join(projectRoot, file), join(directory, file), { recursive: true })
+  await Promise.all(
+    Object.entries(persisted.appFiles ?? {}).map(async ([filename, source]) => {
+      const target = join(directory, 'lib/apps', filename)
+      await mkdir(dirname(target), { recursive: true })
+      await writeFile(target, source)
+    })
+  )
   const defaultsPath = join(directory, 'resources/config/config.yaml')
   const defaults: Config = YAML.parse(await readFile(defaultsPath, 'utf8'))
   await writeFile(defaultsPath, YAML.stringify({ ...defaults, ...settings }))
