@@ -128,6 +128,8 @@ QQ 转存封面时会返回新的 `preview` 地址，插件接受这张音卡。
 
 默认平台 `default` 使用 `appid: 102021671`，`appname` 和 `appsign` 均为空字符串。已有配置若保存了其他默认平台，更新后发送 `#设置音乐签名平台 default` 即可切换，也可在锅巴选择「默认应用」。
 
+内置 QQ 本体平台 `txqq` 已移除，QQ 音乐 `qq` 保留。旧配置的 `defaultPlatform: txqq` 会在加载时自动改为 `default` 并保存；用户在 `platforms` 中自定义的同名平台保留。
+
 平台按显式 `_platform`（兼容 `platform/source`）、歌曲跳转链接、`defaultPlatform` 的顺序选择。例如跳转链接属于网易云时使用 `netease`，传入 `_platform: "default"` 可强制使用默认应用。仅识别 `url/jumpUrl` 等跳转字段的域名，音频 `audio` 和封面不参与识别；未识别到平台时使用默认配置。
 
 `type` 只选择 ID 查询来源。ID 请求未携带跳转地址时使用默认平台，可通过 `_platform` 指定音卡平台。

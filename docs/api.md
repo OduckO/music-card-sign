@@ -87,7 +87,6 @@ ID 查询需要取得歌名、歌手、跳转地址和可用音频地址，封�
 | `5sing.kugou.com`、`5sing.com`           | `5sing`    |
 | `bodian.kuwo.cn`、`bodian-oia.kuwo.cn`   | `bodian`   |
 | `tim.qq.com`                             | `tim`      |
-| `im.qq.com`                              | `txqq`     |
 | `ys.mihoyo.com`、`genshin.hoyoverse.com` | `yuanshen` |
 
 更具体的域名优先，例如 `5sing.kugou.com` 使用 `5sing`。未知域名使用默认平台；已知短链接域名按表识别，其他短链接需显式指定 `_platform`。
@@ -123,7 +122,9 @@ ID 查询需要取得歌名、歌手、跳转地址和可用音频地址，封�
 }
 ```
 
-预置平台名称为 `default`、`txqq`、`qq`、`netease`（别名 `163`）、`kuwo`、`kugou`、`migu`、`bilibili`、`5sing`、`bodian`、`tim`、`yuanshen`。`txqq` 表示 QQ 本体，`qq` 表示 QQ 音乐。
+预置平台名称为 `default`、`qq`、`netease`（别名 `163`）、`kuwo`、`kugou`、`migu`、`bilibili`、`5sing`、`bodian`、`tim`、`yuanshen`。`qq` 表示 QQ 音乐。
+
+内置 QQ 本体平台 `txqq` 已移除。调用方使用 `_platform: "default"` 可强制使用默认应用；直接传入应用对象时仍使用指定的 `appid`，不会替换为默认应用。
 
 还可直接传入应用信息。将下面片段与歌曲字段合并后提交：
 
