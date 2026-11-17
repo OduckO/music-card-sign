@@ -79,7 +79,7 @@ class QQBoundary extends EventEmitter implements IcqqBot {
   }
 }
 
-test('酷狗概念版支持默认与显式选择，提交、回传和精确缓存保留原始标题', async (t) => {
+test('酷狗概念版支持默认与显式选择，清理平台后缀并按原始请求分别缓存', async (t) => {
   t.after(() => signer.close())
   const platform = {
     appid: 101706348,
@@ -97,7 +97,12 @@ test('酷狗概念版支持默认与显式选择，提交、回传和精确缓�
   const signer = new MusicSigner({ getBots: () => [bot], cache: await diskCache(t) })
   bot.onShare = (content, app) =>
     bot.deliver(card({ appid: app.appid, title: content.title, jumpUrl: content.url }))
-  for (const [index, title] of ['她说', '她说_kugou_concept'].entries()) {
+  for (const [index, [title, expectedTitle]] of (
+    [
+      ['她说', '她说'],
+      ['她说_kugou_concept', '她说']
+    ] as const
+  ).entries()) {
     const request = {
       ...input,
       title,
@@ -106,27 +111,33 @@ test('酷狗概念版支持默认与显式选择，提交、回传和精确缓�
     }
     const signed = await signer.sign(request)
     assert.deepEqual(bot.shares[index].app, platform)
-    assert.equal(bot.shares[index].content.title, title)
-    assert.equal(bot.shares[index].content.content, `[分享]${title}`)
-    assert.equal(signed.meta.music.title, title)
-    assert.equal(signed.prompt, `[分享]${title}`)
+    assert.equal(bot.shares[index].content.title, expectedTitle)
+    assert.equal(bot.shares[index].content.content, `[分享]${expectedTitle}`)
+    assert.equal(signed.meta.music.title, expectedTitle)
+    assert.equal(signed.prompt, `[分享]${expectedTitle}`)
     assert.equal(
       cardText(signed),
-      JSON.stringify(card({ appid: platform.appid, title, jumpUrl: request.url }))
+      JSON.stringify(card({ appid: platform.appid, title: expectedTitle, jumpUrl: request.url }))
     )
     assert.equal(cardText(await signer.sign(request)), cardText(signed))
     assert.equal(bot.shares.length, index + 1)
   }
 })
 
-test('历史标题平台格式只匹配最后一个 _* 后的完整平台名，显式平台优先', () => {
+test('历史标题只匹配末尾完整平台名，支持 _ 与 _* 分隔符且显式平台优先', () => {
   const url = 'https://www.kugou.com/song/#hash=abc'
   for (const [title, name, appid] of [
     ['晴_天_*kugou_concept', '晴_天', 101706348],
     ['晴_*qq_*kugou_concept', '晴_*qq', 101706348],
     ['晴_天_*163', '晴_天', 100495085],
     ['晴_天_*KUGOU_CONCEPT', '晴_天', 101706348],
-    ['晴天_kugou_concept', '晴天_kugou_concept', 205141],
+    ['晴天_kugou_concept', '晴天', 101706348],
+    ['晴_天_kugou_concept', '晴_天', 101706348],
+    ['晴_qq_kugou_concept', '晴_qq', 101706348],
+    ['晴_天_KUGOU_CONCEPT', '晴_天', 101706348],
+    ['晴_天_163', '晴_天', 100495085],
+    ['晴_天_unknown', '晴_天_unknown', 205141],
+    ['晴天_kugou_concept_extra', '晴天_kugou_concept_extra', 205141],
     ['晴天_*unknown', '晴天_*unknown', 205141],
     ['晴天_*kugou_concept_extra', '晴天_*kugou_concept_extra', 205141],
     ['晴天_*__proto__', '晴天_*__proto__', 205141]
@@ -150,6 +161,12 @@ test('历史标题平台格式只匹配最后一个 _* 后的完整平台名，�
   )
   assert.equal(request.platform.appid, 200079)
   assert.equal(request.content.title, '晴_天')
+  const custom = normalizeRequest(
+    { ...input, title: '晴_天_my_app' },
+    { app: { appid: 100243533 }, my_app: { appid: 200079 } }
+  )
+  assert.equal(custom.platform.appid, 200079, '匹配较长的完整平台名，不截成 app')
+  assert.equal(custom.content.title, '晴_天')
 })
 
 test('酷狗共享跳转与 youthandroid 音频不区分概念版，标题平台优先于链接', () => {
@@ -165,6 +182,7 @@ test('酷狗共享跳转与 youthandroid 音频不区分概念版，标题平台
     normalizeRequest({ ...data, title: '晴_天_*kugou_concept' }).platform.appid,
     101706348
   )
+  assert.equal(normalizeRequest({ ...data, title: '晴天_kugou_concept' }).platform.appid, 101706348)
   assert.equal(
     normalizeRequest({ ...data, url: 'https://example.com/song' }, {}, 'qq').platform.appid,
     100497308
@@ -215,6 +233,13 @@ test('历史标题平台请求清理后提交，精确缓存仍区分原始请�
   assert.equal(signed.meta.music.title, '她_*qq', '只移除末尾标记，保留歌名中较早的标记')
   assert.equal(signed.prompt, '[分享]她_*qq')
   assert.equal(bot.shares.at(-1)?.content.title, '她_*qq')
+  const legacy = { ...requests[0], title: '她_说_kugou_concept' }
+  const legacyCard = await signer.sign(legacy)
+  assert.equal(legacyCard.meta.music.title, '她_说')
+  assert.equal(bot.shares.at(-1)?.app.appid, 101706348)
+  assert.equal(bot.shares.length, 4, '裸下划线格式也单独签名和缓存')
+  assert.equal(cardText(await signer.sign(legacy)), cardText(legacyCard))
+  assert.equal(bot.shares.length, 4)
   const custom = new MusicSigner({
     getBots: () => [bot],
     customPlatforms: { my_app: { appid: 200079 } }

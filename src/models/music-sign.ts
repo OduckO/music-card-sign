@@ -193,13 +193,29 @@ function parseTitlePlatform(
   data: MusicRequest,
   customPlatforms: Record<string, PlatformInput>
 ): MusicRequest {
-  if (typeof data.title !== 'string') return data
-  const separator = data.title.lastIndexOf('_*')
+  if (typeof data.title !== 'string' || !data.title.includes('_')) return data
+  let separator = data.title.lastIndexOf('_*')
+  let suffix =
+    separator < 0
+      ? ''
+      : data.title
+          .slice(separator + 2)
+          .trim()
+          .toLowerCase()
+  if (separator < 0) {
+    const title = data.title.trimEnd().toLowerCase()
+    for (const name of [
+      ...Object.keys(platforms),
+      ...Object.keys(aliases),
+      ...Object.keys(customPlatforms)
+    ]) {
+      if (name.length > suffix.length && title.endsWith(`_${name}`)) {
+        suffix = name
+        separator = title.length - name.length - 1
+      }
+    }
+  }
   if (separator < 0) return data
-  const suffix = data.title
-    .slice(separator + 2)
-    .trim()
-    .toLowerCase()
   const name = Object.hasOwn(aliases, suffix) ? aliases[suffix] : suffix
   if (!Object.hasOwn(platforms, name) && !Object.hasOwn(customPlatforms, name)) return data
   return {
