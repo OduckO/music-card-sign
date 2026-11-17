@@ -97,22 +97,23 @@ ID 查询需要取得歌名、歌手、跳转地址和可用音频地址，封�
 
 `defaultPlatform` 默认是 `default`，应用 ID 为 `102021671`，`appname` 和 `appsign` 均为空。可通过锅巴或 `#设置音乐签名平台 <平台名>` 保存默认平台，HTTP、Handler 和命令共用此设置；已有配置可发送 `#设置音乐签名平台 default` 切换。
 
-平台选择顺序为：`_platform` → `platform` → `source` → 请求中的歌曲跳转链接 → `defaultPlatform`。其中 `source` 是兼容的平台字段，ID 查询来源使用 `type`。
+平台选择顺序为：`_platform` → `platform` → `source` → 标题中的历史平台标记 → 请求中的歌曲跳转链接 → `defaultPlatform`。其中 `source` 是兼容的平台字段，ID 查询来源使用 `type`。
 
 只识别 `jump`、`jumpUrl`、`url`、`link` 中按此顺序取到的地址；`audio`、`musicUrl` 和封面不参与平台选择。识别按域名及子域名匹配，不访问链接，也不读取查询参数中的其他地址。以下域名及其子域名可自动识别：
 
-| 跳转域名                                 | 平台       |
-| ---------------------------------------- | ---------- |
-| `y.qq.com`                               | `qq`       |
-| `music.163.com`、`163cn.tv`              | `netease`  |
-| `kuwo.cn`                                | `kuwo`     |
-| `kugou.com`                              | `kugou`    |
-| `migu.cn`                                | `migu`     |
-| `bilibili.com`、`b23.tv`                 | `bilibili` |
-| `5sing.kugou.com`、`5sing.com`           | `5sing`    |
-| `bodian.kuwo.cn`、`bodian-oia.kuwo.cn`   | `bodian`   |
-| `tim.qq.com`                             | `tim`      |
-| `ys.mihoyo.com`、`genshin.hoyoverse.com` | `yuanshen` |
+| 跳转域名                                 | 平台            |
+| ---------------------------------------- | --------------- |
+| `y.qq.com`                               | `qq`            |
+| `music.163.com`、`163cn.tv`              | `netease`       |
+| `kuwo.cn`                                | `kuwo`          |
+| `kugou.com`                              | `kugou`         |
+| `kugouyouth.com`                         | `kugou_concept` |
+| `migu.cn`                                | `migu`          |
+| `bilibili.com`、`b23.tv`                 | `bilibili`      |
+| `5sing.kugou.com`、`5sing.com`           | `5sing`         |
+| `bodian.kuwo.cn`、`bodian-oia.kuwo.cn`   | `bodian`        |
+| `tim.qq.com`                             | `tim`           |
+| `ys.mihoyo.com`、`genshin.hoyoverse.com` | `yuanshen`      |
 
 更具体的域名优先，例如 `5sing.kugou.com` 使用 `5sing`。未知域名使用默认平台；已知短链接域名按表识别，其他短链接需显式指定 `_platform`。
 
@@ -139,15 +140,39 @@ ID 查询需要取得歌名、歌手、跳转地址和可用音频地址，封�
 ```json
 {
   "type": "custom",
-  "_platform": "netease",
-  "title": "歌曲名",
+  "_platform": "kugou_concept",
+  "title": "她说",
   "singer": "歌手",
   "url": "https://example.com/song",
   "audio": "https://example.com/audio.mp3"
 }
 ```
 
-预置平台名称为 `default`、`qq`、`netease`（别名 `163`）、`kuwo`、`kugou`、`migu`、`bilibili`、`5sing`、`bodian`、`tim`、`yuanshen`。`qq` 表示 QQ 音乐。
+预置平台名称为 `default`、`qq`、`netease`（别名 `163`）、`kuwo`、`kugou`、`kugou_concept`、`migu`、`bilibili`、`5sing`、`bodian`、`tim`、`yuanshen`。`qq` 表示 QQ 音乐。
+
+`kugou_concept` 是酷狗概念版，使用 `appid: 101706348`、`appname: "com.kugou.android.lite"`、`appsign: "fe4a24d80fcf253a00676a808f62c2c6"`。平台名通过 `_platform` 传递，`title` 只填写歌曲名，例如 `"她说"`。歌曲 ID 查询仍使用 `type: "kugou"`；`kugou.com` 链接自动选择 `kugou`，使用概念版时显式传入 `_platform: "kugou_concept"`，或使用下面的历史标题格式。
+
+兼容 shareMusic 将平台写入标题的历史格式：`title: "晴_天_*kugou_concept"` 会提交为歌名 `晴_天`，平台为 `kugou_concept`。匹配只检查最后一个 `_*` 后的完整平台名，支持内置平台、`163` 别名及用户配置的自定义平台，匹配成功后移除整段后缀。普通 `_` 或未知平台后缀保留；显式 `_platform/platform/source` 优先于标题平台标记。缓存仍按原始请求区分，历史标题格式与显式平台格式分别保存。
+
+### 酷狗概念版链接样本
+
+下面的跳转地址来自实际请求，仍是普通酷狗歌曲页面，两种应用可共用：
+
+```text
+https://www.kugou.com/song/#hash=B3A52A7A958BF0AED0EBFBA2E9A818B7
+```
+
+同一请求的音频地址采用以下结构，尖括号表示取链接口返回的动态片段：
+
+```text
+http://fs.youthandroid2.kugou.com/<日期时间>/<鉴权片段>/v3/<资源片段>/yp/full/<文件名>.mp3
+```
+
+`fs.youthandroid2.kugou.com` 也出现在[普通酷狗/VIP 取链记录](https://github.com/Timingyyds/folia-android/blob/f093d04a5a6ab2d126fc4b0eb611f1819af40144/docs/酷狗VIP播放修复说明.md)中，不能只凭这个音频域名选择概念版。音频地址连同协议和动态片段原样传入，不改写为 HTTPS。
+
+[酷狗概念版官网](https://www.kugouyouth.com/)使用独立的 `kugouyouth.com` 域名，插件将该域名及其子域名识别为 `kugou_concept`。上面的 `kugou.com/song/` 地址仍识别为 `kugou`；请求携带 `title: "晴天_*kugou_concept"` 时，标题标记优先，实际提交的歌名是 `晴天`。未知跳转域名使用默认平台，音频不参与选择。
+
+### 扩展应用信息
 
 内置 QQ 本体平台 `txqq` 已移除。调用方使用 `_platform: "default"` 可强制使用默认应用；直接传入应用对象时仍使用指定的 `appid`，不会替换为默认应用。
 
