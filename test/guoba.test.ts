@@ -169,10 +169,11 @@ test('锅巴根入口导出十项配置，JSON 编辑字段保持完整内容', 
   const { options } = schema.componentProps as {
     options: Array<{ label: string; value: string }>
   }
-  assert.equal(options.length, 11)
+  assert.equal(options.length, 12)
   assert.match(options.find(({ value }) => value === 'default')!.label, /102021671/)
   assert.ok(!options.some(({ value }) => value === 'txqq'))
   assert.match(options.find(({ value }) => value === 'qq')!.label, /QQ 音乐/)
+  assert.match(options.find(({ value }) => value === 'kugou_concept')!.label, /酷狗概念版/)
   for (const { value } of options) {
     const saved = await info.setConfigData({ defaultPlatform: value }, context)
     assert.equal(saved.isOk, true, saved.message)

@@ -79,6 +79,178 @@ class QQBoundary extends EventEmitter implements IcqqBot {
   }
 }
 
+test('酷狗概念版支持默认与显式选择，提交、回传和精确缓存保留原始标题', async (t) => {
+  t.after(() => signer.close())
+  const platform = {
+    appid: 101706348,
+    appname: 'com.kugou.android.lite',
+    appsign: 'fe4a24d80fcf253a00676a808f62c2c6'
+  }
+  assert.deepEqual(normalizeRequest(input, {}, 'kugou_concept').platform, platform)
+  for (const field of ['_platform', 'platform', 'source']) {
+    const request = normalizeRequest({ ...input, [field]: 'kugou_concept' })
+    assert.deepEqual(request.platform, platform)
+    assert.equal(request.content.title, input.title)
+  }
+
+  const bot = new QQBoundary()
+  const signer = new MusicSigner({ getBots: () => [bot], cache: await diskCache(t) })
+  bot.onShare = (content, app) =>
+    bot.deliver(card({ appid: app.appid, title: content.title, jumpUrl: content.url }))
+  for (const [index, title] of ['她说', '她说_kugou_concept'].entries()) {
+    const request = {
+      ...input,
+      title,
+      url: 'https://www.kugou.com/song/#hash=abc',
+      _platform: 'kugou_concept'
+    }
+    const signed = await signer.sign(request)
+    assert.deepEqual(bot.shares[index].app, platform)
+    assert.equal(bot.shares[index].content.title, title)
+    assert.equal(bot.shares[index].content.content, `[分享]${title}`)
+    assert.equal(signed.meta.music.title, title)
+    assert.equal(signed.prompt, `[分享]${title}`)
+    assert.equal(
+      cardText(signed),
+      JSON.stringify(card({ appid: platform.appid, title, jumpUrl: request.url }))
+    )
+    assert.equal(cardText(await signer.sign(request)), cardText(signed))
+    assert.equal(bot.shares.length, index + 1)
+  }
+})
+
+test('历史标题平台格式只匹配最后一个 _* 后的完整平台名，显式平台优先', () => {
+  const url = 'https://www.kugou.com/song/#hash=abc'
+  for (const [title, name, appid] of [
+    ['晴_天_*kugou_concept', '晴_天', 101706348],
+    ['晴_*qq_*kugou_concept', '晴_*qq', 101706348],
+    ['晴_天_*163', '晴_天', 100495085],
+    ['晴_天_*KUGOU_CONCEPT', '晴_天', 101706348],
+    ['晴天_kugou_concept', '晴天_kugou_concept', 205141],
+    ['晴天_*unknown', '晴天_*unknown', 205141],
+    ['晴天_*kugou_concept_extra', '晴天_*kugou_concept_extra', 205141],
+    ['晴天_*__proto__', '晴天_*__proto__', 205141]
+  ] as const) {
+    const data = Object.freeze({ ...input, title, url })
+    const request = normalizeRequest(data)
+    assert.equal(request.content.title, name)
+    assert.equal(request.content.content, `[分享]${name}`)
+    assert.equal(request.platform.appid, appid)
+    assert.equal(data.title, title)
+  }
+  const data = { ...input, title: '晴_天_*kugou_concept', url }
+  for (const field of ['_platform', 'platform', 'source']) {
+    const request = normalizeRequest({ ...data, [field]: { appid: 200079 } })
+    assert.equal(request.platform.appid, 200079)
+    assert.equal(request.content.title, '晴_天')
+  }
+  const request = normalizeRequest(
+    { ...input, title: '晴_天_*my_app' },
+    { my_app: { appid: 200079 } }
+  )
+  assert.equal(request.platform.appid, 200079)
+  assert.equal(request.content.title, '晴_天')
+})
+
+test('酷狗共享跳转与 youthandroid 音频不区分概念版，标题平台优先于链接', () => {
+  const data = {
+    ...input,
+    url: 'https://www.kugou.com/song/#hash=B3A52A7A958BF0AED0EBFBA2E9A818B7',
+    audio: 'http://fs.youthandroid2.kugou.com/202611172131/token/v3/hash/yp/full/song.mp3'
+  }
+  const request = normalizeRequest(data)
+  assert.equal(request.platform.appid, 205141)
+  assert.equal(request.content.audio, data.audio)
+  assert.equal(
+    normalizeRequest({ ...data, title: '晴_天_*kugou_concept' }).platform.appid,
+    101706348
+  )
+  assert.equal(
+    normalizeRequest({ ...data, url: 'https://example.com/song' }, {}, 'qq').platform.appid,
+    100497308
+  )
+  assert.equal(
+    normalizeRequest({ ...data, url: 'https://www.kugouyouth.com/', title: '晴天_*qq' }).platform
+      .appid,
+    100497308
+  )
+})
+
+test('历史标题平台请求清理后提交，精确缓存仍区分原始请求格式', async (t) => {
+  t.after(() => signer.close())
+  const bot = new QQBoundary()
+  const signer = new MusicSigner({ getBots: () => [bot], cache: await diskCache(t) })
+  bot.onShare = (content, app) =>
+    bot.deliver({
+      ...card({ appid: app.appid, title: content.title, jumpUrl: content.url }),
+      server_field: String(bot.shares.length)
+    })
+  const requests = [
+    { ...input, title: '她_说_*kugou_concept', url: 'https://www.kugou.com/song/#hash=abc' },
+    {
+      ...input,
+      title: '她_说',
+      _platform: 'kugou_concept',
+      url: 'https://www.kugou.com/song/#hash=abc'
+    }
+  ]
+  for (const [index, request] of requests.entries()) {
+    const original = JSON.stringify(request)
+    const signed = await signer.sign(request)
+    assert.equal(bot.shares[index].app.appid, 101706348)
+    assert.equal(bot.shares[index].content.title, '她_说')
+    assert.equal(signed.meta.music.title, '她_说')
+    assert.equal(signed.prompt, '[分享]她_说')
+    assert.equal(signed.server_field, String(index + 1))
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.equal(cardText(await signer.sign(request)), cardText(signed))
+    assert.equal(bot.shares.length, index + 1)
+    assert.equal(JSON.stringify(request), original)
+  }
+  const signed = await signer.sign({
+    ...input,
+    title: '她_*qq_*kugou_concept',
+    url: 'https://www.kugou.com/song/#hash=abc'
+  })
+  assert.equal(signed.meta.music.title, '她_*qq', '只移除末尾标记，保留歌名中较早的标记')
+  assert.equal(signed.prompt, '[分享]她_*qq')
+  assert.equal(bot.shares.at(-1)?.content.title, '她_*qq')
+  const custom = new MusicSigner({
+    getBots: () => [bot],
+    customPlatforms: { my_app: { appid: 200079 } }
+  })
+  t.after(() => custom.close())
+  assert.equal(
+    (await custom.sign({ ...input, title: '她_*qq_*my_app' })).meta.music.title,
+    '她_*qq'
+  )
+})
+
+test('历史标题平台请求不复用标题尚未清理的旧缓存', async (t) => {
+  const bot = new QQBoundary()
+  const title = '晴天_*kugou'
+  const request = normalizeRequest({ ...input, _platform: 'kugou' })
+  const signer = new MusicSigner({
+    getBots: () => [bot],
+    cache: {
+      get: async (key) => ({
+        version: 1,
+        key,
+        raw: JSON.stringify(card({ appid: 205141, title })),
+        request: {
+          ...request,
+          content: { ...request.content, title, content: `[分享]${title}` }
+        }
+      }),
+      set: async () => {}
+    }
+  })
+  t.after(() => signer.close())
+  bot.onShare = (content, app) => bot.deliver(card({ appid: app.appid, title: content.title }))
+  assert.equal((await signer.sign({ ...input, title })).meta.music.title, '晴天')
+  assert.equal(bot.shares.length, 1)
+})
+
 test('空队列立即注册等待项，下一微任务提交，关闭前尚未提交的请求不发送', async (t) => {
   const bot = new QQBoundary()
   const signer = new MusicSigner({ getBots: () => [bot] })
@@ -300,6 +472,7 @@ test('跳转链接按域名识别内置平台，支持子域名、短链接及�
     ['https://163cn.tv/abcd', 100495085],
     ['http://www.kuwo.cn/play_detail/123', 100243533],
     ['https://www.kugou.com/song/#hash=abc', 205141],
+    ['https://www.kugouyouth.com/', 101706348],
     ['https://music.migu.cn/v3/music/song/123', 1101053067],
     ['https://www.bilibili.com/audio/au123', 100951776],
     ['https://b23.tv/abcd', 100951776],
@@ -350,6 +523,7 @@ test('跳转链接识别遵守显式平台与链接字段优先级，未知域�
     'https://music.163.com.example.com/song',
     'https://notmusic.163.com/song',
     'https://notkugou.com/song',
+    'https://kugouyouth.com.example.com/song',
     'http://constructor/song',
     'http://__proto__/song'
   ]) {
@@ -489,13 +663,13 @@ test('已知音乐域名的封面和跳转链接升级 HTTPS，音频与其他�
 })
 
 test('QQ 转存封面仍接受回包，相同原请求命中缓存，改变封面必须重新签名', async (t) => {
+  t.after(() => signer.close())
   const bot = new QQBoundary()
   const signer = new MusicSigner({
     getBots: () => [bot],
     cache: await diskCache(t),
     timeoutMs: 100
   })
-  t.after(() => signer.close())
   bot.onShare = () =>
     bot.deliver(card({ preview: `https://qq.ugcimg.cn/cover/${bot.shares.length}` }))
   const first = await signer.sign(input)

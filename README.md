@@ -146,7 +146,13 @@ http://127.0.0.1:<云崽端口>/music_card/card
 
 内置 QQ 本体平台 `txqq` 已移除，QQ 音乐 `qq` 保留。旧配置的 `defaultPlatform: txqq` 会在加载时自动改为 `default` 并保存；用户在 `platforms` 中自定义的同名平台保留。
 
-平台按显式 `_platform`（兼容 `platform/source`）、歌曲跳转链接、`defaultPlatform` 的顺序选择。例如跳转链接属于网易云时使用 `netease`，传入 `_platform: "default"` 可强制使用默认应用。仅识别 `url/jumpUrl` 等跳转字段的域名，音频 `audio` 和封面不参与识别；未识别到平台时使用默认配置。
+平台按显式 `_platform`（兼容 `platform/source`）、标题中的历史平台标记、歌曲跳转链接、`defaultPlatform` 的顺序选择。例如跳转链接属于网易云时使用 `netease`，传入 `_platform: "default"` 可强制使用默认应用。仅识别 `url/jumpUrl` 等跳转字段的域名，音频 `audio` 和封面不参与识别；未识别到平台时使用默认配置。
+
+酷狗概念版使用 `_platform: "kugou_concept"`（appid `101706348`），也可在锅巴选择或发送 `#设置音乐签名平台 kugou_concept` 设置默认平台。平台名单独传入，`title` 保留歌曲名。
+
+兼容 shareMusic 的 `title: "歌名_*平台名"` 写法：只匹配最后一个 `_*` 后的完整内置或自定义平台名，匹配后移除这段后缀。例如 `晴_天_*kugou_concept` 使用概念版签名，歌名保留为 `晴_天`；普通 `_` 和未匹配的平台后缀保留。
+
+概念版官网域名 `kugouyouth.com` 可自动识别。普通 `kugou.com` 歌曲链接与音频 CDN 不足以区分两种应用，使用概念版时传入平台字段或标题标记。样本格式见[接口文档](docs/api.md#酷狗概念版链接样本)。
 
 `type` 只选择 ID 查询来源。ID 请求未携带跳转地址时使用默认平台，可通过 `_platform` 指定音卡平台。
 

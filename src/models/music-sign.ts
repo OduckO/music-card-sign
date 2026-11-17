@@ -43,6 +43,11 @@ const platforms: Record<string, AppPlatform> = {
     appname: 'com.kugou.android',
     appsign: 'fe4a24d80fcf253a00676a808f62c2c6'
   },
+  kugou_concept: {
+    appid: 101706348,
+    appname: 'com.kugou.android.lite',
+    appsign: 'fe4a24d80fcf253a00676a808f62c2c6'
+  },
   migu: {
     appid: 1101053067,
     appname: 'cmccwm.mobilemusic',
@@ -81,6 +86,7 @@ const platformDomains: Record<string, string> = {
   '163cn.tv': 'netease',
   'kuwo.cn': 'kuwo',
   'kugou.com': 'kugou',
+  'kugouyouth.com': 'kugou_concept',
   'migu.cn': 'migu',
   'bilibili.com': 'bilibili',
   'b23.tv': 'bilibili',
@@ -98,6 +104,7 @@ const httpsDomains = [
   'music.126.net',
   'kuwo.cn',
   'kugou.com',
+  'kugouyouth.com',
   'kgimg.com',
   'migu.cn',
   'hdslb.com',
@@ -182,13 +189,38 @@ function platformFromUrl(data: MusicRequest) {
   }
 }
 
+function parseTitlePlatform(
+  data: MusicRequest,
+  customPlatforms: Record<string, PlatformInput>
+): MusicRequest {
+  if (typeof data.title !== 'string') return data
+  const separator = data.title.lastIndexOf('_*')
+  if (separator < 0) return data
+  const suffix = data.title
+    .slice(separator + 2)
+    .trim()
+    .toLowerCase()
+  const name = Object.hasOwn(aliases, suffix) ? aliases[suffix] : suffix
+  if (!Object.hasOwn(platforms, name) && !Object.hasOwn(customPlatforms, name)) return data
+  return {
+    ...data,
+    title: data.title.slice(0, separator),
+    _platform: data._platform ?? data.platform ?? data.source ?? suffix
+  }
+}
+
 export function selectPlatform(
   data: MusicRequest,
   customPlatforms: Record<string, PlatformInput>,
   defaultPlatform = 'default'
 ): AppPlatform {
   const selected =
-    data._platform ?? data.platform ?? data.source ?? platformFromUrl(data) ?? defaultPlatform
+    data._platform ??
+    data.platform ??
+    data.source ??
+    parseTitlePlatform(data, customPlatforms)._platform ??
+    platformFromUrl(data) ??
+    defaultPlatform
   let platform: PlatformInput | undefined
   if (selected && typeof selected === 'object' && !Array.isArray(selected))
     platform = selected as PlatformInput
@@ -214,7 +246,7 @@ export function normalizeRequest(
   customPlatforms: Record<string, PlatformInput> = {},
   defaultPlatform = 'default'
 ): NormalizedRequest {
-  const data = unwrap(input)
+  const data = parseTitlePlatform(unwrap(input), customPlatforms)
   const platform = selectPlatform(data, customPlatforms, defaultPlatform)
   const title = text(data.title ?? data.song ?? data.name, 'title')
   if (!title) throw new MusicSignError('缺少歌曲 title')
@@ -440,9 +472,14 @@ export class MusicSigner {
         const record = await this.cache.get(identity)
         if (record) {
           const [card] = receivedCards({ message: [{ type: 'json', data: record.raw }] })
+          const title = text(
+            parseTitlePlatform(data, this.customPlatforms).title ?? data.song ?? data.name,
+            'title'
+          )
           if (
             !card ||
             mismatchFields(card, record.request).length > 0 ||
+            (title && record.request.content.title !== title) ||
             exactJSON(record.request.platform) !== exactJSON(platform)
           ) {
             throw new Error('音卡缓存正文与保存的请求不匹配')
@@ -464,7 +501,7 @@ export class MusicSigner {
       data = { ...info, ...data }
     }
     // 使用开始时的平台配置，避免异步歌曲查询期间配置改变。
-    const request = normalizeRequest({ ...data, _platform: platform })
+    const request = normalizeRequest({ ...data, _platform: platform }, this.customPlatforms)
     if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
     const card = await this.submit(bot, request, key, context)
     const cache = this.cache
