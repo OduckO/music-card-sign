@@ -1,4 +1,5 @@
 import type { AppPlatform, CardCache, IcqqBot, MusicCard, MusicEvent, MusicRequest, NormalizedRequest, PendingRequest, PlatformInput, ResolveMusic, SignerOptions, SignOptions, Subscription } from '../types/index.js';
+export declare const platforms: Record<string, AppPlatform>;
 export declare function cardText(card: MusicCard): string;
 export declare class MusicSignError extends Error {
     readonly status: number;

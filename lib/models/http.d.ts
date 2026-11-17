@@ -21,6 +21,7 @@ export interface ExpressHost {
     };
     quiet?: string[];
 }
+export declare function readBody(req: HttpRequest): Promise<unknown>;
 export declare function createHandler(signer: HttpSigner, { apiKey, mounted, path: configuredPath, onLog }?: HttpOptions): (req: HttpRequest, res: http.ServerResponse) => Promise<void>;
 export declare function mountService(app: ExpressHost, signer: HttpSigner, options?: HttpOptions): Promise<() => Promise<void>>;
 export {};

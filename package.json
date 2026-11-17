@@ -15,6 +15,7 @@
     "./README.md",
     "./index.js",
     "./guoba.support.js",
+    "./webadapter",
     "./LICENSE",
     "./package.json"
   ],

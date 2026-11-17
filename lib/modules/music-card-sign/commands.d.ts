@@ -1,6 +1,4 @@
 import type { CommandEvent } from '../../types/index.js';
-export declare function help(e: CommandEvent): Promise<boolean>;
-export declare function status(e: CommandEvent): Promise<boolean>;
 export declare function toggle(e: CommandEvent): Promise<boolean>;
 export declare function setBot(e: CommandEvent): Promise<boolean>;
 export declare function setTarget(e: CommandEvent): Promise<boolean>;

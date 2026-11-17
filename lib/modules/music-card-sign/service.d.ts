@@ -1,6 +1,6 @@
 import type { CommandEvent, Config, MusicEvent, MusicRequest, SignOptions } from '../../types/index.js';
-export declare function startService(): Promise<void>;
-export declare function stopService(): Promise<void>;
+export declare const startService: () => Promise<void>;
+export declare const stopService: () => Promise<void>;
 export declare function getServiceStatus(): Promise<{
     enabled: boolean;
     bots: string[];
