@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "es2024",
     "module": "ESNext",
-    "moduleResolution": "Node",
+    "moduleResolution": "Bundler",
     "types": ["node", "trss-yunzai"],
     "paths": {
       "@/*": ["./src/*"],
@@ -11,14 +11,15 @@
     "outDir": "./lib",
     "declaration": true,
     "noEmitOnError": true,
-    "rootDir": "./src",
+    "rootDir": ".",
+    "jsx": "react-jsx",
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "moduleDetection": "force",
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src"],
+  "include": ["src", "ktr/template", "karin.template.ts", "web", "scripts"],
   "tsc-alias": {
     "resolveFullPaths": true
   }

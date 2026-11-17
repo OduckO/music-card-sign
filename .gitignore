@@ -5,3 +5,7 @@ node_modules/
 .test-tmp/
 *.log
 temp_lib_content/
+.ktr/
+/webadapter/*.html
+/webadapter/app.js
+/webadapter/app.css

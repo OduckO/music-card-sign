@@ -17,7 +17,7 @@ import type {
 import { errorMessage } from '@/utils'
 import { signingEchoes } from './music-echo'
 
-const platforms: Record<string, AppPlatform> = {
+export const platforms: Record<string, AppPlatform> = {
   default: {
     appid: 102021671,
     appname: '',
@@ -698,7 +698,7 @@ export class MusicSigner {
       ]) {
         const dispose = subscribe.call(bot, event, subscription.listener)
         // icqq 的 triptrap 返回取消函数；旧 EventEmitter 按 listener 单独移除。
-        if (typeof dispose === 'function') subscription.disposers.push(() => dispose())
+        if (typeof dispose === 'function') subscription.disposers.push(dispose as () => void)
         else {
           const remove = bot.removeListener
           if (typeof remove !== 'function')

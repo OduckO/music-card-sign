@@ -22,6 +22,7 @@ const projectRoot = process.cwd()
 
 export type FixtureReply =
   | string
+  | { type: 'image'; file: string }
   | { type: 'json'; data: string }
   | { type: 'raw'; data: { type: 'json'; data: { data: string } } }
 export type FixtureReplyResult = boolean | void | { message_id?: number[]; error?: string[] }
@@ -59,7 +60,8 @@ export interface FixtureTestApp extends FixtureApp {
 }
 
 export interface FixtureManageApp extends FixtureApp {
-  help: (event: FixtureCommandEvent<string>) => Promise<boolean>
+  help: (event: FixtureCommandEvent) => Promise<boolean>
+  settings: (event: FixtureCommandEvent) => Promise<boolean>
   toggle: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setBot: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setTarget: (event: FixtureCommandEvent<string>) => Promise<boolean>
@@ -95,6 +97,7 @@ export interface PluginFixture {
   directory: string
   hostRoot: string
   handlers: FixtureHandlers
+  screenshots: Array<{ name: string; data: { tplFile: string; html: string; imgType: string } }>
 }
 
 export interface FixtureHandlers {
@@ -121,6 +124,7 @@ export async function fixture(
     guobaFirst?: boolean
     noAddCleanup?: boolean
     deferInit?: boolean
+    noScreenshots?: boolean
     appFiles?: Record<string, string>
   } = {}
 ): Promise<PluginFixture> {
@@ -129,6 +133,21 @@ export async function fixture(
   const previousCwd = process.cwd()
   await mkdir(directory, { recursive: true })
   await mkdir(join(hostRoot, 'lib/plugins'), { recursive: true })
+  await mkdir(join(hostRoot, 'lib/puppeteer'), { recursive: true })
+  await writeFile(
+    join(hostRoot, 'lib/puppeteer/puppeteer.js'),
+    `import { mkdir, writeFile } from 'node:fs/promises'
+export const screenshots = []
+export default {
+  async screenshot(name, data) {
+    screenshots.push({ name, data })
+    await mkdir('temp/html/' + name, { recursive: true })
+    await writeFile('temp/html/' + name + '/' + (data.saveId || 'render') + '.html', data.html)
+    return ${persisted.noScreenshots ? 'false' : "{ type: 'image', file: 'base64://help-preview' }"}
+  }
+}
+`
+  )
   await mkdir(join(hostRoot, 'config'), { recursive: true })
   await symlink(join(projectRoot, 'node_modules'), join(hostRoot, 'node_modules'), 'junction')
   await writeFile(join(hostRoot, 'package.json'), '{"type":"module"}')
@@ -179,7 +198,14 @@ export default async function makeConfig(name, config) {
 `
   )
   process.chdir(hostRoot)
-  for (const file of ['index.js', 'guoba.support.js', 'package.json', 'lib', 'resources'])
+  for (const file of [
+    'index.js',
+    'guoba.support.js',
+    'webadapter',
+    'package.json',
+    'lib',
+    'resources'
+  ])
     await cp(join(projectRoot, file), join(directory, file), { recursive: true })
   await Promise.all(
     Object.entries(persisted.appFiles ?? {}).map(async ([filename, source]) => {
@@ -230,6 +256,9 @@ export default async function makeConfig(name, config) {
   const { default: handlers } = (await import(
     pathToFileURL(join(hostRoot, 'lib/plugins/handler.js')).href
   )) as { default: FixtureHandlers }
+  const { screenshots } = (await import(
+    pathToFileURL(join(hostRoot, 'lib/puppeteer/puppeteer.js')).href
+  )) as { screenshots: PluginFixture['screenshots'] }
   if (persisted.noAddCleanup) Reflect.deleteProperty(plugin.prototype, 'addCleanup')
   const cards: string[] = []
   const targets: number[] = []
@@ -331,6 +360,7 @@ export default async function makeConfig(name, config) {
     logs,
     directory,
     hostRoot,
-    handlers
+    handlers,
+    screenshots
   }
 }

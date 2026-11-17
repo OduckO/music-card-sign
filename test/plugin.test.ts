@@ -289,7 +289,7 @@ test('本次签名回包在 accept 终止后续识别，其他消息和分享照
 })
 
 test('默认平台指令持久保存并立即用于 Handler，非法平台保留原配置', async (t) => {
-  const { instance, cards, hostRoot, manageApp } = await fixture(t)
+  const { instance, cards, hostRoot, manageApp } = await fixture(t, {}, { noScreenshots: true })
   const rule = manageApp.rule.find((entry) => entry.fnc === 'setPlatform')
   assert.equal(rule?.permission, 'master')
   assert.ok(rule && new RegExp(rule.reg).test('#设置音乐签名平台 default'))
@@ -501,7 +501,7 @@ test('音之测测在服务关闭或无在线 icqq 时报告生成失败', async
 })
 
 test('音之测测报告回传超时，等待项释放后仍可继续测试', async (t) => {
-  const { bot, testApp, manageApp } = await fixture(t, { timeoutMs: 25 })
+  const { bot, testApp, manageApp } = await fixture(t, { timeoutMs: 25 }, { noScreenshots: true })
   const replies: FixtureReply[] = []
   const normal = bot.pickFriend
   bot.pickFriend = () => ({ share: async () => {} })
@@ -1184,7 +1184,11 @@ test('回传失败不写入缓存，音之测测绕过已有缓存检测当前�
 })
 
 test('主人设置签名 Bot 后配置持久保存，HTTP 和 Handler 立即使用新账号', async (t) => {
-  const { instance, bot, stack, directory, manageApp } = await fixture(t, { botId: '234567890' })
+  const { instance, bot, stack, directory, manageApp } = await fixture(
+    t,
+    { botId: '234567890' },
+    { noScreenshots: true }
+  )
   const rule = manageApp.rule.find((entry) => entry.fnc === 'setBot')
   assert.equal(rule?.permission, 'master')
   assert.ok(rule)
@@ -1226,7 +1230,7 @@ test('主人设置签名 Bot 后配置持久保存，HTTP 和 Handler 立即使�
 })
 
 test('签名 Bot 指令提示用法，参数或保存失败时保留原账号', async (t) => {
-  const { directory, manageApp } = await fixture(t, { botId: '123456789' })
+  const { directory, manageApp } = await fixture(t, { botId: '123456789' }, { noScreenshots: true })
   const replies: string[] = []
   const reply = async (message: string) => {
     replies.push(message)
@@ -1255,7 +1259,11 @@ test('签名 Bot 指令提示用法，参数或保存失败时保留原账号', 
 })
 
 test('联系人指令保存配置，音之测测使用新联系人并可恢复发给自己', async (t) => {
-  const { bot, targets, logs, hostRoot, stack, testApp, manageApp } = await fixture(t)
+  const { bot, targets, logs, hostRoot, stack, testApp, manageApp } = await fixture(
+    t,
+    {},
+    { noScreenshots: true }
+  )
   const rule = manageApp.rule.find((entry) => entry.fnc === 'setTarget')
   assert.equal(rule?.permission, 'master')
   assert.ok(rule)
@@ -1310,7 +1318,7 @@ test('首次升级迁移旧 JSON 配置并保留原文件', async (t) => {
       audio: 'https://example.com/old.mp3'
     }
   }
-  const { directory, stack, manageApp } = await fixture(t, {}, { legacy })
+  const { directory, stack, manageApp } = await fixture(t, {}, { legacy, noScreenshots: true })
   const saved: Config = YAML.parse(
     await readFile(join(directory, '../../config/music-card-sign.yaml'), 'utf8')
   )

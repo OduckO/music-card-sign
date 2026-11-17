@@ -37,7 +37,7 @@ function respond(res: http.ServerResponse, status: number, data: unknown) {
   res.end(body)
 }
 
-async function readBody(req: HttpRequest): Promise<unknown> {
+export async function readBody(req: HttpRequest): Promise<unknown> {
   if (req.body !== undefined) {
     if (Buffer.byteLength(JSON.stringify(req.body)) > bodyLimit)
       throw new MusicSignError('请求体过大', 413)

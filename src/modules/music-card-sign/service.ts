@@ -29,10 +29,6 @@ function serialize<T>(operation: () => Promise<T>): Promise<T> {
   return result
 }
 
-async function saveSettings() {
-  await config.configSave()
-}
-
 function getBots() {
   return Array.from(Bot.uin || [])
     .map((id) => Bot[id])
@@ -86,13 +82,8 @@ async function stop() {
   logger.info('[音卡签名] 服务已关闭')
 }
 
-export function startService() {
-  return serialize(start)
-}
-
-export function stopService() {
-  return serialize(stop)
-}
+export const startService = () => serialize(start)
+export const stopService = () => serialize(stop)
 
 export async function getServiceStatus() {
   await lifecycle
@@ -120,7 +111,7 @@ export function updateSettings(patch: Partial<Config>) {
     try {
       await stop()
       await start()
-      await saveSettings()
+      await config.configSave()
     } catch (error) {
       Object.assign(settings, previous)
       await stop()
@@ -137,7 +128,7 @@ export function setServiceEnabled(enabled: boolean) {
     try {
       if (enabled) await start()
       else await stop()
-      await saveSettings()
+      await config.configSave()
       return `音乐签名服务已${enabled ? '开启' : '关闭'}`
     } catch (error) {
       settings.enabled = previous
@@ -153,7 +144,7 @@ export function setSigningBot(botId: string) {
     const previous = settings.botId
     settings.botId = botId
     try {
-      await saveSettings()
+      await config.configSave()
     } catch (error) {
       settings.botId = previous
       return `设置失败：${errorMessage(error)}`

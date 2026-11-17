@@ -503,6 +503,27 @@ SDK 订阅测试使用 `triptrap@0.0.17`，验证锅巴保存、成功回传、�
 
 ## 自动编译与发布
 
+### 本地构建
+
+在插件源码目录执行：
+
+```sh
+pnpm install --ignore-workspace
+pnpm run build
+```
+
+`build:code` 编译 `src/`，`build:template` 将 `ktr/template/` 打包到 `lib/react-template/`，`build:web` 将 React 页面打包到 `webadapter/`。模板与 WebUI 的 React、HeroUI 依赖随产物打包，安装 `lib` 分支只需运行依赖。
+
+使用 `pnpm run dev:template` 预览 ktr 模板；`pnpm run dev:web` 启动 WebUI 开发服务。页面功能需要面板提供同源 API，独立预览时会提示从面板打开。
+
+### 图片与页面入口
+
+帮助、设置和状态共用 `src/modules/music-card-sign/render.ts`。完整 HTML 的 CSS 已内嵌，通过固定的 `resources/help/render.html` 包装页传入宿主；`base` 保留资源相对于 ktr 输出目录的定位。宿主只编译包装页，不再将 React 页面作为 art-template 源码编译。
+
+渲染与截图按顺序执行。ktr 及宿主均使用固定输出文件，成功或失败后删除本次 HTML；宿主只缓存和监听一份固定包装页。清理仅处理插件本次生成的文件。
+
+`webadapter/index.js` 导出面板 `init(ctx)`，注册两张页面及其 `app.js/app.css` 资源。QQBot-Web-Adapter 和锅巴 next 的 API 前缀不同，入口按各自上下文注册。管理接口由面板鉴权，页面只向同源地址发送锅巴 token；后端复用配置验证、生命周期和签名服务。
+
 `main` 保存 TS 源码，`lib/` 不提交到 `main`。每次推送 `main`，GitHub Actions 按模板检出云崽和插件，安装锁定依赖，运行类型、lint、格式检查及编译产物测试。
 
 检查通过后，将 `package.json.files` 中的运行文件和文档发布到 `lib` 分支，同时上传 `music-card-sign-js` 产物。发布包移除开发依赖和开发脚本，JS 与类型声明一起保留。工作流也支持手动运行。

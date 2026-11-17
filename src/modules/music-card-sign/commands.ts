@@ -1,64 +1,12 @@
-import config from '@/config'
 import type { CommandEvent } from '@/types'
 import { errorMessage } from '@/utils'
-import {
-  getServiceStatus,
-  getTestMusic,
-  setServiceEnabled,
-  setSigningBot,
-  updateSettings,
-  signCard
-} from './service'
+import { getTestMusic, setServiceEnabled, setSigningBot, updateSettings, signCard } from './service'
 import { adapterName, replyCard, replyNotice } from './send'
-
-export async function help(e: CommandEvent) {
-  await e.reply(
-    [
-      '音乐签名帮助（主人指令）',
-      '#音乐签名状态：查看服务和签名账号',
-      '#设置音乐签名Bot <QQ号>：选择 icqq 签名账号；填「自动」恢复自动选择',
-      '#设置音乐签名联系人 <QQ号>：设置收卡联系人；填「自己」恢复发给自己',
-      '#设置音乐签名平台 <平台名>：设置默认平台，如 default、netease 或自定义名称',
-      '#开启音乐签名服务 / #关闭音乐签名服务',
-      '#音之测测：重新签名并发送测试音卡',
-      '#音之测测 {请求JSON}：临时测试指定歌曲',
-      '#签名音卡 {请求JSON}：签名并发送，相同请求复用缓存',
-      '#音乐签名更新 / #音乐签名强制更新 / #音乐签名更新日志',
-      '',
-      `API：POST ${config.config.path}，提交 JSON 歌曲信息。`,
-      '自定义歌曲：type=custom，必填 title/url/audio，可选 singer/image。',
-      '平台选择：显式 _platform > 跳转链接识别 > 默认配置；audio 不参与识别。',
-      'ID 模式、自定义平台和接口鉴权见文档：',
-      'https://github.com/OduckO/music-card-sign'
-    ].join('\n')
-  )
-  return true
-}
-
-export async function status(e: CommandEvent) {
-  const serviceStatus = await getServiceStatus()
-  const settings = config.config
-  await e.reply(
-    [
-      `音卡签名服务：${serviceStatus?.enabled ? '开启' : '关闭'}`,
-      `签名 Bot：${settings.botId || '自动选择'}`,
-      `接收联系人：${settings.targetId || '签名 Bot 自己'}`,
-      `默认签名平台：${settings.defaultPlatform}`,
-      `在线 icqq：${serviceStatus?.bots.join('、') || '无'}`,
-      `等待请求：${serviceStatus?.pending || 0}`,
-      `宿主路径：${settings.path}`,
-      settings.localPort
-        ? `本地地址：http://127.0.0.1:${settings.localPort}${settings.path}`
-        : '使用云崽现有 HTTP 端口'
-    ].join('\n')
-  )
-  return true
-}
+import { overview } from './overview'
 
 export async function toggle(e: CommandEvent) {
   const message = await setServiceEnabled(e.msg.includes('开启'))
-  await e.reply(message)
-  return true
+  return overview(e, message)
 }
 
 export async function setBot(e: CommandEvent) {
@@ -73,8 +21,7 @@ export async function setBot(e: CommandEvent) {
     return true
   }
   const message = await setSigningBot(botId)
-  await e.reply(message)
-  return true
+  return overview(e, message)
 }
 
 export async function setTarget(e: CommandEvent) {
@@ -97,8 +44,7 @@ export async function setTarget(e: CommandEvent) {
   } catch (error) {
     message = `设置失败：${errorMessage(error)}`
   }
-  await e.reply(message)
-  return true
+  return overview(e, message)
 }
 
 export async function setPlatform(e: CommandEvent) {
@@ -117,8 +63,7 @@ export async function setPlatform(e: CommandEvent) {
   } catch (error) {
     message = `设置失败：${errorMessage(error)}`
   }
-  await e.reply(message)
-  return true
+  return overview(e, message)
 }
 
 export async function forwardCard(e: CommandEvent) {
