@@ -152,7 +152,7 @@ ID 查询需要取得歌名、歌手、跳转地址和可用音频地址，封�
 
 `kugou_concept` 是酷狗概念版，使用 `appid: 101706348`、`appname: "com.kugou.android.lite"`、`appsign: "fe4a24d80fcf253a00676a808f62c2c6"`。平台名通过 `_platform` 传递，`title` 只填写歌曲名，例如 `"她说"`。歌曲 ID 查询仍使用 `type: "kugou"`；`kugou.com` 链接自动选择 `kugou`，使用概念版时显式传入 `_platform: "kugou_concept"`，或使用下面的历史标题格式。
 
-兼容 shareMusic 将平台写入标题的历史格式：`title: "晴_天_*kugou_concept"` 会提交为歌名 `晴_天`，平台为 `kugou_concept`。匹配只检查最后一个 `_*` 后的完整平台名，支持内置平台、`163` 别名及用户配置的自定义平台，匹配成功后移除整段后缀。普通 `_` 或未知平台后缀保留；显式 `_platform/platform/source` 优先于标题平台标记。缓存仍按原始请求区分，历史标题格式与显式平台格式分别保存。
+兼容 shareMusic 将平台写入标题的历史格式：`title: "晴_天_kugou_concept"` 会提交为歌名 `晴_天`，平台为 `kugou_concept`；也支持 `晴_天_*kugou_concept`。仅匹配标题末尾完整的平台名，支持内置平台、`163` 别名及用户配置的自定义平台，名称含下划线时优先匹配较长名称，匹配成功后移除整段后缀，不再继续清理歌名内部的标记。歌名内部的 `_` 或未知平台后缀保留；显式 `_platform/platform/source` 优先于标题平台标记。缓存仍按原始请求区分，裸下划线、`_*` 和显式平台三种格式分别保存。
 
 ### 酷狗概念版链接样本
 
@@ -170,7 +170,7 @@ http://fs.youthandroid2.kugou.com/<日期时间>/<鉴权片段>/v3/<资源片段
 
 `fs.youthandroid2.kugou.com` 也出现在[普通酷狗/VIP 取链记录](https://github.com/Timingyyds/folia-android/blob/f093d04a5a6ab2d126fc4b0eb611f1819af40144/docs/酷狗VIP播放修复说明.md)中，不能只凭这个音频域名选择概念版。音频地址连同协议和动态片段原样传入，不改写为 HTTPS。
 
-[酷狗概念版官网](https://www.kugouyouth.com/)使用独立的 `kugouyouth.com` 域名，插件将该域名及其子域名识别为 `kugou_concept`。上面的 `kugou.com/song/` 地址仍识别为 `kugou`；请求携带 `title: "晴天_*kugou_concept"` 时，标题标记优先，实际提交的歌名是 `晴天`。未知跳转域名使用默认平台，音频不参与选择。
+[酷狗概念版官网](https://www.kugouyouth.com/)使用独立的 `kugouyouth.com` 域名，插件将该域名及其子域名识别为 `kugou_concept`。上面的 `kugou.com/song/` 地址仍识别为 `kugou`；请求携带 `title: "晴天_kugou_concept"` 时，标题标记优先，实际提交的歌名是 `晴天`。未知跳转域名使用默认平台，音频不参与选择。
 
 ### 扩展应用信息
 
