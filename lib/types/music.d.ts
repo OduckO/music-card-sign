@@ -95,6 +95,11 @@ export interface MusicEvent {
 }
 export interface IcqqBot {
     uin: number;
+    nickname?: string;
+    fl?: Map<number, {
+        nickname?: string;
+        remark?: string;
+    }>;
     on: (event: string, listener: (event: MusicEvent) => void) => unknown;
     prependListener?: (event: string, listener: (event: MusicEvent) => void) => unknown;
     removeListener?: (event: string, listener: (event: MusicEvent) => void) => unknown;
@@ -125,6 +130,10 @@ export interface BotAdapter {
     };
 }
 export type BotCandidate = IcqqBot | BotAdapter;
+export interface AccountOption {
+    id: string;
+    name: string;
+}
 export type ApiResponse = Record<string, any>;
 export type JsonFetcher = (endpoint: string, params?: Record<string, string>, options?: RequestInit) => Promise<ApiResponse>;
 export type MusicFetch = (input: string | URL, options?: RequestInit) => Promise<Response>;

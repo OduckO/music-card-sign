@@ -17,7 +17,7 @@ export declare const helpGroups: readonly [{
 }, {
     readonly title: "服务设置";
     readonly subtitle: "选择账号、联系人与默认平台";
-    readonly commands: readonly [readonly ["#音乐签名状态", "查看服务、签名账号与等待请求"], readonly ["#音乐签名设置", "查看当前设置图片；API Key 仅显示是否设置"], readonly ["#设置音乐签名Bot <QQ号>", "选择 icqq 账号；填「自动」恢复自动选择"], readonly ["#设置音乐签名联系人 <QQ号>", "指定收卡联系人；填「自己」恢复发给自己"], readonly ["#设置音乐签名平台 <平台名>", "内置或自定义平台，如 default、kugou_concept"], readonly ["#开启音乐签名服务 / #关闭音乐签名服务", "开启或关闭本地音卡签名接口"]];
+    readonly commands: readonly [readonly ["#音乐签名状态", "查看服务与配置；API Key 仅显示是否设置"], readonly ["#设置音乐签名Bot <QQ号>", "选择 icqq 账号；填「自动」恢复自动选择"], readonly ["#设置音乐签名联系人 <QQ号>", "指定收卡联系人；填「自己」恢复发给自己"], readonly ["#设置音乐签名平台 <平台名>", "内置或自定义平台，如 default、kugou_concept"], readonly ["#开启音乐签名服务 / #关闭音乐签名服务", "开启或关闭本地音卡签名接口"]];
 }, {
     readonly title: "更新维护";
     readonly subtitle: "保持插件与编译产物同步";

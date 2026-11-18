@@ -1,4 +1,4 @@
-import type { AppPlatform, CardCache, IcqqBot, MusicCard, MusicEvent, MusicRequest, NormalizedRequest, PendingRequest, PlatformInput, ResolveMusic, SignerOptions, SignOptions, Subscription } from '../types/index.js';
+import type { AppPlatform, BotCandidate, CardCache, IcqqBot, MusicCard, MusicEvent, MusicRequest, NormalizedRequest, PendingRequest, PlatformInput, ResolveMusic, SignerOptions, SignOptions, Subscription } from '../types/index.js';
 export declare const platforms: Record<string, AppPlatform>;
 export declare function cardText(card: MusicCard): string;
 export declare class MusicSignError extends Error {
@@ -12,6 +12,7 @@ export declare class MusicSignError extends Error {
 }
 export declare function selectPlatform(data: MusicRequest, customPlatforms: Record<string, PlatformInput>, defaultPlatform?: string): AppPlatform;
 export declare function normalizeRequest(input: unknown, customPlatforms?: Record<string, PlatformInput>, defaultPlatform?: string): NormalizedRequest;
+export declare function nativeBot(bot: BotCandidate): IcqqBot | null;
 export declare class MusicSigner {
     readonly getBots: SignerOptions['getBots'];
     botId: string | number;

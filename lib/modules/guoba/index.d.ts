@@ -1,9 +1,4 @@
-import type { Config } from '../../types/index.js';
-import type { Result as GuobaResultType, Schemas } from 'trss-yunzai/guoba';
-type FormConfig = Omit<Config, 'platforms' | 'testMusic'> & {
-    platforms: string;
-    testMusic: string;
-};
+import type { Result as GuobaResultType } from 'trss-yunzai/guoba';
 export declare function supportGuoba(): {
     pluginInfo: {
         name: string;
@@ -18,8 +13,9 @@ export declare function supportGuoba(): {
         icon: string;
     };
     configInfo: {
-        schemas: Schemas<FormConfig>;
+        schemas: import("trss-yunzai/guoba").Schema<"timeoutMs" | "botId" | "targetId" | "defaultPlatform" | "apiKey" | "path" | "enabled" | "localPort" | "platforms" | "testMusic" | "targetFriend">[];
         getConfigData(): {
+            targetFriend: never[];
             platforms: string;
             testMusic: string;
             enabled: boolean;
@@ -36,4 +32,3 @@ export declare function supportGuoba(): {
         }): Promise<GuobaResultType<any>>;
     };
 };
-export {};

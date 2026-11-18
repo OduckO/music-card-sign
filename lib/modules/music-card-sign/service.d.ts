@@ -1,4 +1,12 @@
 import type { CommandEvent, Config, MusicEvent, MusicRequest, SignOptions } from '../../types/index.js';
+export declare const getSigningBots: () => import("../../types/index.js").IcqqBot[];
+export declare function getSigningFriends(botId: string): {
+    botId: string;
+    friends: {
+        id: string;
+        name: string;
+    }[];
+};
 export declare const startService: () => Promise<void>;
 export declare const stopService: () => Promise<void>;
 export declare function getServiceStatus(): Promise<{
