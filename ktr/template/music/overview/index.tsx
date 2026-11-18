@@ -18,7 +18,7 @@ const Overview = ({ data }: TemplateProps<OverviewData>) => (
         </div>
       ))}
     </dl>
-    <footer>修改账号、联系人或平台的指令见 #音乐签名帮助。</footer>
+    <footer>修改账号、联系人或平台的指令见 #音乐签名帮助。字体：HarmonyOS Sans SC</footer>
   </main>
 )
 

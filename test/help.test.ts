@@ -34,6 +34,9 @@ test('帮助按需渲染 HeroUI 图片，服务尚未初始化时也能使用', 
   assert.match(data.html, /class="[^"]*card/)
   assert.match(data.html, /<style[^>]*>[\s\S]*\.help-poster/)
   assert.match(data.html, /<base href="file:/)
+  assert.match(data.html, /file:.*HarmonyOS_Sans_SC_Regular\.woff2/)
+  assert.match(data.html, /file:.*HarmonyOS_Sans_SC_Bold\.woff2/)
+  assert.doesNotMatch(data.html, /data:font\/woff2/)
   assert.deepEqual(
     (await readdir(join(directory, 'lib/react-template/html'))).filter(
       (filename) => filename === 'music_help.html'

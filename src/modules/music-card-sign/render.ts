@@ -6,7 +6,10 @@ import type { CommandEvent } from '@/types'
 import { errorMessage } from '@/utils'
 
 type TemplateRenderer = {
-  renderTemplate: (
+  createTemplateRenderer: (options: {
+    extraStylePaths: string[]
+    assetsInlineLimit: number
+  }) => (
     route: string,
     data: unknown
   ) => Promise<{ success: boolean; htmlPath: string; error?: string }>
@@ -16,7 +19,13 @@ type HostRenderer = {
   default: {
     screenshot: (
       name: string,
-      data: { tplFile: string; html: string; imgType: 'png'; saveId: string }
+      data: {
+        tplFile: string
+        html: string
+        imgType: 'png'
+        saveId: string
+        omitBackground: true
+      }
     ) => Promise<ReturnType<typeof segment.image> | false>
   }
 }
@@ -43,7 +52,11 @@ export async function replyTemplate(
           pathToFileURL(join(Path, 'lib/puppeteer/puppeteer.js')).href
         ) as Promise<HostRenderer>
       ])
-      const rendered = await template.renderTemplate(route, data)
+      const render = template.createTemplateRenderer({
+        extraStylePaths: [join(PluginPath, 'webadapter/fonts/fonts.css')],
+        assetsInlineLimit: 0
+      })
+      const rendered = await render(route, data)
       if (!rendered.success) throw new Error(rendered.error || '音卡模板渲染失败')
       templateFile = rendered.htmlPath
       const html = await readFile(templateFile, 'utf8')
@@ -52,7 +65,8 @@ export async function replyTemplate(
         tplFile: join(PluginPath, 'resources/help/render.html'),
         html: html.replace(/<head([^>]*)>/i, `<head$1><base href="${base}">`),
         saveId: 'render',
-        imgType: 'png'
+        imgType: 'png',
+        omitBackground: true
       })
       if (!image) throw new Error('云崽截图服务未返回图片')
       return image

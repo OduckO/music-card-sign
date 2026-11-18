@@ -1,4 +1,4 @@
-import type { Config, MusicCard } from '../src/types'
+import type { Config, MusicCard } from '../../src/types'
 
 export interface PanelState {
   config: Omit<Config, 'apiKey'>

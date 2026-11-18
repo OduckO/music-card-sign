@@ -3,12 +3,26 @@ import { createRoot } from 'react-dom/client'
 import { Tabs } from '@heroui/react/tabs'
 import { Button } from '@heroui/react/button'
 import { Spinner } from '@heroui/react/spinner'
+import { Icon } from '@iconify/react'
+import musicNotes from '@iconify-icons/solar/music-notes-bold-duotone'
 import { Settings } from './Settings'
 import { Sign } from './Sign'
-import { PixelArtwork } from '../ktr/template/components/PixelArtwork'
-import { api } from './api'
+import { PixelArtwork } from '../../ktr/template/components/PixelArtwork'
+import { api, request } from './api'
 import type { PanelState } from './types'
 import './style.css'
+
+void Promise.all(
+  [
+    ['Regular', '400'],
+    ['Bold', '700']
+  ].map(async ([name, weight]) => {
+    const response = await request(`/fonts/${name}`)
+    if (!response.ok) throw new Error(`字体加载失败（HTTP ${response.status}）`)
+    const font = new FontFace('HarmonyOS Sans SC', await response.arrayBuffer(), { weight })
+    document.fonts.add(await font.load())
+  })
+).catch((error: unknown) => console.warn('[音卡字体]', error))
 
 const App = () => {
   const [state, setState] = useState<PanelState | null>(null)
@@ -29,7 +43,7 @@ const App = () => {
       <header className="panel-topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
-            ♫
+            <Icon icon={musicNotes} />
           </span>
           <span>
             音乐签名<small>music-card-sign</small>
@@ -119,7 +133,7 @@ const App = () => {
         </Tabs>
       )}
       <footer className="panel-footer">
-        music-card-sign{' '}
+        <span>music-card-sign · 字体：HarmonyOS Sans SC</span>
         <a href="https://github.com/OduckO/music-card-sign" target="_blank" rel="noreferrer">
           接口与扩展文档
         </a>

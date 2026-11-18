@@ -7,8 +7,7 @@ export default defineConfig({
   base: './',
   plugins: [tailwindcss()],
   build: {
-    outDir: fileURLToPath(new URL('../webadapter', import.meta.url)),
-    emptyOutDir: false,
+    outDir: fileURLToPath(new URL('../../.ktr/web', import.meta.url)),
     cssCodeSplit: false,
     rollupOptions: {
       output: {

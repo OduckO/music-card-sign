@@ -21,9 +21,18 @@ importers:
       '@heroui/styles':
         specifier: 3.2.4
         version: 3.2.4(tailwindcss@4.3.5)
+      '@iconify-icons/solar':
+        specifier: ^2.0.7
+        version: 2.0.7
+      '@iconify/react':
+        specifier: ^6.0.4
+        version: 6.0.4(react@19.3.1)
       '@karinjs/template-react':
         specifier: 0.2.0
         version: 0.2.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(yaml@2.9.1)
+      '@lobehub/webfont-harmony-sans-sc':
+        specifier: 1.0.0
+        version: 1.0.0
       '@tailwindcss/vite':
         specifier: ^4.3.5
         version: 4.3.5(vite@8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
@@ -322,6 +331,17 @@ packages:
     peerDependencies:
       tailwindcss: '>=4.0.0'
 
+  '@iconify-icons/solar@2.0.7':
+    resolution: {integrity: sha512-r+/rR4sGAsFyilsQH0p0ueggX2u3FQLxamirxflhtkHuit60d7L7mfTP9Y9WTt8WLkpMdo2BYeQ77/Y8gCqjMQ==}
+
+  '@iconify/react@6.0.4':
+    resolution: {integrity: sha512-7nKd1eF52E1QGIl46eDWfMNPuTQHUxsXoK2Evgtu5jr386jCWTuWFLHM9vfsTNbUcKp+uq6ao+3skNUalDhH/w==}
+    peerDependencies:
+      react: '>=18.0.0'
+
+  '@iconify/types@2.0.0':
+    resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
+
   '@internationalized/date@3.12.4':
     resolution: {integrity: sha512-M1dEn4c1U1HsSlaVR8upZtSqvXrTkHDfv18H01uCSJyjVLDxnBR38v/fMxecmlwXKR4i9HeZcmgQAPE6A+aGJQ==}
 
@@ -357,6 +377,9 @@ packages:
     peerDependencies:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
+
+  '@lobehub/webfont-harmony-sans-sc@1.0.0':
+    resolution: {integrity: sha512-9WVr2nytwv2J5gVlZHjj716x+9+1U/jn2W+VpuszkTLDQQEQR8v5ElBmj8AkBFpR6z09gAvQYkiChCsB78tYHA==}
 
   '@napi-rs/wasm-runtime@1.2.6':
     resolution: {integrity: sha512-mRyDmEw9/fCDXCGfL1sbgIw/GUK0PVxRW4YwgPN61F3LQ+fSyoBFarJVzgGyhF6kRzEQZ0FejDqm4WLXSeqQmw==}
@@ -2156,6 +2179,17 @@ snapshots:
     transitivePeerDependencies:
       - tailwind-merge
 
+  '@iconify-icons/solar@2.0.7':
+    dependencies:
+      '@iconify/types': 2.0.0
+
+  '@iconify/react@6.0.4(react@19.3.1)':
+    dependencies:
+      '@iconify/types': 2.0.0
+      react: 19.3.1
+
+  '@iconify/types@2.0.0': {}
+
   '@internationalized/date@3.12.4':
     dependencies:
       '@swc/helpers': 0.5.24
@@ -2224,6 +2258,8 @@ snapshots:
       - tailwind-merge
       - terser
       - yaml
+
+  '@lobehub/webfont-harmony-sans-sc@1.0.0': {}
 
   '@napi-rs/wasm-runtime@1.2.6(@emnapi/core@2.0.0-beta.2)(@emnapi/runtime@2.0.0-beta.2)':
     dependencies:

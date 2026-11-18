@@ -1,4 +1,6 @@
 import type { RequestHandler } from 'express'
+import { join } from 'node:path'
+import { PluginPath } from '@/dir'
 import config from '@/config'
 import type { HttpRequest, MusicRequest } from '@/types'
 import { readBody } from '@/models/http'
@@ -89,4 +91,12 @@ export function init(ctx: PageContext) {
     )
     return { raw, card: JSON.parse(raw), elapsedMs: Math.round(performance.now() - started) }
   })
+
+  for (const weight of ['Regular', 'Bold']) {
+    ctx.registerApi('get', `${prefix}/fonts/${weight}`, (_req, res) => {
+      res.sendFile(join(PluginPath, 'webadapter/fonts', `HarmonyOS_Sans_SC_${weight}.woff2`), {
+        maxAge: '7d'
+      })
+    })
+  }
 }

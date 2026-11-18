@@ -3,12 +3,12 @@ const guobaBase = query.get('__apiBase')
 const webBase = query.get('__webBase')
 const apiBase = guobaBase ?? (webBase !== null ? `${webBase}/api/music-card-sign` : '')
 
-export const api = async <T>(path: string, body?: unknown): Promise<T> => {
+export const request = async (path: string, body?: unknown): Promise<Response> => {
   if (!apiBase) throw new Error('请从锅巴 next 或 QQBot-Web-Adapter 打开此页面')
   const url = new URL(`${apiBase.replace(/\/$/, '')}${path}`, location.origin)
   if (url.origin !== location.origin) throw new Error('面板接口必须与当前页面同源')
   const token = guobaBase ? query.get('token') : null
-  const response = await fetch(url, {
+  return fetch(url, {
     method: body === undefined ? 'GET' : 'POST',
     credentials: 'same-origin',
     redirect: 'error',
@@ -18,6 +18,10 @@ export const api = async <T>(path: string, body?: unknown): Promise<T> => {
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) })
   })
+}
+
+export const api = async <T>(path: string, body?: unknown): Promise<T> => {
+  const response = await request(path, body)
   const text = await response.text()
   let data: { ok?: boolean; error?: string; result: T }
   try {

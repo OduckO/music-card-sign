@@ -45,6 +45,8 @@ const Help = ({ data }: TemplateProps<HelpData>) => (
       </section>
       <footer>
         <span>接口与 ID 扩展文档：github.com/OduckO/music-card-sign</span>
+        <br />
+        <span>字体：HarmonyOS Sans SC</span>
       </footer>
     </div>
   </main>

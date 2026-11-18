@@ -19,7 +19,7 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src", "ktr/template", "karin.template.ts", "web", "scripts"],
+  "include": ["src", "ktr/template", "karin.template.ts", "webadapter/src", "scripts"],
   "tsc-alias": {
     "resolveFullPaths": true
   }

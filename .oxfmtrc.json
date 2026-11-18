@@ -13,6 +13,7 @@
     "temp_lib_content/**",
     "pnpm-lock.yaml",
     "webadapter/*.html",
-    "webadapter/app.*"
+    "webadapter/app.*",
+    "webadapter/fonts/**"
   ]
 }

@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import express from 'express'
 import type { PageContext } from '../src/modules/web'
-import type { PanelState, SignResult } from '../web/types'
+import type { PanelState, SignResult } from '../webadapter/src/types'
 import { fixture } from './helpers/plugin'
 
 for (const host of ['qqbot-web', 'guoba'] as const) {
@@ -30,7 +30,9 @@ for (const host of ['qqbot-web', 'guoba'] as const) {
     assert.deepEqual(routes, [
       `get ${prefix}/config`,
       `post ${prefix}/config`,
-      `post ${prefix}/sign`
+      `post ${prefix}/sign`,
+      `get ${prefix}/fonts/Regular`,
+      `get ${prefix}/fonts/Bold`
     ])
     assert.deepEqual(
       pages.map(({ src }) => src),
@@ -52,6 +54,19 @@ for (const host of ['qqbot-web', 'guoba'] as const) {
     const address = server.address()
     assert.ok(address && typeof address !== 'string')
     const url = `http://127.0.0.1:${address.port}${base}${prefix}`
+    for (const weight of ['Regular', 'Bold']) {
+      const response = await fetch(`${url}/fonts/${weight}`)
+      assert.equal(response.status, 200)
+      assert.match(response.headers.get('content-type') ?? '', /font\/woff2/)
+      assert.match(response.headers.get('cache-control') ?? '', /max-age=604800/)
+      assert.equal(
+        Buffer.from(await response.arrayBuffer())
+          .subarray(0, 4)
+          .toString(),
+        'wOF2'
+      )
+    }
+    assert.equal((await fetch(`${url}/fonts/unknown`)).status, 404)
     const post = (path: string, body: unknown) =>
       fetch(`${url}${path}`, {
         method: 'POST',
