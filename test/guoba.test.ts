@@ -156,7 +156,15 @@ test('锅巴根入口提供账号、好友与固定字段子表单，JSON 作为
     'targetFriend',
     'targetId',
     'testMusic',
-    'testSong',
+    'testSong.audio',
+    'testSong.id',
+    'testSong.image',
+    'testSong.mode',
+    'testSong.platform',
+    'testSong.singer',
+    'testSong.title',
+    'testSong.type',
+    'testSong.url',
     'timeoutMs'
   ])
   const data = info.getConfigData()
@@ -174,7 +182,19 @@ test('锅巴根入口提供账号、好友与固定字段子表单，JSON 作为
     assert.ok(schema)
     assert.partialDeepStrictEqual(schema.componentProps, { readonly: true })
   }
-  assert.equal(info.schemas.find(({ field }) => field === 'testSong')?.component, 'GSubForm')
+  for (const item of info.schemas.filter((schema) => schema.component === 'GSubForm'))
+    assert.partialDeepStrictEqual(item.componentProps, { multiple: true })
+  const sourceSchema = info.schemas.find(({ field }) => field === 'testSong.type')
+  assert.equal(sourceSchema?.component, 'AutoComplete')
+  assert.partialDeepStrictEqual(sourceSchema?.componentProps, {
+    options: [
+      { value: 'qq' },
+      { value: '163' },
+      { value: 'kugou' },
+      { value: 'kuwo' },
+      { value: 'migu' }
+    ]
+  })
   assert.equal(info.schemas.find(({ field }) => field === 'platformEntries')?.component, 'GSubForm')
   assert.equal(info.schemas.find(({ field }) => field === 'apiKey')?.component, 'InputPassword')
   const botSchema = info.schemas.find(({ field }) => field === 'botId')
@@ -263,6 +283,21 @@ test('锅巴子表单保存空选填项、重命名平台与歌曲模式，辅�
     extension: true
   })
   assert.equal(info.getConfigData().testSong.mode, 'id')
+  // 普通锅巴直接提交点号字段，Next 的嵌套对象在上面验证。
+  const dotted = Object.fromEntries(
+    Object.entries({ ...info.getConfigData().testSong, type: '163', id: '00186016' }).map(
+      ([key, value]) => [`testSong.${key}`, value]
+    )
+  )
+  const dottedSaved = await info.setConfigData(dotted, context)
+  assert.equal(dottedSaved.isOk, true, dottedSaved.message)
+  assert.deepEqual(JSON.parse(info.getConfigData().testMusic), {
+    type: '163',
+    id: '00186016',
+    extension: true
+  })
+  const persisted = YAML.parse(await readFile(configPath, 'utf8'))
+  assert.ok(Object.keys(persisted).every((key) => !key.startsWith('testSong')))
 })
 
 test('锅巴子表单必填项不完整时拒绝保存，保留原配置', async (t) => {
@@ -280,7 +315,8 @@ test('锅巴子表单必填项不完整时拒绝保存，保留原配置', async
     },
     { testSong: { mode: 'custom', title: '', url: 'https://example.com/song' } },
     { testSong: { mode: 'custom', title: '测试曲', url: 'wrong' } },
-    { testSong: { mode: 'id', type: 'qq', id: '' } }
+    { testSong: { mode: 'id', type: 'qq', id: '' } },
+    { 'testSong.mode': 'id', 'testSong.type': 'qq', 'testSong.id': '' }
   ]) {
     const saved = await info.setConfigData(data, context)
     assert.equal(saved.isOk, false)

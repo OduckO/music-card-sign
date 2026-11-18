@@ -1,5 +1,13 @@
 import type { MusicRequest, PlatformInput } from '../../types'
 
+export const musicSourceOptions = [
+  { label: 'QQ 音乐 · qq', value: 'qq' },
+  { label: '网易云音乐 · 163', value: '163' },
+  { label: '酷狗音乐 · kugou', value: 'kugou' },
+  { label: '酷我音乐 · kuwo', value: 'kuwo' },
+  { label: '咪咕音乐 · migu', value: 'migu' }
+]
+
 export interface PlatformRow extends PlatformInput {
   name: string
   originalName?: string

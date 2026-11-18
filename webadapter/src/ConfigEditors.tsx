@@ -14,6 +14,7 @@ import { Field, Section } from './components'
 import {
   musicFromForm,
   musicFormErrors,
+  musicSourceOptions,
   platformsFromRows,
   platformRowErrors,
   type MusicForm,
@@ -154,6 +155,9 @@ export const MusicEditor = ({
 }) => {
   const update = (key: keyof MusicForm, next: string) => onChange({ ...value, [key]: next })
   const errors = showErrors ? musicFormErrors(value) : {}
+  const [customSource, setCustomSource] = useState(
+    () => !musicSourceOptions.some((item) => item.value === value.type)
+  )
   return (
     <Section icon={music} title="测试歌曲" description="供 #音之测测 使用，也可在请求页载入。">
       <Select
@@ -261,14 +265,37 @@ export const MusicEditor = ({
         </>
       ) : (
         <>
-          <Field
-            label="查询来源 · type"
-            value={value.type}
-            onChange={(v) => update('type', v)}
-            description="填写 qq、netease 或其他插件注册的来源名称。"
-            required
-            error={errors.type}
-          />
+          <Select
+            selectedKey={customSource ? '__custom__' : value.type}
+            onSelectionChange={(key) => {
+              if (key === null) return
+              if (key === '__custom__') {
+                if (!customSource) update('type', '')
+              } else update('type', String(key))
+              setCustomSource(key === '__custom__')
+            }}
+          >
+            <Label>查询来源 · type</Label>
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                {musicSourceOptions.map(({ label, value: source }) => (
+                  <ListBox.Item key={source} id={source} textValue={label}>
+                    {label}
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                ))}
+                <ListBox.Item id="__custom__" textValue="扩展来源">
+                  扩展来源
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              </ListBox>
+            </Select.Popover>
+            <Description>选择内置来源，或选择扩展来源后填写注册名称。</Description>
+          </Select>
           <Field
             label="歌曲 ID · id"
             value={value.id}
@@ -276,6 +303,16 @@ export const MusicEditor = ({
             required
             error={errors.id}
           />
+          {customSource && (
+            <Field
+              label="扩展来源名称"
+              value={value.type}
+              onChange={(v) => update('type', v)}
+              description="填写其他插件注册的来源名称。"
+              required
+              error={errors.type}
+            />
+          )}
         </>
       )}
       <JsonPreview label="测试歌曲 JSON" value={musicFromForm(value, previous)} />
