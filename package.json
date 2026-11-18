@@ -15,7 +15,12 @@
     "./README.md",
     "./index.js",
     "./guoba.support.js",
-    "./webadapter",
+    "./webadapter/index.js",
+    "./webadapter/settings.html",
+    "./webadapter/sign.html",
+    "./webadapter/app.js",
+    "./webadapter/app.css",
+    "./webadapter/fonts",
     "./LICENSE",
     "./package.json"
   ],
