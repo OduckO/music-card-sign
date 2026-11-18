@@ -7,12 +7,23 @@ import pulse from '@iconify-icons/solar/pulse-2-bold-duotone'
 import user from '@iconify-icons/solar/user-rounded-bold-duotone'
 import contacts from '@iconify-icons/solar/users-group-rounded-bold-duotone'
 import platform from '@iconify-icons/solar/global-bold-duotone'
-import power from '@iconify-icons/solar/power-bold-duotone'
 import refresh from '@iconify-icons/solar/refresh-bold-duotone'
 import restart from '@iconify-icons/solar/restart-bold-duotone'
 import history from '@iconify-icons/solar/history-bold-duotone'
 import music from '@iconify-icons/solar/music-notes-bold-duotone'
 import { helpGroups, type HelpData } from '../../../../src/modules/music-card-sign/help-data'
+
+const powerOn = {
+  width: 24,
+  height: 24,
+  body: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v10m6.4-5.4a9 9 0 1 1-12.77.04"/>'
+} satisfies IconifyIcon
+
+const powerOff = {
+  width: 24,
+  height: 24,
+  body: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.36 6.64A9 9 0 0 1 20.77 15M6.16 6.16a9 9 0 1 0 12.68 12.68M12 2v4M2 2l20 20"/>'
+} satisfies IconifyIcon
 
 const commandIcons = {
   '#音之测测': play,
@@ -22,7 +33,8 @@ const commandIcons = {
   '#设置音乐签名Bot <QQ号>': user,
   '#设置音乐签名联系人 <QQ号>': contacts,
   '#设置音乐签名平台 <平台名>': platform,
-  '#开启音乐签名服务 / #关闭音乐签名服务': power,
+  '#开启音乐签名服务': powerOn,
+  '#关闭音乐签名服务': powerOff,
   '#音乐签名更新': refresh,
   '#音乐签名强制更新': restart,
   '#音乐签名更新日志': history
@@ -47,23 +59,31 @@ const Help = ({ data }: TemplateProps<HelpData>) => (
           </div>
           <div className="command-list">
             {group.commands.map(([command, description]) => (
-              <div className="command" key={command}>
-                <Icon icon={commandIcons[command]} ssr aria-hidden className="command-icon" />
-                <div>
+              <div
+                className="command"
+                key={command}
+                data-service={
+                  command === '#开启音乐签名服务'
+                    ? 'on'
+                    : command === '#关闭音乐签名服务'
+                      ? 'off'
+                      : undefined
+                }
+              >
+                <span className="command-icon-base" aria-hidden>
+                  <Icon icon={commandIcons[command]} ssr className="command-icon" />
+                </span>
+                <div className="command-copy">
                   <code>
-                    {command.split(' / ').map((line) => (
-                      <span key={line}>
-                        {line.split(/(\{请求JSON\}|<[^>]+>)/).map((part, index) =>
-                          index % 2 ? (
-                            <span className="command-argument" key={part}>
-                              {part}
-                            </span>
-                          ) : (
-                            part
-                          )
-                        )}
-                      </span>
-                    ))}
+                    {command.split(/(\{请求JSON\}|<[^>]+>)/).map((part, index) =>
+                      index % 2 ? (
+                        <span className="command-argument" key={part}>
+                          {part}
+                        </span>
+                      ) : (
+                        part
+                      )
+                    )}
                   </code>
                   <p>{description}</p>
                 </div>
@@ -73,22 +93,31 @@ const Help = ({ data }: TemplateProps<HelpData>) => (
         </section>
       ))}
       <section className="api-note">
-        <div className="api-heading">
-          <Icon icon={code} ssr aria-hidden />
-          <code>POST {data.path}</code>
+        <div>
+          <div className="api-heading">
+            <Icon icon={code} ssr aria-hidden />
+            <code>POST {data.path}</code>
+          </div>
+          <p>自定义歌曲必填 title / url</p>
+          <p>audio、singer、image 可空</p>
         </div>
-        <p>自定义歌曲必填 title / url；audio、singer、image 可空。</p>
-        <div className="platform-order">
-          {['显式扩展', '标题平台标记', '跳转链接识别', '默认平台'].map((label, index) => (
-            <span key={label}>
-              {index > 0 && <span aria-hidden>→</span>}
-              {label}
-            </span>
-          ))}
+        <div>
+          <div className="api-heading">
+            <Icon icon={platform} ssr aria-hidden />
+            <h2>平台选择顺序</h2>
+          </div>
+          <div className="platform-order">
+            {['显式扩展', '标题平台标记', '跳转链接识别', '默认平台'].map((label, index) => (
+              <span key={label}>
+                {index > 0 && <span aria-hidden>→</span>}
+                {label}
+              </span>
+            ))}
+          </div>
+          <p className="current-platform">
+            当前默认 <strong>{data.defaultPlatform}</strong>
+          </p>
         </div>
-        <p className="current-platform">
-          当前默认 <strong>{data.defaultPlatform}</strong>
-        </p>
       </section>
     </div>
   </main>
