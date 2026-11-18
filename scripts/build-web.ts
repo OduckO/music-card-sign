@@ -1,11 +1,12 @@
-import { cp, mkdir } from 'node:fs/promises'
+import { cp, mkdir, rm } from 'node:fs/promises'
 import { build } from 'vite'
 
 await build({ configFile: 'webadapter/src/vite.config.ts' })
 
 await Promise.all([
-  ...['settings.html', 'sign.html'].map((name) => cp('.ktr/web/index.html', `webadapter/${name}`)),
-  ...['app.js', 'app.css'].map((name) => cp(`.ktr/web/${name}`, `webadapter/${name}`))
+  cp('.ktr/web/index.html', 'webadapter/panel.html'),
+  ...['app.js', 'app.css'].map((name) => cp(`.ktr/web/${name}`, `webadapter/${name}`)),
+  ...['settings.html', 'sign.html'].map((name) => rm(`webadapter/${name}`, { force: true }))
 ])
 
 await mkdir('webadapter/fonts', { recursive: true })

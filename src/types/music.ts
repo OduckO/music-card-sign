@@ -97,6 +97,8 @@ export interface MusicEvent {
 
 export interface IcqqBot {
   uin: number
+  nickname?: string
+  fl?: Map<number, { nickname?: string; remark?: string }>
   on: (event: string, listener: (event: MusicEvent) => void) => unknown
   prependListener?: (event: string, listener: (event: MusicEvent) => void) => unknown
   removeListener?: (event: string, listener: (event: MusicEvent) => void) => unknown
@@ -121,6 +123,11 @@ export interface BotAdapter {
 }
 
 export type BotCandidate = IcqqBot | BotAdapter
+
+export interface AccountOption {
+  id: string
+  name: string
+}
 
 // 平台 JSON 在各自解析器中检查返回码、歌曲 ID 和必需字段。
 export type ApiResponse = Record<string, any>

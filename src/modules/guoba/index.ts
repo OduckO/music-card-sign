@@ -1,5 +1,5 @@
 import config from '@/config'
-import { updateSettings } from '@/modules/music-card-sign/service'
+import { getSigningBots, updateSettings } from '@/modules/music-card-sign/service'
 import { configPatch } from '@/modules/music-card-sign/settings'
 import { errorMessage } from '@/utils'
 import type { Config } from '@/types'
@@ -8,6 +8,7 @@ import type { Result as GuobaResultType, Schemas, SupportGuoba } from 'trss-yunz
 type FormConfig = Omit<Config, 'platforms' | 'testMusic'> & {
   platforms: string
   testMusic: string
+  targetFriend: Array<string | number>
 }
 
 const schemas: Schemas<FormConfig> = [
@@ -16,14 +17,22 @@ const schemas: Schemas<FormConfig> = [
   {
     field: 'botId',
     label: '签名 Bot',
-    component: 'Input',
-    bottomHelpMessage: '填写已登录的 icqq QQ 号；留空自动选择账号。'
+    component: 'AutoComplete',
+    bottomHelpMessage: '选择在线 icqq 账号，也可填写 QQ；留空自动选择，多个账号在线时需指定一个。'
   },
   {
     field: 'targetId',
     label: '音卡接收联系人',
     component: 'Input',
     bottomHelpMessage: '留空发给签名 Bot 自己；填写可私聊的联系人 QQ 号，签名时会向其发送音卡。'
+  },
+  {
+    field: 'targetFriend',
+    label: '从好友中选择联系人',
+    component: 'GSelectFriend',
+    bottomHelpMessage:
+      '选择后保存会填入接收联系人。按已保存的签名 Bot 显示好友；换账号请先保存，再重新打开配置。',
+    componentProps: { isRadioSelection: true, maxSelectCount: 1 }
   },
   {
     field: 'timeoutMs',
@@ -90,6 +99,30 @@ const schemas: Schemas<FormConfig> = [
 
 export function supportGuoba() {
   logger.info('[音卡签名] 锅巴读取插件配置')
+  const bots = getSigningBots()
+  const botId = config.config.botId || (bots.length === 1 ? String(bots[0].uin) : '')
+  const accountSchemas = schemas.map((schema) => {
+    if (schema.field === 'botId') {
+      return Object.assign({}, schema, {
+        componentProps: {
+          placeholder: '选择在线 icqq 账号或输入 QQ',
+          options: bots.map((bot) => ({
+            value: String(bot.uin),
+            label: bot.nickname ? `${bot.nickname}（${bot.uin}）` : String(bot.uin)
+          }))
+        }
+      })
+    }
+    if (schema.field === 'targetFriend') {
+      return Object.assign({}, schema, {
+        componentProps: {
+          ...schema.componentProps,
+          params: { bot_id: botId || '0' }
+        }
+      })
+    }
+    return schema
+  })
   return {
     pluginInfo: {
       name: 'music-card-sign',
@@ -104,10 +137,11 @@ export function supportGuoba() {
       icon: 'mdi:music-box'
     },
     configInfo: {
-      schemas,
+      schemas: accountSchemas,
       getConfigData() {
         return {
           ...config.config,
+          targetFriend: [],
           platforms: JSON.stringify(config.config.platforms, null, 2),
           testMusic: JSON.stringify(config.config.testMusic, null, 2)
         }
@@ -117,7 +151,18 @@ export function supportGuoba() {
         { Result }: { Result: Pick<typeof GuobaResultType, 'ok' | 'error'> }
       ) {
         try {
-          await updateSettings(configPatch(data))
+          const { targetFriend, ...settings } = data
+          if (targetFriend !== undefined) {
+            if (!Array.isArray(targetFriend) || targetFriend.length > 1)
+              return Result.error('接收联系人只能选择一位好友')
+            if (targetFriend.length) {
+              const id: unknown = targetFriend[0]
+              if (typeof id !== 'string' && typeof id !== 'number')
+                return Result.error('好友 QQ 号格式错误')
+              settings.targetId = String(id)
+            }
+          }
+          await updateSettings(configPatch(settings))
           return Result.ok({}, '保存成功，音卡服务已重新加载')
         } catch (error) {
           return Result.error(errorMessage(error))

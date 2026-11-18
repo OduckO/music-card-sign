@@ -4,7 +4,6 @@ import play from '@iconify-icons/solar/play-circle-bold-duotone'
 import code from '@iconify-icons/solar/code-square-bold-duotone'
 import send from '@iconify-icons/solar/card-send-bold-duotone'
 import pulse from '@iconify-icons/solar/pulse-2-bold-duotone'
-import settings from '@iconify-icons/solar/settings-bold-duotone'
 import user from '@iconify-icons/solar/user-rounded-bold-duotone'
 import contacts from '@iconify-icons/solar/users-group-rounded-bold-duotone'
 import platform from '@iconify-icons/solar/global-bold-duotone'
@@ -21,7 +20,6 @@ const commandIcons = {
   '#音之测测 {请求JSON}': code,
   '#签名音卡 {请求JSON}': send,
   '#音乐签名状态': pulse,
-  '#音乐签名设置': settings,
   '#设置音乐签名Bot <QQ号>': user,
   '#设置音乐签名联系人 <QQ号>': contacts,
   '#设置音乐签名平台 <平台名>': platform,

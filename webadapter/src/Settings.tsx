@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { Switch } from '@heroui/react/switch'
 import { Spinner } from '@heroui/react/spinner'
@@ -11,9 +11,9 @@ import settingsIcon from '@iconify-icons/solar/settings-bold-duotone'
 import server from '@iconify-icons/solar/server-bold-duotone'
 import music from '@iconify-icons/solar/music-notes-bold-duotone'
 import saveIcon from '@iconify-icons/solar/diskette-bold-duotone'
-import type { PanelState } from './types'
+import type { FriendList, PanelState } from './types'
 import { api } from './api'
-import { Field, Section } from './components'
+import { AccountField, Field, Section } from './components'
 
 export const Settings = ({
   state,
@@ -29,8 +29,33 @@ export const Settings = ({
   const [clearKey, setClearKey] = useState(false)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<{ error: boolean; text: string } | null>(null)
+  const [friends, setFriends] = useState<FriendList | null>(null)
+  const [friendError, setFriendError] = useState('')
+  const selectedAccount = settings.botId
+    ? (state.accounts.find(({ id }) => id === settings.botId)?.id ?? '')
+    : state.accounts.length === 1
+      ? state.accounts[0].id
+      : ''
   const patch = (key: keyof typeof settings, value: string | number | boolean) =>
     setSettings((previous) => ({ ...previous, [key]: value }))
+
+  useEffect(() => {
+    let active = true
+    setFriendError('')
+    if (selectedAccount) {
+      void api<FriendList>('/friends', { botId: selectedAccount }).then(
+        (result) => {
+          if (active) setFriends(result)
+        },
+        (error: unknown) => {
+          if (active) setFriendError(error instanceof Error ? error.message : String(error))
+        }
+      )
+    }
+    return () => {
+      active = false
+    }
+  }, [selectedAccount])
 
   const save = async () => {
     setBusy(true)
@@ -79,17 +104,28 @@ export const Settings = ({
               </Switch.Control>
             </Switch.Content>
           </Switch>
-          <Field
+          <AccountField
             label="签名 Bot"
             value={settings.botId}
             onChange={(v) => patch('botId', v)}
-            description="QQ 号；留空自动选择。"
+            options={state.accounts}
+            placeholder="自动选择，或填写 QQ 号"
+            description="从框架在线的 icqq 账号里选择；清空恢复自动选择。多个账号在线时需指定一个。"
           />
-          <Field
+          <AccountField
             label="接收联系人"
             value={settings.targetId}
             onChange={(v) => patch('targetId', v)}
-            description="QQ 号；留空发给签名 Bot 自己。"
+            options={selectedAccount && friends?.botId === selectedAccount ? friends.friends : []}
+            placeholder="签名 Bot 自己，或填写 QQ 号"
+            description={
+              friendError ||
+              (selectedAccount
+                ? friends?.botId === selectedAccount
+                  ? `可选 ${friends.friends.length} 位好友；也可手填 QQ。清空后发给签名 Bot 自己。`
+                  : '正在读取该签名 Bot 的好友列表…'
+                : '先选择一个在线 icqq 账号即可查看其好友；也可手填 QQ。留空发给签名 Bot 自己。')
+            }
           />
           <Select
             selectedKey={settings.defaultPlatform}
@@ -184,7 +220,7 @@ export const Settings = ({
         <p>签名服务会按新配置重新加载。账号、路由与平台的修改会应用到后续请求。</p>
         <div className="status-list">
           <span>在线 icqq</span>
-          <strong>{state.status.bots.join('、') || '无'}</strong>
+          <strong>{state.accounts.map(({ id }) => id).join('、') || '无'}</strong>
           <span>默认平台</span>
           <strong>{state.config.defaultPlatform}</strong>
         </div>

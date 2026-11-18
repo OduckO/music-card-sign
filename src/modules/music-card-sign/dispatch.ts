@@ -2,7 +2,7 @@ import type { CommandEvent } from '@/types'
 import type * as Commands from './commands'
 
 export async function runCommand(
-  name: keyof typeof Commands | 'update' | 'help' | 'status' | 'settings',
+  name: keyof typeof Commands | 'update' | 'help' | 'status',
   e: CommandEvent
 ) {
   if (name === 'help') {
@@ -13,7 +13,7 @@ export async function runCommand(
     const { updatePlugin } = await import('./update')
     return updatePlugin(e)
   }
-  if (name === 'status' || name === 'settings') {
+  if (name === 'status') {
     const { overview } = await import('./overview')
     return overview(e)
   }

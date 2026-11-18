@@ -522,7 +522,9 @@ pnpm run build
 
 渲染与截图按顺序执行。ktr 及宿主均使用固定输出文件，成功或失败后删除本次 HTML；宿主只缓存和监听一份固定包装页。清理仅处理插件本次生成的文件。
 
-`webadapter/index.js` 导出面板 `init(ctx)`，注册两张页面及其 `app.js/app.css` 资源。QQBot-Web-Adapter 和锅巴 next 的 API 前缀不同，入口按各自上下文注册。管理接口由面板鉴权，页面只向同源地址发送锅巴 token；后端复用配置验证、生命周期和签名服务。
+`webadapter/index.js` 导出面板 `init(ctx)`，注册一个 `panel.html` 工作台及其 `app.js/app.css` 资源，设置与音卡请求通过页内标签切换。QQBot-Web-Adapter 的 `apiBase` 是全局 `/api`，接口再加 `/music-card-sign`；锅巴 next 的 `apiBase` 已包含 `/api/custom/<插件名>`，接口直接注册 `/config`、`/friends`、`/sign`。两种宿主都会传入 `basePath`，它不能用来区分接口前缀。
+
+管理接口由面板鉴权，页面只向同源地址发送锅巴 token。`GET /config` 返回在线 icqq 账号及配置，`POST /friends` 接收字符串 `botId`，只返回该签名账号的好友；空值仅在一个 icqq 账号在线时自动选择。服务关闭不影响账号与好友查询。签名请求和配置保存继续复用现有服务。
 
 `main` 保存 TS 源码，`lib/` 不提交到 `main`。每次推送 `main`，GitHub Actions 按模板检出云崽和插件，安装锁定依赖，运行类型、lint、格式检查及编译产物测试。
 

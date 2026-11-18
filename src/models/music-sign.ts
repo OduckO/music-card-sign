@@ -364,7 +364,7 @@ function mismatchFields(card: MusicCard, request: NormalizedRequest, actual = mu
   return Object.keys(expected).filter((field) => actual[field] !== expected[field])
 }
 
-function nativeBot(bot: BotCandidate): IcqqBot | null {
+export function nativeBot(bot: BotCandidate): IcqqBot | null {
   const sdk = ('sdk' in bot ? bot.sdk : bot) as IcqqBot | undefined
   const online = typeof sdk?.isOnline === 'function' ? sdk.isOnline() : sdk?.online === true
   return online && sdk && typeof sdk.pickFriend === 'function' && typeof sdk.on === 'function'

@@ -32,7 +32,8 @@ test('帮助按需渲染 React 图片，服务尚未初始化时也能使用', a
   assert.match(data.html, /kugou_concept/)
   assert.match(data.html, /audio、singer、image 可空/)
   assert.equal([...data.html.matchAll(/class="menu-group"/g)].length, 3)
-  assert.equal([...data.html.matchAll(/<svg[^>]*class="[^"]*\bcommand-icon\b/g)].length, 12)
+  assert.equal([...data.html.matchAll(/<svg[^>]*class="[^"]*\bcommand-icon\b/g)].length, 11)
+  assert.doesNotMatch(data.html, /#音乐签名设置/)
   assert.match(data.html, /<style[^>]*>[\s\S]*\.help-poster/)
   assert.match(data.html, /<base href="file:/)
   assert.match(data.html, /file:.*HarmonyOS_Sans_SC_Regular\.woff2/)
@@ -81,16 +82,17 @@ test('截图失败会返回同一组文字帮助，下一次请求仍能出图',
   assert.ok(logs.some(({ message }) => message.includes('截图浏览器未就绪')))
 })
 
-test('设置和状态图显示当前配置，共享渲染队列且不泄露 API Key', async (t) => {
+test('只保留状态指令，状态图显示当前配置且不泄露 API Key', async (t) => {
   const { manageApp, screenshots } = await fixture(t, {
     apiKey: 'private-test-key',
     defaultPlatform: 'kugou_concept',
     botId: '123456789',
     targetId: '234567890'
   })
-  const rule = manageApp.rule.find(({ fnc }) => fnc === 'settings')
+  const rule = manageApp.rule.find(({ fnc }) => fnc === 'status')
   assert.equal(rule?.permission, 'master')
-  assert.ok(rule && new RegExp(rule.reg).test('#音乐签名设置'))
+  assert.ok(rule && new RegExp(rule.reg).test('#音乐签名状态'))
+  assert.ok(!manageApp.rule.some(({ reg }) => new RegExp(reg).test('#音乐签名设置')))
   const replies: FixtureReply[] = []
   const event = (msg: string) => ({
     ...command(msg),
@@ -100,16 +102,14 @@ test('设置和状态图显示当前配置，共享渲染队列且不泄露 API 
     }
   })
   await Promise.all([
-    manageApp.settings(event('#音乐签名设置')),
     manageApp.status(event('#音乐签名状态')),
     manageApp.help(event('#音乐签名帮助'))
   ])
-  assert.equal(replies.length, 3)
+  assert.equal(replies.length, 2)
   assert.ok(replies.every((reply) => typeof reply !== 'string' && reply.type === 'image'))
   const overview = screenshots.filter(({ name }) => name.endsWith('/overview'))
-  assert.equal(overview.length, 2)
-  assert.match(overview[0].data.html, /音卡设置/)
-  assert.match(overview[1].data.html, /音卡状态/)
+  assert.equal(overview.length, 1)
+  assert.match(overview[0].data.html, /音卡状态/)
   for (const { data } of overview) {
     assert.match(data.html, /123456789/)
     assert.match(data.html, /234567890/)

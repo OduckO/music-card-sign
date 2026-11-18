@@ -12,7 +12,6 @@ export class MusicCardManage extends plugin<'message'> {
       rule: [
         { reg: '^#音乐签名(?:帮助)?$', fnc: 'help', permission: 'master' },
         { reg: '^#音乐签名状态$', fnc: 'status', permission: 'master' },
-        { reg: '^#音乐签名设置$', fnc: 'settings', permission: 'master' },
         {
           reg: '^#设置音乐签名平台(?:\\s+[\\s\\S]+)?$',
           fnc: 'setPlatform',
@@ -44,10 +43,6 @@ export class MusicCardManage extends plugin<'message'> {
 
   status(e: CommandEvent) {
     return runCommand('status', e)
-  }
-
-  settings(e: CommandEvent) {
-    return runCommand('settings', e)
   }
 
   toggle(e: CommandEvent) {

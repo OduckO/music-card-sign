@@ -61,7 +61,6 @@ export interface FixtureTestApp extends FixtureApp {
 
 export interface FixtureManageApp extends FixtureApp {
   help: (event: FixtureCommandEvent) => Promise<boolean>
-  settings: (event: FixtureCommandEvent) => Promise<boolean>
   toggle: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setBot: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setTarget: (event: FixtureCommandEvent<string>) => Promise<boolean>
@@ -264,6 +263,8 @@ export default async function makeConfig(name, config) {
   const targets: number[] = []
   const bot: IcqqBot & EventEmitter = Object.assign(new EventEmitter(), {
     uin: 123456789,
+    nickname: '签名账号',
+    fl: new Map([[234567890, { nickname: '好友昵称', remark: '收卡联系人' }]]),
     isOnline: () => true,
     pickFriend: (id: number) => ({
       share: async (content: ShareContent, platform: AppPlatform) => {

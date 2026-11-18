@@ -11,7 +11,13 @@ import type {
 } from '@/types'
 import type { ExpressHost } from '@/models/http'
 import { errorMessage } from '@/utils'
-import { MusicSigner, cardText, selectPlatform } from '@/models/music-sign'
+import {
+  MusicSigner,
+  MusicSignError,
+  cardText,
+  nativeBot,
+  selectPlatform
+} from '@/models/music-sign'
 import { mountService } from '@/models/http'
 import { MusicCardCache } from '@/models/music-cache'
 import { resolveWithHandler } from './resolver'
@@ -33,6 +39,25 @@ function getBots() {
   return Array.from(Bot.uin || [])
     .map((id) => Bot[id])
     .filter((bot) => bot?.adapter?.name === 'ICQQ') as BotCandidate[]
+}
+
+export const getSigningBots = () => getBots().flatMap((bot) => nativeBot(bot) ?? [])
+
+export function getSigningFriends(botId: string) {
+  const bots = getSigningBots()
+  const bot = botId
+    ? bots.find((candidate) => String(candidate.uin) === botId)
+    : bots.length === 1
+      ? bots[0]
+      : undefined
+  if (botId && !bot) throw new MusicSignError('未找到指定的在线 icqq 账号', 503)
+  return {
+    botId: bot ? String(bot.uin) : '',
+    friends: Array.from(bot?.fl ?? [], ([id, friend]) => ({
+      id: String(id),
+      name: friend.remark || friend.nickname || String(id)
+    }))
+  }
 }
 
 async function start() {

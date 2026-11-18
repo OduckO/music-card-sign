@@ -138,7 +138,7 @@ test('锅巴保存取消 triptrap 等待请求，只释放插件自己的监听�
   assert.equal(stack.length, 0)
 })
 
-test('锅巴根入口导出十项配置，JSON 编辑字段保持完整内容', async (t) => {
+test('锅巴根入口提供账号与单选好友组件，JSON 编辑字段保持完整内容', async (t) => {
   const { guoba } = await guobaFixture(t)
   assert.equal(guoba.pluginInfo.name, 'music-card-sign')
   assert.equal(guoba.pluginInfo.isV3, true)
@@ -152,6 +152,7 @@ test('锅巴根入口导出十项配置，JSON 编辑字段保持完整内容', 
     'localPort',
     'path',
     'platforms',
+    'targetFriend',
     'targetId',
     'testMusic',
     'timeoutMs'
@@ -159,10 +160,24 @@ test('锅巴根入口导出十项配置，JSON 编辑字段保持完整内容', 
   const data = info.getConfigData()
   assert.equal(data.enabled, true)
   assert.equal(data.targetId, '')
+  assert.deepEqual(data.targetFriend, [])
   assert.equal(data.defaultPlatform, 'default')
   assert.deepEqual(JSON.parse(data.platforms), {})
   assert.equal(JSON.parse(data.testMusic).title, '晴天')
   assert.equal(info.schemas.find(({ field }) => field === 'apiKey')?.component, 'InputPassword')
+  const botSchema = info.schemas.find(({ field }) => field === 'botId')
+  assert.equal(botSchema?.component, 'AutoComplete')
+  assert.deepEqual(botSchema?.componentProps, {
+    placeholder: '选择在线 icqq 账号或输入 QQ',
+    options: [{ value: '123456789', label: '签名账号（123456789）' }]
+  })
+  const friendSchema = info.schemas.find(({ field }) => field === 'targetFriend')
+  assert.equal(friendSchema?.component, 'GSelectFriend')
+  assert.deepEqual(friendSchema?.componentProps, {
+    isRadioSelection: true,
+    maxSelectCount: 1,
+    params: { bot_id: '123456789' }
+  })
   const schema = info.schemas.find(({ field }) => field === 'defaultPlatform')
   assert.ok(schema)
   assert.equal(schema.component, 'AutoComplete')
@@ -180,6 +195,28 @@ test('锅巴根入口导出十项配置，JSON 编辑字段保持完整内容', 
     assert.equal(info.getConfigData().defaultPlatform, value)
     assert.doesNotThrow(() => selectPlatform({ _platform: value }, {}))
   }
+})
+
+test('锅巴单选好友写入联系人，清空选择仍可手填 QQ，辅助字段不落盘', async (t) => {
+  const { guoba, configPath } = await guobaFixture(t)
+  const info = guoba.configInfo
+  const selected = await info.setConfigData({ targetId: '', targetFriend: [234567890] }, context)
+  assert.equal(selected.isOk, true)
+  assert.equal(info.getConfigData().targetId, '234567890')
+  const yaml: Config = YAML.parse(await readFile(configPath, 'utf8'))
+  assert.equal(yaml.targetId, '234567890')
+  assert.equal(Object.hasOwn(yaml, 'targetFriend'), false)
+  assert.equal(
+    (await info.setConfigData({ targetId: '789012345', targetFriend: [] }, context)).isOk,
+    true
+  )
+  assert.equal(info.getConfigData().targetId, '789012345')
+  for (const targetFriend of [[1, 2], [null], '234567890', ['wrong']]) {
+    assert.equal((await info.setConfigData({ targetFriend }, context)).isOk, false)
+    assert.equal(info.getConfigData().targetId, '789012345')
+  }
+  assert.equal((await info.setConfigData({ targetId: '', targetFriend: [] }, context)).isOk, true)
+  assert.equal(info.getConfigData().targetId, '')
 })
 
 test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号、联系人及自定义平台', async (t) => {

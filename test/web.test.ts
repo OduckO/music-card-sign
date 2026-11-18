@@ -11,6 +11,20 @@ import { fixture } from './helpers/plugin'
 for (const host of ['qqbot-web', 'guoba'] as const) {
   test(`${host} 面板注册、保存与签名使用共享服务，错误返回 JSON`, async (t) => {
     const { directory, cards, bot } = await fixture(t, { apiKey: 'test-key' })
+    const secondId = 345678901
+    const secondBot = {
+      ...bot,
+      uin: secondId,
+      nickname: '另一个签名账号',
+      fl: new Map([[456789012, { nickname: '另一位好友' }]]),
+      on: bot.on.bind(bot)
+    }
+    Object.assign(Bot, {
+      uin: [bot.uin, secondId, 567890123, 678901234],
+      [secondId]: { adapter: { name: 'ICQQ' }, sdk: secondBot },
+      [567890123]: { adapter: { name: 'ICQQ' }, sdk: { ...secondBot, isOnline: () => false } },
+      [678901234]: { adapter: { name: 'OneBotv11' }, sdk: secondBot }
+    })
     const { init } = (await import(pathToFileURL(join(directory, 'webadapter/index.js')).href)) as {
       init: (ctx: PageContext) => void
     }
@@ -20,7 +34,8 @@ for (const host of ['qqbot-web', 'guoba'] as const) {
     const base = host === 'qqbot-web' ? '/qqbot-web/api' : '/guoba/api/custom/music-card-sign'
     const prefix = host === 'qqbot-web' ? '/music-card-sign' : ''
     init({
-      ...(host === 'qqbot-web' ? { basePath: 'qqbot-web' } : {}),
+      apiBase: base,
+      basePath: host === 'qqbot-web' ? 'qqbot-web' : '/guoba',
       registerPage: (page) => pages.push(page),
       registerApi: (method, route, handler) => {
         routes.push(`${method} ${route}`)
@@ -29,6 +44,7 @@ for (const host of ['qqbot-web', 'guoba'] as const) {
     })
     assert.deepEqual(routes, [
       `get ${prefix}/config`,
+      `post ${prefix}/friends`,
       `post ${prefix}/config`,
       `post ${prefix}/sign`,
       `get ${prefix}/fonts/Regular`,
@@ -36,8 +52,9 @@ for (const host of ['qqbot-web', 'guoba'] as const) {
     ])
     assert.deepEqual(
       pages.map(({ src }) => src),
-      ['settings.html', 'sign.html']
+      ['panel.html']
     )
+    assert.equal(pages[0].id, 'music-card-sign')
     for (const page of pages) {
       assert.equal(page.style, 'app.css')
       assert.equal(page.script, 'app.js')
@@ -82,11 +99,34 @@ for (const host of ['qqbot-web', 'guoba'] as const) {
     assert.equal((await settings()).hasApiKey, true)
     assert.equal(Object.hasOwn((await settings()).config, 'apiKey'), false)
     assert.ok((await settings()).platforms.includes('kugou_concept'))
+    assert.deepEqual((await settings()).accounts, [
+      { id: String(bot.uin), name: '签名账号' },
+      { id: String(secondId), name: '另一个签名账号' }
+    ])
+    const friends = async (botId: string) => {
+      const response = await post('/friends', { botId })
+      assert.equal(response.status, 200)
+      return (await response.json()).result
+    }
+    assert.deepEqual(await friends(String(bot.uin)), {
+      botId: String(bot.uin),
+      friends: [{ id: '234567890', name: '收卡联系人' }]
+    })
+    assert.deepEqual(await friends(String(secondId)), {
+      botId: String(secondId),
+      friends: [{ id: '456789012', name: '另一位好友' }]
+    })
+    assert.deepEqual(await friends(''), { botId: '', friends: [] }, '多账号时不猜测签名 Bot')
+    assert.equal((await post('/friends', { botId: 'wrong' })).status, 400)
+    assert.equal((await post('/friends', { botId: '567890123' })).status, 503)
     const invalid = await post('/config', { botId: 'wrong', path: '/changed' })
     assert.equal(invalid.status, 400)
     assert.equal((await invalid.json()).ok, false)
     assert.notEqual((await settings()).config.path, '/changed')
-    const saved = await post('/config', { defaultPlatform: 'kugou_concept' })
+    const saved = await post('/config', {
+      defaultPlatform: 'kugou_concept',
+      botId: String(bot.uin)
+    })
     assert.equal(saved.status, 200)
     assert.equal((await settings()).config.defaultPlatform, 'kugou_concept')
     assert.equal((await settings()).hasApiKey, true, '未提交 API Key 时保留原值')
@@ -125,6 +165,10 @@ for (const host of ['qqbot-web', 'guoba'] as const) {
     assert.match(failure.error, /模拟提交失败/)
     assert.equal((await settings()).status.pending, 0)
     assert.equal((await post('/config', { enabled: false })).status, 200)
+    assert.equal((await settings()).accounts.length, 2, '服务关闭后仍可选择在线 icqq 账号')
+    assert.equal((await friends(String(bot.uin))).friends.length, 1)
+    assert.equal((await post('/config', { targetId: '789012345' })).status, 200)
+    assert.equal((await settings()).config.targetId, '789012345', '保留手填 QQ')
     const disabled = await post('/sign', { request })
     assert.equal(disabled.status, 503)
     assert.match((await disabled.json()).error, /未开启/)

@@ -5,7 +5,54 @@ import { TextArea } from '@heroui/react/textarea'
 import { Label } from '@heroui/react/label'
 import { Description } from '@heroui/react/description'
 import { Card } from '@heroui/react/card'
+import { ComboBox } from '@heroui/react/combo-box'
+import { ListBox } from '@heroui/react/list-box'
 import { Icon, type IconifyIcon } from '@iconify/react'
+import type { AccountOption } from '../../src/types'
+
+export const AccountField = ({
+  label,
+  value,
+  onChange,
+  options,
+  description,
+  placeholder
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  options: AccountOption[]
+  description: string
+  placeholder: string
+}) => (
+  <ComboBox
+    allowsCustomValue
+    menuTrigger="manual"
+    inputValue={value}
+    onInputChange={onChange}
+    selectedKey={options.some((option) => option.id === value) ? value : null}
+    onSelectionChange={(key) => {
+      if (key !== null) onChange(String(key))
+    }}
+  >
+    <Label>{label}</Label>
+    <ComboBox.InputGroup>
+      <Input placeholder={placeholder} inputMode="numeric" autoComplete="off" />
+      <ComboBox.Trigger />
+    </ComboBox.InputGroup>
+    <ComboBox.Popover>
+      <ListBox renderEmptyState={() => '暂无可选账号或好友，可直接填写 QQ 号'}>
+        {options.map(({ id, name }) => (
+          <ListBox.Item key={id} id={id} textValue={id}>
+            {name === id ? id : `${name}（${id}）`}
+            <ListBox.ItemIndicator />
+          </ListBox.Item>
+        ))}
+      </ListBox>
+    </ComboBox.Popover>
+    <Description>{description}</Description>
+  </ComboBox>
+)
 
 export const Field = ({
   label,

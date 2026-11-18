@@ -5,11 +5,18 @@ import config from '@/config'
 import type { HttpRequest, MusicRequest } from '@/types'
 import { readBody } from '@/models/http'
 import { MusicSignError, platforms } from '@/models/music-sign'
-import { getServiceStatus, signCard, updateSettings } from '@/modules/music-card-sign/service'
+import {
+  getServiceStatus,
+  getSigningBots,
+  getSigningFriends,
+  signCard,
+  updateSettings
+} from '@/modules/music-card-sign/service'
 import { configPatch } from '@/modules/music-card-sign/settings'
 import { errorMessage, errorStatus } from '@/utils'
 
 export interface PageContext {
+  apiBase: string
   basePath?: string
   registerPage: (descriptor: {
     id: string
@@ -30,13 +37,17 @@ const objectBody = (body: unknown): Record<string, unknown> => {
 }
 
 export function init(ctx: PageContext) {
-  const prefix = ctx.basePath === undefined ? '' : '/music-card-sign'
-  for (const [id, title, icon, src, priority] of [
-    ['music-card-settings', '音卡设置', '⚙️', 'settings.html', 70],
-    ['music-card-request', '请求音卡', '🎵', 'sign.html', 71]
-  ] as const) {
-    ctx.registerPage({ id, title, icon, src, style: 'app.css', script: 'app.js', priority })
-  }
+  // QQBot-Web 的 apiBase 是全局 /api，锅巴已包含插件路径。
+  const prefix = ctx.apiBase.replace(/\/$/, '').endsWith('/api') ? '/music-card-sign' : ''
+  ctx.registerPage({
+    id: 'music-card-sign',
+    title: '音乐签名',
+    icon: 'solar:music-notes-bold-duotone',
+    src: 'panel.html',
+    style: 'app.css',
+    script: 'app.js',
+    priority: 70
+  })
 
   const register = (
     method: 'get' | 'post',
@@ -64,9 +75,21 @@ export function init(ctx: PageContext) {
     return {
       config: settings,
       hasApiKey: Boolean(apiKey),
+      accounts: getSigningBots().map((bot) => ({
+        id: String(bot.uin),
+        name: bot.nickname || String(bot.uin)
+      })),
       platforms: [...new Set([...Object.keys(platforms), ...Object.keys(settings.platforms)])],
       status: (await getServiceStatus()) ?? { enabled: false, bots: [], pending: 0 }
     }
+  })
+
+  register('post', '/friends', async (body) => {
+    const input = objectBody(body)
+    const { botId = config.config.botId } = configPatch({
+      botId: input.botId ?? config.config.botId
+    })
+    return getSigningFriends(botId)
   })
 
   register('post', '/config', async (body) => {

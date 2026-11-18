@@ -28,7 +28,7 @@ void Promise.all(
 const App = () => {
   const [state, setState] = useState<PanelState | null>(null)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState(location.pathname.endsWith('sign.html') ? 'sign' : 'settings')
+  const [tab, setTab] = useState('settings')
   const load = async () => {
     setState(await api<PanelState>('/config'))
   }
@@ -72,7 +72,7 @@ const App = () => {
             <div>
               <span>在线 icqq</span>
               <strong>
-                {state.status.bots.length ? `${state.status.bots.length} 个账号` : '暂无账号'}
+                {state.accounts.length ? `${state.accounts.length} 个账号` : '暂无账号'}
               </strong>
             </div>
             <div>
