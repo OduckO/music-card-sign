@@ -2,14 +2,24 @@ import config from '@/config'
 import { getSigningBots, updateSettings } from '@/modules/music-card-sign/service'
 import { configPatch } from '@/modules/music-card-sign/settings'
 import { errorMessage } from '@/utils'
-import type { Config } from '@/types'
+import { musicForm, platformRows } from '@/modules/music-card-sign/config-form'
+import { applyFormData, editorSchemas, type FormConfig } from './forms'
 import type { Result as GuobaResultType, Schemas, SupportGuoba } from 'trss-yunzai/guoba'
 
-type FormConfig = Omit<Config, 'platforms' | 'testMusic'> & {
-  platforms: string
-  testMusic: string
-  targetFriend: Array<string | number>
-}
+const builtinPlatforms = [
+  { label: '默认应用（default，appid 102021671）', value: 'default' },
+  { label: 'QQ 音乐（qq）', value: 'qq' },
+  { label: '网易云音乐（netease / 163）', value: 'netease' },
+  { label: '酷我音乐（kuwo）', value: 'kuwo' },
+  { label: '酷狗音乐（kugou）', value: 'kugou' },
+  { label: '酷狗概念版（kugou_concept）', value: 'kugou_concept' },
+  { label: '咪咕音乐（migu）', value: 'migu' },
+  { label: '哔哩哔哩（bilibili）', value: 'bilibili' },
+  { label: '5sing（5sing）', value: '5sing' },
+  { label: '波点音乐（bodian）', value: 'bodian' },
+  { label: 'TIM（tim）', value: 'tim' },
+  { label: '原神（yuanshen）', value: 'yuanshen' }
+]
 
 const schemas: Schemas<FormConfig> = [
   { component: 'SOFT_GROUP_BEGIN', label: '音卡签名服务' },
@@ -64,36 +74,8 @@ const schemas: Schemas<FormConfig> = [
       '链接未识别时使用此平台；默认 default（appid 102021671）。可选择内置项或输入自定义名称，_platform 优先于链接识别。',
     componentProps: {
       placeholder: '选择平台或输入自定义平台名',
-      filterOption: false,
-      options: [
-        { label: '默认应用（default，appid 102021671）', value: 'default' },
-        { label: 'QQ 音乐（qq）', value: 'qq' },
-        { label: '网易云音乐（netease / 163）', value: 'netease' },
-        { label: '酷我音乐（kuwo）', value: 'kuwo' },
-        { label: '酷狗音乐（kugou）', value: 'kugou' },
-        { label: '酷狗概念版（kugou_concept）', value: 'kugou_concept' },
-        { label: '咪咕音乐（migu）', value: 'migu' },
-        { label: '哔哩哔哩（bilibili）', value: 'bilibili' },
-        { label: '5sing（5sing）', value: '5sing' },
-        { label: '波点音乐（bodian）', value: 'bodian' },
-        { label: 'TIM（tim）', value: 'tim' },
-        { label: '原神（yuanshen）', value: 'yuanshen' }
-      ]
+      filterOption: false
     }
-  },
-  {
-    field: 'testMusic',
-    label: '测试歌曲 JSON',
-    component: 'InputTextArea',
-    bottomHelpMessage: '填写完整歌曲请求或 ID 请求，供 #音之测测 使用。',
-    componentProps: { rows: 8 }
-  },
-  {
-    field: 'platforms',
-    label: '自定义平台 JSON',
-    component: 'InputTextArea',
-    bottomHelpMessage: '平台名称到应用信息的映射；appid 必填，appname 和 appsign 可省略或为空。',
-    componentProps: { rows: 8 }
   }
 ]
 
@@ -101,7 +83,16 @@ export function supportGuoba() {
   logger.info('[音卡签名] 锅巴读取插件配置')
   const bots = getSigningBots()
   const botId = config.config.botId || (bots.length === 1 ? String(bots[0].uin) : '')
+  const platformOptions = [
+    ...builtinPlatforms,
+    ...Object.keys(config.config.platforms).map((name) => ({ label: name, value: name }))
+  ].filter((option, index, all) => all.findIndex(({ value }) => value === option.value) === index)
   const accountSchemas = schemas.map((schema) => {
+    if (schema.field === 'defaultPlatform') {
+      return Object.assign({}, schema, {
+        componentProps: { ...schema.componentProps, options: platformOptions }
+      })
+    }
     if (schema.field === 'botId') {
       return Object.assign({}, schema, {
         componentProps: {
@@ -137,11 +128,13 @@ export function supportGuoba() {
       icon: 'mdi:music-box'
     },
     configInfo: {
-      schemas: accountSchemas,
+      schemas: [...accountSchemas, ...editorSchemas(platformOptions)],
       getConfigData() {
         return {
           ...config.config,
           targetFriend: [],
+          platformEntries: platformRows(config.config.platforms),
+          testSong: musicForm(config.config.testMusic),
           platforms: JSON.stringify(config.config.platforms, null, 2),
           testMusic: JSON.stringify(config.config.testMusic, null, 2)
         }
@@ -151,7 +144,8 @@ export function supportGuoba() {
         { Result }: { Result: Pick<typeof GuobaResultType, 'ok' | 'error'> }
       ) {
         try {
-          const { targetFriend, ...settings } = data
+          const { targetFriend, ...values } = data
+          const settings = applyFormData(values, config.config)
           if (targetFriend !== undefined) {
             if (!Array.isArray(targetFriend) || targetFriend.length > 1)
               return Result.error('接收联系人只能选择一位好友')

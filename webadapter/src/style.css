@@ -380,6 +380,91 @@ h1 {
 .wide {
   grid-column: 1 / -1;
 }
+.required-label {
+  margin-inline-start: 7px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #835044;
+}
+.label:has(> .required-label)::after {
+  content: none;
+}
+.platform-entries {
+  display: grid;
+  gap: 24px;
+}
+.platform-entry {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.platform-entry + .platform-entry {
+  padding-top: 26px;
+  border-top: 1px solid #cfdbe3;
+}
+.platform-entry legend {
+  font-size: 16px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.platform-entry .editor-toolbar {
+  margin-bottom: 16px;
+}
+.editor-hint,
+.editor-empty {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.editor-toolbar .button {
+  flex-shrink: 0;
+}
+.add-platform {
+  justify-self: start;
+}
+.json-preview {
+  min-width: 0;
+  border-radius: 16px;
+  background: #eaf0f4;
+  border: 1px solid #cdd9e2;
+  padding: 8px 16px 16px;
+}
+.json-preview .editor-toolbar > span {
+  font-size: 13px;
+  font-weight: 700;
+  color: #435a6b;
+}
+.json-preview pre {
+  border: 0;
+  padding: 8px 0 0;
+  background: transparent;
+  border-radius: 0;
+  max-height: 300px;
+  overflow: auto;
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #334d60;
+  font:
+    14px/1.8 ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+}
+.fields .text-field[data-invalid='true'] .input {
+  border-color: #a15043;
+}
+.fields .field-error {
+  color: #944034;
+  font-size: 13px;
+}
 .fields textarea {
   min-height: 160px;
   font:

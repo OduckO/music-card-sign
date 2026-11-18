@@ -138,7 +138,7 @@ test('锅巴保存取消 triptrap 等待请求，只释放插件自己的监听�
   assert.equal(stack.length, 0)
 })
 
-test('锅巴根入口提供账号与单选好友组件，JSON 编辑字段保持完整内容', async (t) => {
+test('锅巴根入口提供账号、好友与固定字段子表单，JSON 作为只读预览', async (t) => {
   const { guoba } = await guobaFixture(t)
   assert.equal(guoba.pluginInfo.name, 'music-card-sign')
   assert.equal(guoba.pluginInfo.isV3, true)
@@ -151,10 +151,12 @@ test('锅巴根入口提供账号与单选好友组件，JSON 编辑字段保持
     'enabled',
     'localPort',
     'path',
+    'platformEntries',
     'platforms',
     'targetFriend',
     'targetId',
     'testMusic',
+    'testSong',
     'timeoutMs'
   ])
   const data = info.getConfigData()
@@ -163,7 +165,17 @@ test('锅巴根入口提供账号与单选好友组件，JSON 编辑字段保持
   assert.deepEqual(data.targetFriend, [])
   assert.equal(data.defaultPlatform, 'default')
   assert.deepEqual(JSON.parse(data.platforms), {})
+  assert.deepEqual(data.platformEntries, [])
+  assert.equal(data.testSong.title, '晴天')
+  assert.equal(data.testSong.mode, 'custom')
   assert.equal(JSON.parse(data.testMusic).title, '晴天')
+  for (const field of ['testMusic', 'platforms']) {
+    const schema = info.schemas.find((item) => item.field === field)
+    assert.ok(schema)
+    assert.partialDeepStrictEqual(schema.componentProps, { readonly: true })
+  }
+  assert.equal(info.schemas.find(({ field }) => field === 'testSong')?.component, 'GSubForm')
+  assert.equal(info.schemas.find(({ field }) => field === 'platformEntries')?.component, 'GSubForm')
   assert.equal(info.schemas.find(({ field }) => field === 'apiKey')?.component, 'InputPassword')
   const botSchema = info.schemas.find(({ field }) => field === 'botId')
   assert.equal(botSchema?.component, 'AutoComplete')
@@ -194,6 +206,86 @@ test('锅巴根入口提供账号与单选好友组件，JSON 编辑字段保持
     assert.equal(saved.isOk, true, saved.message)
     assert.equal(info.getConfigData().defaultPlatform, value)
     assert.doesNotThrow(() => selectPlatform({ _platform: value }, {}))
+  }
+})
+
+test('锅巴子表单保存空选填项、重命名平台与歌曲模式，辅助字段不落盘', async (t) => {
+  const { guoba, configPath } = await guobaFixture(t)
+  const info = guoba.configInfo
+  const initial = await info.setConfigData(
+    {
+      platforms: { original: { appid: 123, appname: 'com.example.app', extra: '保留' } },
+      testMusic: {
+        title: '原歌名',
+        url: 'https://example.com/song',
+        audio: 'https://example.com/song.mp3',
+        extension: true
+      }
+    },
+    context
+  )
+  assert.equal(initial.isOk, true, initial.message)
+  const data = info.getConfigData()
+  data.platformEntries[0].name = ' NEW '
+  data.platformEntries[0].appname = ''
+  Object.assign(data.testSong, { audio: '', platform: 'new' })
+  const saved = await info.setConfigData(data, context)
+  assert.equal(saved.isOk, true, saved.message)
+  const yaml: Config = YAML.parse(await readFile(configPath, 'utf8'))
+  assert.deepEqual(yaml.platforms, { new: { appid: 123, extra: '保留' } })
+  assert.deepEqual(yaml.testMusic, {
+    type: 'custom',
+    title: '原歌名',
+    url: 'https://example.com/song',
+    _platform: 'new',
+    extension: true
+  })
+  assert.equal(Object.hasOwn(yaml, 'platformEntries'), false)
+  assert.equal(Object.hasOwn(yaml, 'testSong'), false)
+  assert.deepEqual(JSON.parse(info.getConfigData().platforms), yaml.platforms)
+  assert.deepEqual(JSON.parse(info.getConfigData().testMusic), yaml.testMusic)
+  const switched = await info.setConfigData(
+    {
+      testSong: {
+        ...info.getConfigData().testSong,
+        mode: 'id',
+        type: 'my_api',
+        id: '00123',
+        platform: ''
+      }
+    },
+    context
+  )
+  assert.equal(switched.isOk, true, switched.message)
+  assert.deepEqual(JSON.parse(info.getConfigData().testMusic), {
+    type: 'my_api',
+    id: '00123',
+    extension: true
+  })
+  assert.equal(info.getConfigData().testSong.mode, 'id')
+})
+
+test('锅巴子表单必填项不完整时拒绝保存，保留原配置', async (t) => {
+  const { guoba, configPath } = await guobaFixture(t)
+  const info = guoba.configInfo
+  const original = await readFile(configPath, 'utf8')
+  for (const data of [
+    { platformEntries: [{ name: '', appid: 123 }] },
+    { platformEntries: [{ name: 'app', appid: '' }] },
+    {
+      platformEntries: [
+        { name: 'app', appid: 1 },
+        { name: 'APP', appid: 2 }
+      ]
+    },
+    { testSong: { mode: 'custom', title: '', url: 'https://example.com/song' } },
+    { testSong: { mode: 'custom', title: '测试曲', url: 'wrong' } },
+    { testSong: { mode: 'id', type: 'qq', id: '' } }
+  ]) {
+    const saved = await info.setConfigData(data, context)
+    assert.equal(saved.isOk, false)
+    assert.ok(saved.message)
+    assert.equal(await readFile(configPath, 'utf8'), original)
   }
 })
 

@@ -4,6 +4,7 @@ import { Input } from '@heroui/react/input'
 import { TextArea } from '@heroui/react/textarea'
 import { Label } from '@heroui/react/label'
 import { Description } from '@heroui/react/description'
+import { FieldError } from '@heroui/react/field-error'
 import { Card } from '@heroui/react/card'
 import { ComboBox } from '@heroui/react/combo-box'
 import { ListBox } from '@heroui/react/list-box'
@@ -62,7 +63,8 @@ export const Field = ({
   type = 'text',
   multiline = false,
   required = false,
-  disabled = false
+  disabled = false,
+  error
 }: {
   label: string
   description?: string
@@ -72,6 +74,7 @@ export const Field = ({
   multiline?: boolean
   required?: boolean
   disabled?: boolean
+  error?: string
 }) => (
   <TextField
     name={label}
@@ -79,9 +82,17 @@ export const Field = ({
     onChange={onChange}
     isRequired={required}
     isDisabled={disabled}
+    isInvalid={Boolean(error)}
     className={multiline ? 'wide' : ''}
   >
-    <Label>{label}</Label>
+    <Label>
+      {label}
+      {required && (
+        <span className="required-label" aria-hidden>
+          必填
+        </span>
+      )}
+    </Label>
     {multiline ? (
       <TextArea rows={6} spellCheck={false} autoComplete="off" />
     ) : (
@@ -93,6 +104,7 @@ export const Field = ({
       />
     )}
     {description && <Description>{description}</Description>}
+    {error && <FieldError>{error}</FieldError>}
   </TextField>
 )
 

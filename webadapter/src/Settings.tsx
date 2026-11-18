@@ -9,11 +9,19 @@ import { Description } from '@heroui/react/description'
 import { Icon } from '@iconify/react'
 import settingsIcon from '@iconify-icons/solar/settings-bold-duotone'
 import server from '@iconify-icons/solar/server-bold-duotone'
-import music from '@iconify-icons/solar/music-notes-bold-duotone'
 import saveIcon from '@iconify-icons/solar/diskette-bold-duotone'
 import type { FriendList, PanelState } from './types'
 import { api } from './api'
 import { AccountField, Field, Section } from './components'
+import { MusicEditor, PlatformEditor } from './ConfigEditors'
+import {
+  musicForm,
+  musicFromForm,
+  musicFormErrors,
+  platformRows,
+  platformsFromRows,
+  platformRowErrors
+} from '../../src/modules/music-card-sign/config-form'
 
 export const Settings = ({
   state,
@@ -23,8 +31,9 @@ export const Settings = ({
   onSaved: () => Promise<void>
 }) => {
   const [settings, setSettings] = useState(state.config)
-  const [platforms, setPlatforms] = useState(JSON.stringify(settings.platforms, null, 2))
-  const [testMusic, setTestMusic] = useState(JSON.stringify(settings.testMusic, null, 2))
+  const [platforms, setPlatforms] = useState(() => platformRows(settings.platforms))
+  const [testMusic, setTestMusic] = useState(() => musicForm(settings.testMusic))
+  const [showErrors, setShowErrors] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [clearKey, setClearKey] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -38,6 +47,14 @@ export const Settings = ({
       : ''
   const patch = (key: keyof typeof settings, value: string | number | boolean) =>
     setSettings((previous) => ({ ...previous, [key]: value }))
+  const platformOptions = [
+    ...new Set([
+      ...state.platforms.filter((name) => !Object.hasOwn(state.config.platforms, name)),
+      ...platforms.map(({ name }) => name.trim().toLowerCase()).filter(Boolean),
+      settings.defaultPlatform,
+      ...(testMusic.platform && testMusic.platform !== '__inline__' ? [testMusic.platform] : [])
+    ])
+  ]
 
   useEffect(() => {
     let active = true
@@ -58,13 +75,25 @@ export const Settings = ({
   }, [selectedAccount])
 
   const save = async () => {
+    setShowErrors(true)
+    const errors = [
+      ...platforms.flatMap((row) => Object.values(platformRowErrors(row, platforms))),
+      ...Object.values(musicFormErrors(testMusic))
+    ].filter(Boolean)
+    if (errors.length) {
+      setNotice({ error: true, text: `请检查平台与测试歌曲：${errors[0]}` })
+      requestAnimationFrame(() =>
+        document.querySelector<HTMLInputElement>('.settings-layout [aria-invalid="true"]')?.focus()
+      )
+      return
+    }
     setBusy(true)
     setNotice(null)
     try {
       const result = await api<{ message: string }>('/config', {
         ...settings,
-        platforms: JSON.parse(platforms),
-        testMusic: JSON.parse(testMusic),
+        platforms: platformsFromRows(platforms, settings.platforms),
+        testMusic: musicFromForm(testMusic, settings.testMusic),
         ...(clearKey ? { apiKey: '' } : apiKey ? { apiKey } : {})
       })
       setApiKey('')
@@ -140,7 +169,7 @@ export const Settings = ({
             </Select.Trigger>
             <Select.Popover>
               <ListBox>
-                {state.platforms.map((name) => (
+                {platformOptions.map((name) => (
                   <ListBox.Item key={name} id={name} textValue={name}>
                     {name}
                     <ListBox.ItemIndicator />
@@ -200,20 +229,19 @@ export const Settings = ({
             </Switch.Content>
           </Switch>
         </Section>
-        <Section
-          icon={music}
-          title="平台与测试歌曲"
-          description="自定义平台 appid 必填；appname、appsign 可省略或为空。"
-        >
-          <Field label="自定义平台 JSON" value={platforms} onChange={setPlatforms} multiline />
-          <Field
-            label="测试歌曲 JSON"
-            value={testMusic}
-            onChange={setTestMusic}
-            multiline
-            description="供 #音之测测 与请求页载入。"
-          />
-        </Section>
+        <PlatformEditor
+          rows={platforms}
+          onChange={setPlatforms}
+          previous={settings.platforms}
+          showErrors={showErrors}
+        />
+        <MusicEditor
+          value={testMusic}
+          onChange={setTestMusic}
+          previous={settings.testMusic}
+          platforms={platformOptions}
+          showErrors={showErrors}
+        />
       </div>
       <aside className="side-note">
         <h3>保存后即时生效</h3>
