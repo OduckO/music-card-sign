@@ -23,11 +23,13 @@ export const Sign = ({ state }: { state: PanelState }) => {
   const [result, setResult] = useState<SignResult | null>(null)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [coverLoaded, setCoverLoaded] = useState(false)
   const submit = async () => {
     setBusy(true)
     setError('')
     setResult(null)
     setCopied(false)
+    setCoverLoaded(false)
     try {
       const data: MusicRequest = JSON.parse(request)
       setResult(await api<SignResult>('/sign', { request: data, forceFresh }))
@@ -133,6 +135,18 @@ export const Sign = ({ state }: { state: PanelState }) => {
               <div className="music-preview">
                 <div className="record-art" aria-hidden="true">
                   <span />
+                  {music?.preview && (
+                    <img
+                      className="music-cover"
+                      src={music.preview}
+                      alt=""
+                      width={76}
+                      height={76}
+                      data-loaded={coverLoaded}
+                      onLoad={() => setCoverLoaded(true)}
+                      onError={() => setCoverLoaded(false)}
+                    />
+                  )}
                 </div>
                 <div>
                   <h3>{String(music?.title ?? '音卡')}</h3>

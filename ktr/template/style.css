@@ -3,7 +3,7 @@
 @source './**/*.{ts,tsx}';
 
 :root {
-  --background: #bec4c6;
+  --background: #bdcdd5;
   --foreground: #22323c;
   --surface: transparent;
   --muted: #384b58;
@@ -27,7 +27,11 @@ body {
   overflow: hidden;
   border-radius: 56px;
   font-family: 'HarmonyOS Sans SC', 'Microsoft YaHei', 'PingFang SC', sans-serif;
-  background: #c4cdcf;
+  background:
+    radial-gradient(ellipse 115% 29% at 12% 60%, #f6f4eb 0%, #f2f1e9e6 35%, #f2f1e900 100%),
+    radial-gradient(ellipse 75% 52% at 0% 12%, #ecece580 0%, #ecece500 85%),
+    radial-gradient(ellipse 80% 38% at 100% 100%, #b7d4dd 0%, #b7d4dd00 85%),
+    linear-gradient(165deg, #b5c7d2 0%, #c6d2d8 42%, #d6dede 70%, #adc5d0 100%);
   color: var(--foreground);
 }
 .help-poster::before,
@@ -37,17 +41,9 @@ body {
   z-index: -1;
   inset: 0;
   pointer-events: none;
-  opacity: 0.1;
+  opacity: 0.32;
   mix-blend-mode: soft-light;
-  background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxODAiIGhlaWdodD0iMTgwIj48ZmlsdGVyIGlkPSJuIiB4PSIwIiB5PSIwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iLjgyIiBudW1PY3RhdmVzPSIxIiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PGZlQ29sb3JNYXRyaXggdHlwZT0ic2F0dXJhdGUiIHZhbHVlcz0iMCIvPjxmZUNvbXBvbmVudFRyYW5zZmVyPjxmZUZ1bmNSIHR5cGU9ImRpc2NyZXRlIiB0YWJsZVZhbHVlcz0iMCAxIi8+PGZlRnVuY0cgdHlwZT0iZGlzY3JldGUiIHRhYmxlVmFsdWVzPSIwIDEiLz48ZmVGdW5jQiB0eXBlPSJkaXNjcmV0ZSIgdGFibGVWYWx1ZXM9IjAgMSIvPjwvZmVDb21wb25lbnRUcmFuc2Zlcj48L2ZpbHRlcj48cGF0aCBmaWx0ZXI9InVybCgjbikiIGQ9Ik0wIDBoMTgwdjE4MEgweiIvPjwvc3ZnPg==');
-}
-.spiral-art {
-  position: absolute;
-  z-index: -2;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
+  background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIj48ZmlsdGVyIGlkPSJncmFpbiI+PGZlVHVyYnVsZW5jZSB0eXBlPSJmcmFjdGFsTm9pc2UiIGJhc2VGcmVxdWVuY3k9Ii43OCIgbnVtT2N0YXZlcz0iMyIgc3RpdGNoVGlsZXM9InN0aXRjaCIgc2VlZD0iNyIvPjxmZUNvbG9yTWF0cml4IHR5cGU9InNhdHVyYXRlIiB2YWx1ZXM9IjAiLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWx0ZXI9InVybCgjZ3JhaW4pIi8+PC9zdmc+');
 }
 .hero {
   position: relative;

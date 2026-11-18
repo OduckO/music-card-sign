@@ -12,7 +12,6 @@ import refresh from '@iconify-icons/solar/refresh-bold-duotone'
 import restart from '@iconify-icons/solar/restart-bold-duotone'
 import history from '@iconify-icons/solar/history-bold-duotone'
 import music from '@iconify-icons/solar/music-notes-bold-duotone'
-import { SpiralBackdrop } from '../../components/SpiralBackdrop'
 import { helpGroups, type HelpData } from '../../../../src/modules/music-card-sign/help-data'
 
 const commandIcons = {
@@ -31,7 +30,6 @@ const commandIcons = {
 
 const Help = ({ data }: TemplateProps<HelpData>) => (
   <main className="help-poster">
-    <SpiralBackdrop />
     <header className="hero">
       <p className="help-permission">以下指令仅主人可用</p>
       <h1>音乐签名使用帮助</h1>

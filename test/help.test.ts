@@ -50,7 +50,7 @@ test('帮助按需渲染 React 图片，服务尚未初始化时也能使用', a
   const text = data.html.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<[^>]*>/g, '')
   assert.doesNotMatch(text, /编织转瞬即逝|短暂成形|须臾的集合|MUSIC CARD SIGN/)
   assert.doesNotMatch(text, /music-card-sign|github\.com\/OduckO/i)
-  assert.match(data.html, /class="spiral-art"/)
+  assert.doesNotMatch(data.html, /class="spiral-art"/)
   assert.match(data.html, /<h1>音乐签名使用帮助<\/h1>/)
   assert.match(data.html, /class="help-emblem"/)
 })
@@ -117,7 +117,7 @@ test('只保留状态指令，状态图显示当前配置且不泄露 API Key', 
     assert.match(data.html, /已设置/)
     assert.match(data.html, /class="snapshot-switch" data-on="true"/)
     assert.match(data.html, /class="snapshot-select"/)
-    assert.match(data.html, /class="spiral-art"/)
+    assert.doesNotMatch(data.html, /class="spiral-art"/)
     assert.ok(
       [...data.html.matchAll(/<dt>[\s\S]*?<\/dt>/g)].every(
         ([label]) => !/[：:]/.test(label.replace(/<[^>]*>/g, ''))
