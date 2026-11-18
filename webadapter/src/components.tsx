@@ -49,7 +49,7 @@ export const Section = ({
 }) => (
   <Card className="section-card">
     <Card.Header>
-      <Card.Title>{title}</Card.Title>
+      <h2 className="card__title">{title}</h2>
       <Card.Description>{description}</Card.Description>
     </Card.Header>
     <Card.Content className="fields">{children}</Card.Content>

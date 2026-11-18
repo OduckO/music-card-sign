@@ -5,6 +5,7 @@ import { Spinner } from '@heroui/react/spinner'
 import { Select } from '@heroui/react/select'
 import { ListBox } from '@heroui/react/list-box'
 import { Label } from '@heroui/react/label'
+import { Description } from '@heroui/react/description'
 import type { PanelState } from './types'
 import { api } from './api'
 import { Field, Section } from './components'
@@ -54,13 +55,19 @@ export const Settings = ({
           <Switch
             isSelected={settings.enabled}
             onChange={(value) => patch('enabled', value)}
-            className="wide"
+            className="switch-row wide"
           >
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
             <Switch.Content>
-              <Label>启用音卡签名</Label>
+              <div className="switch-copy">
+                <Label>启用音卡签名</Label>
+                <Description>关闭后停止处理新的签名请求。</Description>
+              </div>
+              <span className="switch-state" aria-hidden>
+                {settings.enabled ? '已开启' : '已关闭'}
+              </span>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
             </Switch.Content>
           </Switch>
           <Field
@@ -129,12 +136,18 @@ export const Settings = ({
               state.hasApiKey ? '已设置；留空保留原值。' : '未设置；留空不启用插件鉴权。'
             }
           />
-          <Switch isSelected={clearKey} onChange={setClearKey}>
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
+          <Switch isSelected={clearKey} onChange={setClearKey} className="switch-row">
             <Switch.Content>
-              <Label>清除 API Key</Label>
+              <div className="switch-copy">
+                <Label>清除 API Key</Label>
+                <Description>保存时移除现有密钥。</Description>
+              </div>
+              <span className="switch-state" aria-hidden>
+                {clearKey ? '将清除' : '保留'}
+              </span>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
             </Switch.Content>
           </Switch>
         </Section>

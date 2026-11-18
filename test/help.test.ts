@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { command, fixture, type FixtureReply } from './helpers/plugin'
 
-test('帮助按需渲染 HeroUI 图片，服务尚未初始化时也能使用', async (t) => {
+test('帮助按需渲染 React 图片，服务尚未初始化时也能使用', async (t) => {
   const { manageApp, screenshots, directory, hostRoot, stack } = await fixture(
     t,
     { defaultPlatform: 'kugou_concept' },
@@ -31,12 +31,14 @@ test('帮助按需渲染 HeroUI 图片，服务尚未初始化时也能使用', 
   assert.match(data.html, /#音之测测/)
   assert.match(data.html, /kugou_concept/)
   assert.match(data.html, /audio、singer、image 可空/)
-  assert.match(data.html, /class="[^"]*card/)
+  assert.equal([...data.html.matchAll(/class="menu-group"/g)].length, 3)
+  assert.equal([...data.html.matchAll(/<svg[^>]*class="[^"]*\bcommand-icon\b/g)].length, 12)
   assert.match(data.html, /<style[^>]*>[\s\S]*\.help-poster/)
   assert.match(data.html, /<base href="file:/)
   assert.match(data.html, /file:.*HarmonyOS_Sans_SC_Regular\.woff2/)
   assert.match(data.html, /file:.*HarmonyOS_Sans_SC_Bold\.woff2/)
   assert.doesNotMatch(data.html, /data:font\/woff2/)
+  assert.doesNotMatch(data.html, /hero-art|clip-path="[^"]*-wings"/)
   assert.deepEqual(
     (await readdir(join(directory, 'lib/react-template/html'))).filter(
       (filename) => filename === 'music_help.html'
@@ -109,7 +111,15 @@ test('设置和状态图显示当前配置，共享渲染队列且不泄露 API 
     assert.match(data.html, /234567890/)
     assert.match(data.html, /kugou_concept/)
     assert.match(data.html, /已设置/)
+    assert.match(data.html, /class="snapshot-switch" data-on="true"/)
+    assert.match(data.html, /class="snapshot-select"/)
+    assert.ok(
+      [...data.html.matchAll(/<dt>[\s\S]*?<\/dt>/g)].every(
+        ([label]) => !/[：:]/.test(label.replace(/<[^>]*>/g, ''))
+      )
+    )
     assert.doesNotMatch(data.html, /private-test-key/)
+    assert.doesNotMatch(data.html, /hero-art|clip-path="[^"]*-wings"/)
   }
   await manageApp.setPlatform(event('#设置音乐签名平台 default'))
   assert.match(screenshots.at(-1)!.data.html, /已设为 default/)

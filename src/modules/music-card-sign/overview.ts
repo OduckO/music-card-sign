@@ -31,6 +31,6 @@ export async function overview(e: CommandEvent, message?: string) {
     e,
     'music/overview',
     data,
-    [message || data.title, ...data.rows.map(([label, value]) => `${label}：${value}`)].join('\n')
+    [message || data.title, ...data.rows.map(([label, value]) => `${label}  ${value}`)].join('\n')
   )
 }

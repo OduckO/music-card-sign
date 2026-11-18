@@ -5,9 +5,9 @@ import { Button } from '@heroui/react/button'
 import { Spinner } from '@heroui/react/spinner'
 import { Icon } from '@iconify/react'
 import musicNotes from '@iconify-icons/solar/music-notes-bold-duotone'
+import settingsIcon from '@iconify-icons/solar/settings-bold-duotone'
 import { Settings } from './Settings'
 import { Sign } from './Sign'
-import { PixelArtwork } from '../../ktr/template/components/PixelArtwork'
 import { api, request } from './api'
 import type { PanelState } from './types'
 import './style.css'
@@ -54,19 +54,13 @@ const App = () => {
         </span>
       </header>
       <section className="panel-heading">
-        <PixelArtwork className="panel-art" />
         <div className="heading-copy">
           <h1>{tab === 'sign' ? '请求一张音卡' : '音乐签名工作台'}</h1>
           <p>
             {tab === 'sign'
               ? '提交歌曲信息，获取可发送的完整签名 JSON。'
-              : '选择签名账号与音乐平台，让每次分享都有完整的音卡。'}
+              : '选择签名账号、收卡联系人和默认音乐平台。'}
           </p>
-          <span className="heading-detail">
-            {tab === 'sign'
-              ? '支持歌曲 ID、自定义信息与扩展平台'
-              : '服务设置与音卡调试，集中在这里'}
-          </span>
         </div>
         {state && (
           <div className="service-summary">
@@ -107,33 +101,27 @@ const App = () => {
           <Tabs.ListContainer>
             <Tabs.List aria-label="音卡工作台">
               <Tabs.Tab id="settings">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 7h16M4 17h16M9 4v6M15 14v6" />
-                </svg>
+                <Icon icon={settingsIcon} aria-hidden />
                 服务设置
                 <Tabs.Indicator />
               </Tabs.Tab>
               <Tabs.Tab id="sign">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M9 17V5l11-2v12M9 9l11-2" />
-                  <ellipse cx="6" cy="17" rx="3" ry="2" />
-                  <ellipse cx="17" cy="15" rx="3" ry="2" />
-                </svg>
+                <Icon icon={musicNotes} aria-hidden />
                 请求音卡
                 <Tabs.Indicator />
               </Tabs.Tab>
             </Tabs.List>
           </Tabs.ListContainer>
-          <Tabs.Panel id="settings">
+          <Tabs.Panel id="settings" shouldForceMount hidden={tab !== 'settings'}>
             <Settings state={state} onSaved={load} />
           </Tabs.Panel>
-          <Tabs.Panel id="sign">
+          <Tabs.Panel id="sign" shouldForceMount hidden={tab !== 'sign'}>
             <Sign state={state} />
           </Tabs.Panel>
         </Tabs>
       )}
       <footer className="panel-footer">
-        <span>music-card-sign · 字体：HarmonyOS Sans SC</span>
+        <span>music-card-sign</span>
         <a href="https://github.com/OduckO/music-card-sign" target="_blank" rel="noreferrer">
           接口与扩展文档
         </a>

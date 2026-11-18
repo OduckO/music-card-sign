@@ -6,7 +6,22 @@ export interface HelpData {
 export interface OverviewData {
   title: string
   message?: string
-  rows: Array<[label: string, value: string]>
+  rows: Array<
+    [
+      label:
+        | '音卡签名服务'
+        | '签名 Bot'
+        | '接收联系人'
+        | '默认签名平台'
+        | '在线 icqq'
+        | '等待请求'
+        | '宿主路径'
+        | '本地端口'
+        | '回传超时'
+        | 'API Key',
+      value: string
+    ]
+  >
 }
 
 export const helpGroups = [

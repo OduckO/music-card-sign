@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button } from '@heroui/react/button'
 import { Switch } from '@heroui/react/switch'
 import { Label } from '@heroui/react/label'
+import { Description } from '@heroui/react/description'
 import { Spinner } from '@heroui/react/spinner'
 import { Card } from '@heroui/react/card'
 import type { MusicRequest } from '../../src/types'
@@ -25,7 +26,13 @@ export const Sign = ({ state }: { state: PanelState }) => {
       const data: MusicRequest = JSON.parse(request)
       setResult(await api<SignResult>('/sign', { request: data, forceFresh }))
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure))
+      setError(
+        failure instanceof SyntaxError
+          ? `请求 JSON 格式有误，请检查双引号、逗号和括号。${failure.message}`
+          : failure instanceof Error
+            ? failure.message
+            : String(failure)
+      )
     } finally {
       setBusy(false)
     }
@@ -54,12 +61,18 @@ export const Sign = ({ state }: { state: PanelState }) => {
             >
               载入测试歌曲
             </Button>
-            <Switch isSelected={forceFresh} onChange={setForceFresh}>
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
+            <Switch isSelected={forceFresh} onChange={setForceFresh} className="switch-row">
               <Switch.Content>
-                <Label>强制重新签名</Label>
+                <div className="switch-copy">
+                  <Label>强制重新签名</Label>
+                  <Description>本次请求绕过缓存。</Description>
+                </div>
+                <span className="switch-state" aria-hidden>
+                  {forceFresh ? '已开启' : '已关闭'}
+                </span>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
               </Switch.Content>
             </Switch>
           </div>
@@ -95,7 +108,7 @@ export const Sign = ({ state }: { state: PanelState }) => {
       </div>
       <Card className="result-card">
         <Card.Header>
-          <Card.Title>签名结果</Card.Title>
+          <h2 className="card__title">签名结果</h2>
           <Card.Description>JSON 可交给支持音卡的适配器发送。</Card.Description>
         </Card.Header>
         <Card.Content>

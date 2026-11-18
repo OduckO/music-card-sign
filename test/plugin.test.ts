@@ -520,7 +520,7 @@ test('音之测测报告回传超时，等待项释放后仍可继续测试', as
   await manageApp.status(e)
   const statusReply = replies.at(-1)
   assert.ok(typeof statusReply === 'string')
-  assert.match(statusReply, /等待请求：0/)
+  assert.match(statusReply, /等待请求  0/)
   bot.pickFriend = normal
   await testApp.probe(e)
   const successReply = replies.at(-1)
@@ -1219,14 +1219,14 @@ test('主人设置签名 Bot 后配置持久保存，HTTP 和 Handler 立即使�
   assert.equal(JSON.parse(res.body).meta.music.title, cachedInput.title)
   await instance.signCard({ self_id: 987654321 }, cachedInput, rejectSign)
   await manageApp.status({ reply })
-  assert.match(replies.at(-1)!, /签名 Bot：123456789/)
+  assert.match(replies.at(-1)!, /签名 Bot  123456789/)
   await manageApp.setBot({ msg: '#设置音乐签名bot 自动', reply })
   assert.equal(
     YAML.parse(await readFile(join(directory, '../../config/music-card-sign.yaml'), 'utf8')).botId,
     ''
   )
   await manageApp.status({ reply })
-  assert.match(replies.at(-1)!, /签名 Bot：自动选择/)
+  assert.match(replies.at(-1)!, /签名 Bot  自动选择/)
 })
 
 test('签名 Bot 指令提示用法，参数或保存失败时保留原账号', async (t) => {
@@ -1248,7 +1248,7 @@ test('签名 Bot 指令提示用法，参数或保存失败时保留原账号', 
     await manageApp.setBot({ msg: '#设置音乐签名Bot 234567890', reply })
     assert.match(replies.at(-1)!, /保存失败/)
     await manageApp.status({ reply })
-    assert.match(replies.at(-1)!, /签名 Bot：123456789/)
+    assert.match(replies.at(-1)!, /签名 Bot  123456789/)
   } finally {
     fs.writeFile = write
   }
@@ -1280,7 +1280,7 @@ test('联系人指令保存配置，音之测测使用新联系人并可恢复�
   assert.deepEqual(targets, [987654321])
   assert.ok(logs.some(({ message }) => /接收 QQ=987654321.*提交分享/.test(message)))
   await manageApp.status({ reply })
-  assert.match(replies.at(-1)!, /接收联系人：987654321/)
+  assert.match(replies.at(-1)!, /接收联系人  987654321/)
   const write = fs.writeFile
   fs.writeFile = async () => {
     throw new Error('保存失败')
@@ -1336,7 +1336,7 @@ test('首次升级迁移旧 JSON 配置并保留原文件', async (t) => {
       replies.push(message)
     }
   })
-  assert.match(replies[0], /签名 Bot：123456789/)
+  assert.match(replies[0], /签名 Bot  123456789/)
 })
 
 test('已有 YAML 时以 YAML 为准，不用旧 JSON 覆盖', async (t) => {
