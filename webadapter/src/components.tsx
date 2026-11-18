@@ -5,6 +5,7 @@ import { TextArea } from '@heroui/react/textarea'
 import { Label } from '@heroui/react/label'
 import { Description } from '@heroui/react/description'
 import { Card } from '@heroui/react/card'
+import { Icon, type IconifyIcon } from '@iconify/react'
 
 export const Field = ({
   label,
@@ -26,6 +27,7 @@ export const Field = ({
   disabled?: boolean
 }) => (
   <TextField
+    name={label}
     value={value}
     onChange={onChange}
     isRequired={required}
@@ -33,7 +35,16 @@ export const Field = ({
     className={multiline ? 'wide' : ''}
   >
     <Label>{label}</Label>
-    {multiline ? <TextArea rows={6} spellCheck={false} /> : <Input type={type} />}
+    {multiline ? (
+      <TextArea rows={6} spellCheck={false} autoComplete="off" />
+    ) : (
+      <Input
+        type={type}
+        spellCheck={false}
+        autoComplete="off"
+        inputMode={type === 'number' ? 'numeric' : undefined}
+      />
+    )}
     {description && <Description>{description}</Description>}
   </TextField>
 )
@@ -41,16 +52,21 @@ export const Field = ({
 export const Section = ({
   title,
   description,
+  icon,
   children
 }: {
   title: string
   description: string
+  icon: IconifyIcon
   children: ReactNode
 }) => (
   <Card className="section-card">
     <Card.Header>
-      <h2 className="card__title">{title}</h2>
-      <Card.Description>{description}</Card.Description>
+      <Icon icon={icon} aria-hidden className="section-icon" />
+      <div>
+        <h2 className="card__title">{title}</h2>
+        <Card.Description>{description}</Card.Description>
+      </div>
     </Card.Header>
     <Card.Content className="fields">{children}</Card.Content>
   </Card>

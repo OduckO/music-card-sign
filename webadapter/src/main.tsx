@@ -6,6 +6,7 @@ import { Spinner } from '@heroui/react/spinner'
 import { Icon } from '@iconify/react'
 import musicNotes from '@iconify-icons/solar/music-notes-bold-duotone'
 import settingsIcon from '@iconify-icons/solar/settings-bold-duotone'
+import { SpiralBackdrop } from '../../ktr/template/components/SpiralBackdrop'
 import { Settings } from './Settings'
 import { Sign } from './Sign'
 import { api, request } from './api'
@@ -40,6 +41,9 @@ const App = () => {
   useEffect(retry, [])
   return (
     <main className="panel">
+      <a className="skip-link" href="#workspace">
+        跳到操作区域
+      </a>
       <header className="panel-topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
@@ -49,11 +53,12 @@ const App = () => {
             音乐签名<small>music-card-sign</small>
           </span>
         </div>
-        <span className={`service-state ${state?.status.enabled ? 'online' : ''}`}>
-          {state ? (state.status.enabled ? '签名服务已开启' : '签名服务未开启') : '正在连接服务'}
+        <span role="status" className={`service-state ${state?.status.enabled ? 'online' : ''}`}>
+          {state ? (state.status.enabled ? '签名服务已开启' : '签名服务未开启') : '正在连接服务…'}
         </span>
       </header>
       <section className="panel-heading">
+        <SpiralBackdrop wide />
         <div className="heading-copy">
           <h1>{tab === 'sign' ? '请求一张音卡' : '音乐签名工作台'}</h1>
           <p>
@@ -90,10 +95,11 @@ const App = () => {
       ) : !state ? (
         <div className="loading" role="status">
           <Spinner />
-          <span>读取服务配置</span>
+          <span>读取服务配置…</span>
         </div>
       ) : (
         <Tabs
+          id="workspace"
           selectedKey={tab}
           onSelectionChange={(key) => setTab(String(key))}
           className="workspace-tabs"

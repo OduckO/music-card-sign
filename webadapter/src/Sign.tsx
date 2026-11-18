@@ -5,6 +5,12 @@ import { Label } from '@heroui/react/label'
 import { Description } from '@heroui/react/description'
 import { Spinner } from '@heroui/react/spinner'
 import { Card } from '@heroui/react/card'
+import { Icon } from '@iconify/react'
+import send from '@iconify-icons/solar/card-send-bold-duotone'
+import code from '@iconify-icons/solar/code-square-bold-duotone'
+import copyIcon from '@iconify-icons/solar/copy-bold-duotone'
+import check from '@iconify-icons/solar/check-circle-bold-duotone'
+import refresh from '@iconify-icons/solar/refresh-bold-duotone'
 import type { MusicRequest } from '../../src/types'
 import type { PanelState, SignResult } from './types'
 import { Field, Section } from './components'
@@ -50,36 +56,43 @@ export const Sign = ({ state }: { state: PanelState }) => {
     <div className="request-layout">
       <div>
         <Section
+          icon={send}
           title="歌曲请求"
           description="支持自定义歌曲、ID 查询和扩展平台。返回完整签名 JSON。"
         >
           <Field label="请求 JSON" value={request} onChange={setRequest} multiline />
+          <Switch isSelected={forceFresh} onChange={setForceFresh} className="switch-row wide">
+            <Switch.Content>
+              <div className="switch-copy">
+                <Label>强制重新签名</Label>
+                <Description>本次请求绕过缓存。</Description>
+              </div>
+              <span className="switch-state" aria-hidden>
+                {forceFresh ? '已开启' : '已关闭'}
+              </span>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+            </Switch.Content>
+          </Switch>
           <div className="request-actions wide">
             <Button
               variant="secondary"
               onPress={() => setRequest(JSON.stringify(state.config.testMusic, null, 2))}
             >
+              <Icon icon={refresh} aria-hidden />
               载入测试歌曲
             </Button>
-            <Switch isSelected={forceFresh} onChange={setForceFresh} className="switch-row">
-              <Switch.Content>
-                <div className="switch-copy">
-                  <Label>强制重新签名</Label>
-                  <Description>本次请求绕过缓存。</Description>
-                </div>
-                <span className="switch-state" aria-hidden>
-                  {forceFresh ? '已开启' : '已关闭'}
-                </span>
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-              </Switch.Content>
-            </Switch>
+            <Button
+              className="request-submit"
+              onPress={submit}
+              isDisabled={busy || !state.status.enabled}
+              aria-busy={busy}
+            >
+              {busy ? <Spinner size="sm" /> : <Icon icon={send} aria-hidden />}
+              {busy ? '正在签名…' : '请求音卡'}
+            </Button>
           </div>
-          <Button className="wide" onPress={submit} isDisabled={busy || !state.status.enabled}>
-            {busy && <Spinner size="sm" />}
-            {busy ? '正在签名，等待音卡回传' : '请求音卡'}
-          </Button>
         </Section>
         <div className="request-hints">
           <p>
@@ -106,10 +119,13 @@ export const Sign = ({ state }: { state: PanelState }) => {
           </p>
         )}
       </div>
-      <Card className="result-card">
+      <Card className="result-card" aria-busy={busy}>
         <Card.Header>
-          <h2 className="card__title">签名结果</h2>
-          <Card.Description>JSON 可交给支持音卡的适配器发送。</Card.Description>
+          <Icon icon={code} aria-hidden className="section-icon" />
+          <div>
+            <h2 className="card__title">签名结果</h2>
+            <Card.Description>JSON 可交给支持音卡的适配器发送。</Card.Description>
+          </div>
         </Card.Header>
         <Card.Content>
           {result ? (
@@ -121,31 +137,35 @@ export const Sign = ({ state }: { state: PanelState }) => {
                 <div>
                   <h3>{String(music?.title ?? '音卡')}</h3>
                   <p>{String(music?.desc ?? '')}</p>
-                  <span>
-                    APPID {String(music?.appid ?? '')} · {result.elapsedMs} ms
-                  </span>
+                  <div className="music-meta">
+                    <span>APPID {String(music?.appid ?? '')}</span>
+                    <span>{result.elapsedMs} ms</span>
+                  </div>
                 </div>
               </div>
               <div className="result-toolbar">
                 <span>原始 JSON</span>
-                <Button size="sm" variant="secondary" onPress={copy}>
+                <Button className="copy-button" size="sm" variant="secondary" onPress={copy}>
+                  <Icon icon={copied ? check : copyIcon} aria-hidden />
                   {copied ? '已复制' : '复制 JSON'}
                 </Button>
               </div>
               <pre tabIndex={0} aria-label="完整签名 JSON">
-                {result.raw}
+                {JSON.stringify(result.card, null, 2)}
               </pre>
             </>
           ) : (
-            <div className="result-empty">
+            <div className="result-empty" role="status">
               <div className="record-art" aria-hidden="true">
                 <span />
               </div>
-              <h3>{busy ? '正在等待回传' : '暂无签名结果'}</h3>
+              <h3>{busy ? '正在等待回传…' : error ? '本次签名未完成' : '暂无签名结果'}</h3>
               <p>
                 {busy
                   ? '收到音卡或提交错误后返回结果。'
-                  : '提交歌曲请求后，完整 JSON 会显示在这里。'}
+                  : error
+                    ? '查看请求区域的错误提示，调整后重试。'
+                    : '提交歌曲请求后，完整 JSON 会显示在这里。'}
               </p>
             </div>
           )}

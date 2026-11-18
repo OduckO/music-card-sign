@@ -48,6 +48,10 @@ test('帮助按需渲染 React 图片，服务尚未初始化时也能使用', a
   assert.deepEqual(await readdir(join(hostRoot, 'temp/html/music-card-sign/help')), [])
   const text = data.html.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<[^>]*>/g, '')
   assert.doesNotMatch(text, /编织转瞬即逝|短暂成形|须臾的集合|MUSIC CARD SIGN/)
+  assert.doesNotMatch(text, /music-card-sign|github\.com\/OduckO/i)
+  assert.match(data.html, /class="spiral-art"/)
+  assert.match(data.html, /<h1>音乐签名使用帮助<\/h1>/)
+  assert.match(data.html, /class="help-emblem"/)
 })
 
 test('截图失败会返回同一组文字帮助，下一次请求仍能出图', async (t) => {
@@ -113,6 +117,7 @@ test('设置和状态图显示当前配置，共享渲染队列且不泄露 API 
     assert.match(data.html, /已设置/)
     assert.match(data.html, /class="snapshot-switch" data-on="true"/)
     assert.match(data.html, /class="snapshot-select"/)
+    assert.match(data.html, /class="spiral-art"/)
     assert.ok(
       [...data.html.matchAll(/<dt>[\s\S]*?<\/dt>/g)].every(
         ([label]) => !/[：:]/.test(label.replace(/<[^>]*>/g, ''))

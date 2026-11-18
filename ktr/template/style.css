@@ -27,11 +27,7 @@ body {
   overflow: hidden;
   border-radius: 56px;
   font-family: 'HarmonyOS Sans SC', 'Microsoft YaHei', 'PingFang SC', sans-serif;
-  background:
-    radial-gradient(ellipse at 90% 8%, #edc2dfa6, transparent 40%),
-    radial-gradient(ellipse at 3% 76%, #a4d4ee99, transparent 40%),
-    radial-gradient(ellipse at 98% 66%, #f4bdac99, transparent 38%),
-    linear-gradient(138deg, #a5b0b5 0%, #d3d4ce 37%, #b6c5ce 67%, #c9bacb 100%);
+  background: #c4cdcf;
   color: var(--foreground);
 }
 .help-poster::before,
@@ -41,70 +37,73 @@ body {
   z-index: -1;
   inset: 0;
   pointer-events: none;
-  opacity: 0.18;
+  opacity: 0.1;
   mix-blend-mode: soft-light;
   background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxODAiIGhlaWdodD0iMTgwIj48ZmlsdGVyIGlkPSJuIiB4PSIwIiB5PSIwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iLjgyIiBudW1PY3RhdmVzPSIxIiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PGZlQ29sb3JNYXRyaXggdHlwZT0ic2F0dXJhdGUiIHZhbHVlcz0iMCIvPjxmZUNvbXBvbmVudFRyYW5zZmVyPjxmZUZ1bmNSIHR5cGU9ImRpc2NyZXRlIiB0YWJsZVZhbHVlcz0iMCAxIi8+PGZlRnVuY0cgdHlwZT0iZGlzY3JldGUiIHRhYmxlVmFsdWVzPSIwIDEiLz48ZmVGdW5jQiB0eXBlPSJkaXNjcmV0ZSIgdGFibGVWYWx1ZXM9IjAgMSIvPjwvZmVDb21wb25lbnRUcmFuc2Zlcj48L2ZpbHRlcj48cGF0aCBmaWx0ZXI9InVybCgjbikiIGQ9Ik0wIDBoMTgwdjE4MEgweiIvPjwvc3ZnPg==');
 }
-.help-poster::after,
-.overview-poster::after {
-  content: '';
+.spiral-art {
   position: absolute;
   z-index: -2;
   inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  background: linear-gradient(
-    128deg,
-    transparent 23%,
-    #efb7b84d 31%,
-    #fff0d780 34%,
-    #d3f0eb73 36%,
-    #bed7f57a 39%,
-    #dbbce86b 43%,
-    transparent 51% 71%,
-    #f5c6b663 78%,
-    #fbefd785 80%,
-    #bad6f480 84%,
-    #d4b8ea66 88%,
-    transparent 95%
-  );
 }
 .hero {
   position: relative;
-  height: 330px;
+  height: 246px;
   padding: 40px 56px;
 }
-.masthead {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.help-permission {
+  position: absolute;
+  top: 44px;
+  right: 56px;
+  margin: 0;
   font-size: 14px;
   color: var(--muted);
 }
 .hero h1 {
   position: relative;
   z-index: 1;
-  font-size: 66px;
+  font-size: 54px;
   line-height: 1.18;
   font-weight: 700;
   letter-spacing: -1px;
-  margin: 54px 0 24px;
+  margin: 46px 0 18px;
+  text-wrap: balance;
 }
 .hero-caption {
   position: relative;
   z-index: 1;
-  max-width: 330px;
+  max-width: 530px;
   font-size: 16px;
   color: var(--muted);
   margin: 0;
 }
+.help-emblem {
+  position: absolute;
+  top: 88px;
+  right: 68px;
+  display: grid;
+  place-items: center;
+  width: 108px;
+  height: 108px;
+  border-radius: 36px;
+  background: #eaf0f14d;
+  color: #405d73;
+  box-shadow: inset 0 1px 0 #ffffff85;
+  transform: rotate(-8deg);
+}
+.help-emblem svg {
+  width: 66px;
+  height: 66px;
+}
 .menu {
   position: relative;
-  padding: 12px 56px 36px;
+  padding: 0 56px 48px;
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 48px 46px;
+  gap: 40px 44px;
 }
 .menu-group {
   min-width: 0;
@@ -115,7 +114,7 @@ body {
 }
 .group-heading {
   text-align: left;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 .group-heading h2 {
   margin: 0 0 8px;
@@ -130,7 +129,7 @@ body {
 }
 .command-list {
   display: grid;
-  gap: 24px;
+  gap: 22px;
   padding: 0;
 }
 .command {
@@ -149,9 +148,22 @@ body {
   display: block;
   font-family: inherit;
   font-size: 18px;
-  line-height: 1.7;
+  line-height: 1.6;
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+.command code > span {
+  display: block;
+}
+.command-argument {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #f5f2f54d;
+  font-size: 15px;
+  font-weight: 400;
+  vertical-align: baseline;
 }
 .command p {
   color: var(--muted);
@@ -161,7 +173,7 @@ body {
 }
 .api-note {
   grid-column: 1 / -1;
-  padding-top: 6px;
+  padding-top: 10px;
 }
 .api-heading {
   display: flex;
@@ -186,26 +198,29 @@ body {
 }
 .api-note .current-platform {
   color: var(--foreground);
+  margin-top: 9px;
 }
-.menu footer {
-  grid-column: 1 / -1;
-  text-align: left;
+.current-platform strong {
+  margin-left: 8px;
+}
+.platform-order {
+  display: flex;
+  gap: 10px;
+  margin: 9px 0 0;
   color: var(--muted);
-  font-size: 12px;
-  padding: 0;
+  font-size: 14px;
+}
+.platform-order > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .overview-poster {
   width: 880px;
   border-radius: 48px;
-  background:
-    radial-gradient(ellipse at 100% 0%, #e2c6d89c, transparent 52%),
-    radial-gradient(ellipse at 0% 100%, #abcddd85, transparent 55%), #cdd2d3;
-}
-.overview-poster::after {
-  background: radial-gradient(ellipse at 92% 24%, #fff3e380, transparent 42%);
 }
 .overview-poster .hero {
-  height: 228px;
+  height: 206px;
   padding: 46px 48px;
 }
 .overview-poster header > span,
@@ -214,6 +229,17 @@ body {
   z-index: 1;
   color: var(--muted);
   font-size: 13px;
+}
+.overview-emblem {
+  position: absolute;
+  top: 54px;
+  right: 48px;
+  width: 62px;
+  height: 62px;
+  padding: 14px;
+  border-radius: 22px;
+  background: #edf0f04d;
+  color: #466478;
 }
 .overview-poster h1 {
   font-size: 48px;
@@ -229,7 +255,7 @@ body {
   padding: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 28px 36px;
+  gap: 30px 36px;
 }
 .overview-poster dl > div {
   font-size: 16px;
@@ -256,6 +282,7 @@ body {
   align-items: center;
   gap: 12px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 .snapshot-field,
 .snapshot-select {
@@ -297,6 +324,13 @@ body {
   border-radius: 24px;
   background: #b3c3cc70;
 }
+.snapshot-status {
+  flex-wrap: wrap;
+}
+.snapshot-status[data-empty='true'] > span {
+  background: #e1d6d870;
+  color: #675058;
+}
 .snapshot-count > span {
   font-size: 30px;
   line-height: 1;
@@ -308,7 +342,7 @@ body {
   font-size: 14px;
 }
 .overview-poster footer {
-  padding: 36px 48px;
-  font-size: 12px;
+  padding: 30px 48px 36px;
+  font-size: 13px;
   color: var(--muted);
 }

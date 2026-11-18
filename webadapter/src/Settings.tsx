@@ -6,6 +6,11 @@ import { Select } from '@heroui/react/select'
 import { ListBox } from '@heroui/react/list-box'
 import { Label } from '@heroui/react/label'
 import { Description } from '@heroui/react/description'
+import { Icon } from '@iconify/react'
+import settingsIcon from '@iconify-icons/solar/settings-bold-duotone'
+import server from '@iconify-icons/solar/server-bold-duotone'
+import music from '@iconify-icons/solar/music-notes-bold-duotone'
+import saveIcon from '@iconify-icons/solar/diskette-bold-duotone'
 import type { PanelState } from './types'
 import { api } from './api'
 import { Field, Section } from './components'
@@ -51,7 +56,11 @@ export const Settings = ({
   return (
     <div className="settings-layout">
       <div className="settings-sections">
-        <Section title="签名服务" description="使用已登录的 icqq 账号生成音卡。">
+        <Section
+          icon={settingsIcon}
+          title="签名服务"
+          description="使用已登录的 icqq 账号生成音卡。"
+        >
           <Switch
             isSelected={settings.enabled}
             onChange={(value) => patch('enabled', value)}
@@ -112,7 +121,11 @@ export const Settings = ({
             description="查询、回传和协议端发送的最长等待。"
           />
         </Section>
-        <Section title="HTTP 接口" description="外部调用使用此路由；面板操作沿用面板登录鉴权。">
+        <Section
+          icon={server}
+          title="HTTP 接口"
+          description="外部调用使用此路由；面板操作沿用面板登录鉴权。"
+        >
           <Field
             label="签名路由"
             value={settings.path}
@@ -152,6 +165,7 @@ export const Settings = ({
           </Switch>
         </Section>
         <Section
+          icon={music}
           title="平台与测试歌曲"
           description="自定义平台 appid 必填；appname、appsign 可省略或为空。"
         >
@@ -174,8 +188,9 @@ export const Settings = ({
           <span>默认平台</span>
           <strong>{state.config.defaultPlatform}</strong>
         </div>
-        <Button onPress={save} isDisabled={busy} className="save-button">
-          {busy && <Spinner size="sm" />} {busy ? '正在保存' : '保存设置'}
+        <Button onPress={save} isDisabled={busy} aria-busy={busy} className="save-button">
+          {busy ? <Spinner size="sm" /> : <Icon icon={saveIcon} aria-hidden />}
+          {busy ? '正在保存…' : '保存设置'}
         </Button>
         {notice && (
           <p

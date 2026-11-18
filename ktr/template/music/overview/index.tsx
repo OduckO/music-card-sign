@@ -11,6 +11,8 @@ import server from '@iconify-icons/solar/server-bold-duotone'
 import clock from '@iconify-icons/solar/clock-circle-bold-duotone'
 import key from '@iconify-icons/solar/key-bold-duotone'
 import chevron from '@iconify-icons/solar/alt-arrow-down-linear'
+import settings from '@iconify-icons/solar/settings-bold-duotone'
+import { SpiralBackdrop } from '../../components/SpiralBackdrop'
 import type { OverviewData } from '../../../../src/modules/music-card-sign/help-data'
 
 const fields = {
@@ -28,7 +30,14 @@ const fields = {
 
 const Overview = ({ data }: TemplateProps<OverviewData>) => (
   <main className="overview-poster">
+    <SpiralBackdrop />
     <header className="hero">
+      <Icon
+        icon={data.title === '音卡设置' ? settings : pulse}
+        ssr
+        aria-hidden
+        className="overview-emblem"
+      />
       <h1>{data.title}</h1>
       <p>{data.message || '当前配置与服务状态'}</p>
     </header>
@@ -39,7 +48,10 @@ const Overview = ({ data }: TemplateProps<OverviewData>) => (
             <Icon icon={fields[label].icon} ssr aria-hidden />
             {label}
           </dt>
-          <dd className={`snapshot-${fields[label].style}`}>
+          <dd
+            className={`snapshot-${fields[label].style}`}
+            data-empty={value === '无' || value === '未设置'}
+          >
             {label === '音卡签名服务' && (
               <span className="snapshot-switch" data-on={value === '开启'} aria-hidden>
                 <span />
