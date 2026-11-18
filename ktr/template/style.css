@@ -285,7 +285,7 @@ body {
   padding: 10px 15px;
   border-radius: 14px;
   background: #eef1f25c;
-  box-shadow: inset 0 1px 0 #ffffff65;
+  border: 1px solid #91a6b4;
 }
 .snapshot-select > span {
   flex: 1;
