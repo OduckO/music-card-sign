@@ -5,7 +5,7 @@ export type FormConfig = Omit<Config, 'platforms' | 'testMusic'> & {
     platforms: string;
     testMusic: string;
     platformEntries: PlatformRow[];
-    testSong: MusicForm | null;
+    testSong: MusicForm;
     targetFriend: Array<string | number>;
 };
 export declare const editorSchemas: (platformOptions: Array<{

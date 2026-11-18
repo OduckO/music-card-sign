@@ -1,4 +1,8 @@
 import type { MusicRequest, PlatformInput } from '../../types/index.js';
+export declare const musicSourceOptions: {
+    label: string;
+    value: string;
+}[];
 export interface PlatformRow extends PlatformInput {
     name: string;
     originalName?: string;

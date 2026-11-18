@@ -13,7 +13,7 @@ export declare function supportGuoba(): {
         icon: string;
     };
     configInfo: {
-        schemas: import("trss-yunzai/guoba").Schema<"timeoutMs" | "botId" | "targetId" | "defaultPlatform" | "apiKey" | "path" | "enabled" | "localPort" | "platforms" | "testMusic" | "platformEntries" | "testSong" | "targetFriend">[];
+        schemas: import("trss-yunzai/guoba").Schema<"timeoutMs" | "botId" | "targetId" | "defaultPlatform" | "apiKey" | "path" | "enabled" | "localPort" | "platforms" | "testMusic" | "platformEntries" | "targetFriend" | "testSong.type" | "testSong.id" | "testSong.platform" | "testSong.title" | "testSong.singer" | "testSong.url" | "testSong.audio" | "testSong.image" | "testSong.mode">[];
         getConfigData(): {
             targetFriend: never[];
             platformEntries: import("../music-card-sign/config-form.js").PlatformRow[];
