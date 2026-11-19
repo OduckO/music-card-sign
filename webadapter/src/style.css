@@ -55,7 +55,7 @@ pre:focus-visible {
 }
 .panel {
   max-width: 1280px;
-  padding: 0 max(36px, env(safe-area-inset-right)) max(26px, env(safe-area-inset-bottom))
+  padding: 0 max(36px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
     max(36px, env(safe-area-inset-left));
   margin: 0 auto;
 }
@@ -888,13 +888,16 @@ pre {
 .panel-footer {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 20px;
-  margin-top: 34px;
-  padding-top: 20px;
+  margin-top: 8px;
   font-size: 12px;
   color: var(--muted);
 }
 .panel-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   text-decoration: none;
 }
 .panel-footer a:hover {
@@ -1086,7 +1089,8 @@ pre {
   }
   .panel-footer {
     flex-direction: column;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
