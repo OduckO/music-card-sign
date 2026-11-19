@@ -149,14 +149,21 @@ body {
 .command-copy {
   min-width: 0;
 }
-.command-status {
-  grid-column: 1 / -1;
-  align-items: center;
+.menu-group:has(.command-status) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 36px;
 }
-.command-status .command-copy {
-  display: flex;
+.menu-group:has(.command-status) .group-heading {
+  margin: 0;
+}
+.menu-group:has(.command-status) .command-list {
+  display: contents;
+}
+.command-status {
+  grid-column: 2;
+  grid-row: 1;
   align-items: center;
-  gap: 24px;
 }
 .command code {
   display: block;
@@ -182,9 +189,6 @@ body {
   font-size: 15px;
   line-height: 1.6;
   margin: 7px 0 0;
-}
-.command-status p {
-  margin: 0;
 }
 .menu-group:first-child .command:first-child {
   grid-column: 1 / -1;
@@ -252,6 +256,9 @@ body {
 }
 .api-note > div {
   min-width: 0;
+}
+.api-note > div:last-child {
+  padding-left: 24px;
 }
 .api-heading {
   display: flex;
