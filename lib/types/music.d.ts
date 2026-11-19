@@ -206,7 +206,7 @@ export interface HttpOptions {
 export interface HttpRequest extends IncomingMessage {
     body?: unknown;
 }
-export type CommandEvent = Pick<CustomEvent, 'msg' | 'reply'> & Partial<Pick<CustomEvent, 'self_id'>> & {
+export type CommandEvent = Pick<CustomEvent, 'msg' | 'reply'> & Partial<Pick<CustomEvent, 'self_id' | 'isMaster'>> & {
     group_id?: string | number;
     user_id?: string | number;
     bot?: {

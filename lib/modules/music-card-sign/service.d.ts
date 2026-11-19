@@ -1,5 +1,6 @@
-import type { CommandEvent, Config, MusicEvent, MusicRequest, SignOptions } from '../../types/index.js';
+import type { AccountOption, CommandEvent, Config, MusicEvent, MusicRequest, SignOptions } from '../../types/index.js';
 export declare const getSigningBots: () => import("../../types/index.js").IcqqBot[];
+export declare const getCommandBots: () => AccountOption[];
 export declare function getSigningFriends(botId: string): {
     botId: string;
     friends: {

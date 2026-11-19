@@ -1,4 +1,17 @@
 import type { MusicRequest, PlatformInput } from '../../types/index.js';
+export declare const commandBotModes: ({
+    label: string;
+    value: "off";
+    description: string;
+} | {
+    label: string;
+    value: "blacklist";
+    description: string;
+} | {
+    label: string;
+    value: "whitelist";
+    description: string;
+})[];
 export declare const musicSourceOptions: {
     label: string;
     value: string;

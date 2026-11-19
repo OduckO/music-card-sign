@@ -3,6 +3,9 @@ export interface Config {
     enabled: boolean;
     botId: string;
     targetId: string;
+    commandBotMode: 'off' | 'blacklist' | 'whitelist';
+    commandBotBlacklist: string[];
+    commandBotWhitelist: string[];
     defaultPlatform: string;
     path: string;
     timeoutMs: number;
