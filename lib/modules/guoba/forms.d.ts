@@ -1,7 +1,8 @@
 import type { Schemas } from 'trss-yunzai/guoba';
 import type { Config } from '../../types/index.js';
 import { type MusicForm, type PlatformRow } from '../music-card-sign/config-form.js';
-export type FormConfig = Omit<Config, 'platforms' | 'testMusic'> & {
+export type FormConfig = Omit<Config, 'platforms' | 'testMusic' | 'timeoutMs'> & {
+    timeoutSeconds: number;
     platforms: string;
     testMusic: string;
     platformEntries: PlatformRow[];

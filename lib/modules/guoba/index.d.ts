@@ -13,8 +13,9 @@ export declare function supportGuoba(): {
         icon: string;
     };
     configInfo: {
-        schemas: import("trss-yunzai/guoba").Schema<"timeoutMs" | "botId" | "targetId" | "defaultPlatform" | "apiKey" | "path" | "enabled" | "commandBotMode" | "commandBotBlacklist" | "commandBotWhitelist" | "localPort" | "platforms" | "testMusic" | "platformEntries" | "targetFriend" | "testSong.type" | "testSong.id" | "testSong.platform" | "testSong.title" | "testSong.singer" | "testSong.url" | "testSong.audio" | "testSong.image" | "testSong.mode">[];
+        schemas: import("trss-yunzai/guoba").Schema<"botId" | "targetId" | "defaultPlatform" | "apiKey" | "path" | "enabled" | "commandBotMode" | "commandBotBlacklist" | "commandBotWhitelist" | "localPort" | "platforms" | "testMusic" | "platformEntries" | "timeoutSeconds" | "targetFriend" | "testSong.type" | "testSong.id" | "testSong.platform" | "testSong.title" | "testSong.singer" | "testSong.url" | "testSong.audio" | "testSong.image" | "testSong.mode">[];
         getConfigData(): {
+            timeoutSeconds: number;
             targetFriend: never[];
             platformEntries: import("../music-card-sign/config-form.js").PlatformRow[];
             testSong: import("../music-card-sign/config-form.js").MusicForm;
@@ -28,7 +29,6 @@ export declare function supportGuoba(): {
             commandBotWhitelist: string[];
             defaultPlatform: string;
             path: string;
-            timeoutMs: number;
             localPort: number;
             apiKey: string;
         };
