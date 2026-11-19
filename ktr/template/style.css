@@ -103,7 +103,7 @@ body {
   display: flex;
   align-items: center;
   gap: 18px;
-  margin-bottom: 25px;
+  margin-bottom: 24px;
 }
 .group-heading h2 {
   margin: 0;
@@ -116,14 +116,14 @@ body {
 }
 .group-heading p {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.7;
   color: var(--muted);
 }
 .command-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 26px 36px;
+  gap: 24px 36px;
   padding: 0;
 }
 .command {
@@ -149,6 +149,15 @@ body {
 .command-copy {
   min-width: 0;
 }
+.command-status {
+  grid-column: 1 / -1;
+  align-items: center;
+}
+.command-status .command-copy {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
 .command code {
   display: block;
   font-family: inherit;
@@ -170,9 +179,12 @@ body {
 }
 .command p {
   color: var(--muted);
-  font-size: 14px;
-  line-height: 1.65;
+  font-size: 15px;
+  line-height: 1.6;
   margin: 7px 0 0;
+}
+.command-status p {
+  margin: 0;
 }
 .menu-group:first-child .command:first-child {
   grid-column: 1 / -1;

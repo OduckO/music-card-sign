@@ -11,6 +11,7 @@ import refresh from '@iconify-icons/solar/refresh-bold-duotone'
 import restart from '@iconify-icons/solar/restart-bold-duotone'
 import history from '@iconify-icons/solar/history-bold-duotone'
 import music from '@iconify-icons/solar/music-notes-bold-duotone'
+import clock from '@iconify-icons/solar/clock-circle-bold-duotone'
 import { helpGroups, type HelpData } from '../../../../src/modules/music-card-sign/help-data'
 
 const powerOn = {
@@ -35,6 +36,7 @@ const commandIcons = {
   '#设置音乐签名平台 <平台名>': platform,
   '#开启音乐签名服务': powerOn,
   '#关闭音乐签名服务': powerOff,
+  '#设置音乐签名超时 <秒>': clock,
   '#音乐签名更新': refresh,
   '#音乐签名强制更新': restart,
   '#音乐签名更新日志': history
@@ -44,7 +46,7 @@ const Help = ({ data }: TemplateProps<HelpData>) => (
   <main className="help-poster">
     <header className="hero">
       <h1>音乐签名使用帮助</h1>
-      <p className="hero-caption">先用 #音之测测 检查签名与发卡。</p>
+      <p className="hero-caption">测试发卡、服务设置与更新维护</p>
       <span className="help-emblem" aria-hidden>
         <Icon icon={music} ssr />
       </span>
@@ -59,7 +61,7 @@ const Help = ({ data }: TemplateProps<HelpData>) => (
           <div className="command-list">
             {group.commands.map(([command, description]) => (
               <div
-                className="command"
+                className={command === '#音乐签名状态' ? 'command command-status' : 'command'}
                 key={command}
                 data-service={
                   command === '#开启音乐签名服务'

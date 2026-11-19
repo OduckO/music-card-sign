@@ -82,6 +82,7 @@ test('受限 Bot 的全部聊天指令静默，HTTP、Handler 和允许的 OneBo
     'setBot',
     'setTarget',
     'setPlatform',
+    'setTimeout',
     'update'
   ] as const)
     assert.equal(await manageApp[method](event), true, method)
@@ -90,7 +91,7 @@ test('受限 Bot 的全部聊天指令静默，HTTP、Handler 和允许的 OneBo
   assert.equal(replies.length, 0)
   assert.equal(cards.length, 0)
   assert.equal(await readFile(join(hostRoot, 'config/music-card-sign.yaml'), 'utf8'), original)
-  assert.equal(logs.filter(({ message }) => message.includes('已静默忽略')).length, 9)
+  assert.equal(logs.filter(({ message }) => message.includes('已静默忽略')).length, 10)
 
   const request = {
     type: 'custom',
@@ -145,6 +146,7 @@ test('允许的 Bot 对非主人静默拒绝所有管理与发卡指令，只在
     'setBot',
     'setTarget',
     'setPlatform',
+    'setTimeout',
     'update'
   ] as const)
     assert.equal(await manageApp[method](event), true, method)
@@ -153,6 +155,6 @@ test('允许的 Bot 对非主人静默拒绝所有管理与发卡指令，只在
   assert.equal(cards.length, 0)
   assert.equal(await readFile(join(hostRoot, 'config/music-card-sign.yaml'), 'utf8'), original)
   const denied = logs.filter(({ message }) => message.includes('已静默忽略'))
-  assert.equal(denied.length, 8)
+  assert.equal(denied.length, 9)
   assert.ok(denied.every(({ level, message }) => level === 'warn' && /仅主人可执行/.test(message)))
 })

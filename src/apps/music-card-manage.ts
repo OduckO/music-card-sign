@@ -25,6 +25,7 @@ export class MusicCardManage extends plugin<'message'> {
           reg: '^#设置音乐签名联系人(?:\\s+[\\s\\S]+)?$',
           fnc: 'setTarget'
         },
+        { reg: '^#设置音乐签名超时(?:\\s+[\\s\\S]+)?$', fnc: 'setTimeout' },
         {
           reg: '^#音乐签名(?:强制更新|更新(?:日志)?)$',
           fnc: 'update'
@@ -55,6 +56,10 @@ export class MusicCardManage extends plugin<'message'> {
 
   setPlatform(e: CommandEvent) {
     return runCommand('setPlatform', e)
+  }
+
+  setTimeout(e: CommandEvent) {
+    return runCommand('setTimeout', e)
   }
 
   update(e: CommandEvent) {

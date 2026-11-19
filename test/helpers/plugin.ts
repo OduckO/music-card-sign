@@ -66,6 +66,7 @@ export interface FixtureManageApp extends FixtureApp {
   setBot: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setTarget: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setPlatform: (event: FixtureCommandEvent<string>) => Promise<boolean>
+  setTimeout: (event: FixtureCommandEvent<string>) => Promise<boolean>
   update: (event: FixtureCommandEvent) => Promise<boolean>
   status: (
     event: Pick<FixtureCommandEvent<string>, 'reply'> & Partial<FixtureCommandEvent<string>>
