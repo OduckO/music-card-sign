@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Button } from '@heroui/react/button'
 import { Select } from '@heroui/react/select'
 import { ListBox } from '@heroui/react/list-box'
@@ -63,17 +63,20 @@ export const PlatformEditor = ({
   rows,
   onChange,
   previous,
-  showErrors
+  showErrors,
+  action
 }: {
   rows: PlatformRow[]
   onChange: (rows: PlatformRow[]) => void
   previous: Record<string, PlatformInput>
   showErrors: boolean
+  action?: ReactNode
 }) => (
   <Section
     icon={layers}
     title="自定义平台"
     description="每个平台填写三项应用信息；只有 appid 必填。"
+    action={action}
   >
     <div className="platform-entries wide">
       {rows.map((row, index) => {
@@ -145,13 +148,15 @@ export const MusicEditor = ({
   onChange,
   previous,
   platforms,
-  showErrors
+  showErrors,
+  action
 }: {
   value: MusicForm
   onChange: (value: MusicForm) => void
   previous: MusicRequest
   platforms: string[]
   showErrors: boolean
+  action?: ReactNode
 }) => {
   const update = (key: keyof MusicForm, next: string) => onChange({ ...value, [key]: next })
   const errors = showErrors ? musicFormErrors(value) : {}
@@ -159,7 +164,12 @@ export const MusicEditor = ({
     () => !musicSourceOptions.some((item) => item.value === value.type)
   )
   return (
-    <Section icon={music} title="测试歌曲" description="供 #音之测测 使用，也可在请求页载入。">
+    <Section
+      icon={music}
+      title="测试歌曲"
+      description="供 #音之测测 使用，也可在请求页载入。"
+      action={action}
+    >
       <Select
         selectedKey={value.mode}
         onSelectionChange={(key) => {

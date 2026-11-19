@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import express from 'express'
+import type ConfigModule from '../src/config'
+import type * as ServiceModule from '../src/modules/music-card-sign/service'
 import type { PageContext } from '../src/modules/web'
 import type { PanelState, SignResult } from '../webadapter/src/types'
 import { fixture } from './helpers/plugin'
@@ -189,3 +191,53 @@ for (const host of ['qqbot-web', 'guoba'] as const) {
     assert.match((await disabled.json()).error, /未开启/)
   })
 }
+
+test('保存响应名单与测试歌曲不会关闭服务或中断正在等待的音卡', async (t) => {
+  const release = Promise.withResolvers<void>()
+  t.after(() => release.resolve())
+  const { directory, instance, bot, hostRoot } = await fixture(t)
+  const { updateSettings, getServiceStatus } = (await import(
+    pathToFileURL(join(directory, 'lib/modules/music-card-sign/service.js')).href
+  )) as typeof ServiceModule
+  const settings = (await import(pathToFileURL(join(directory, 'lib/config/index.js')).href)) as {
+    default: typeof ConfigModule
+  }
+  const submitted = Promise.withResolvers<void>()
+  const pickFriend = bot.pickFriend
+  bot.pickFriend = (id) => ({
+    share: async (content, platform) => {
+      submitted.resolve()
+      await release.promise
+      return pickFriend(id).share(content, platform)
+    }
+  })
+  const result = instance
+    .signCard(
+      {},
+      { type: 'custom', title: '等待名单保存', url: 'https://example.com/song' },
+      (message) => {
+        throw new Error(message)
+      }
+    )
+    .catch((error: unknown) => error)
+  await submitted.promise
+  assert.equal((await getServiceStatus())?.pending, 1)
+  await updateSettings({
+    ...settings.default.config,
+    platforms: structuredClone(settings.default.config.platforms),
+    commandBotMode: 'whitelist',
+    commandBotWhitelist: ['345678901'],
+    testMusic: { type: 'custom', title: '新的测试歌曲', url: 'https://example.com/test-song' }
+  })
+  const status = await getServiceStatus()
+  release.resolve()
+  assert.equal(status?.enabled, true)
+  assert.equal(status?.pending, 1)
+  const card = await result
+  assert.ok(typeof card === 'string')
+  assert.equal(JSON.parse(card).meta.music.title, '等待名单保存')
+  const saved = await readFile(join(hostRoot, 'config/music-card-sign.yaml'), 'utf8')
+  assert.match(saved, /enabled: true/)
+  assert.match(saved, /commandBotMode: whitelist/)
+  assert.equal((await getServiceStatus())?.pending, 0)
+})

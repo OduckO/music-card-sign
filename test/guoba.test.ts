@@ -68,7 +68,7 @@ async function guobaFixture(t: TestContext) {
 }
 
 test('锅巴 Bot 名单多选覆盖所有在线适配器，模式说明和空白名单提醒完整，切换立即生效', async (t) => {
-  const { guoba: firstGuoba, directory, bot, testApp, configPath, logs } = await guobaFixture(t)
+  const { guoba: firstGuoba, bot, testApp, configPath, logs } = await guobaFixture(t)
   const receiverId = '345678901'
   Object.assign(Bot, {
     uin: [bot.uin, Number(receiverId), 456789012],
@@ -80,10 +80,7 @@ test('锅巴 Bot 名单多选覆盖所有在线适配器，模式说明和空白
       .isOk,
     true
   )
-  const module = (await import(pathToFileURL(join(directory, 'guoba.support.js')).href)) as {
-    supportGuoba: typeof supportGuoba
-  }
-  const info = module.supportGuoba().configInfo
+  const info = firstGuoba.configInfo
   const modeSchema = info.schemas.find(({ field }) => field === 'commandBotMode')
   assert.equal(modeSchema?.component, 'Select')
   assert.match(String(modeSchema?.bottomHelpMessage), /关闭限制.*黑名单.*白名单/s)
@@ -93,6 +90,8 @@ test('锅巴 Bot 名单多选覆盖所有在线适配器，模式说明和空白
     assert.equal(schema?.component, 'Select')
     assert.partialDeepStrictEqual(schema?.componentProps, {
       mode: 'multiple',
+      showSearch: true,
+      optionFilterProp: 'label',
       options: [
         { value: String(bot.uin), label: '签名账号 · ICQQ（123456789）' },
         { value: receiverId, label: '转发账号 · OneBotv11（345678901）' },

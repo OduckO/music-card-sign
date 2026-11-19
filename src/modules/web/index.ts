@@ -97,7 +97,7 @@ export function init(ctx: PageContext) {
   register('post', '/config', async (body) => {
     const patch = configPatch(objectBody(body))
     await updateSettings(patch)
-    return { message: '设置已保存，服务配置已重新加载' }
+    return { message: '设置已保存并生效' }
   })
 
   register('post', '/sign', async (body) => {

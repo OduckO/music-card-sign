@@ -6,6 +6,7 @@ import { Spinner } from '@heroui/react/spinner'
 import { Icon } from '@iconify/react'
 import musicNotes from '@iconify-icons/solar/music-notes-bold-duotone'
 import settingsIcon from '@iconify-icons/solar/settings-bold-duotone'
+import saveIcon from '@iconify-icons/solar/diskette-bold-duotone'
 import { SpiralBackdrop } from '../../ktr/template/components/SpiralBackdrop'
 import { Settings } from './Settings'
 import { Sign } from './Sign'
@@ -29,6 +30,7 @@ const App = () => {
   const [state, setState] = useState<PanelState | null>(null)
   const [error, setError] = useState('')
   const [tab, setTab] = useState('settings')
+  const [saving, setSaving] = useState(false)
   const load = async () => {
     setState(await api<PanelState>('/config'))
   }
@@ -53,9 +55,23 @@ const App = () => {
             音乐签名<small>music-card-sign</small>
           </span>
         </div>
-        <span role="status" className={`service-state ${state?.status.enabled ? 'online' : ''}`}>
-          {state ? (state.status.enabled ? '签名服务已开启' : '签名服务未开启') : '正在连接服务…'}
-        </span>
+        <div className="topbar-actions">
+          <span role="status" className={`service-state ${state?.status.enabled ? 'online' : ''}`}>
+            {state ? (state.status.enabled ? '签名服务已开启' : '签名服务未开启') : '正在连接服务…'}
+          </span>
+          {state && tab === 'settings' && !error && (
+            <Button
+              type="submit"
+              form="music-card-settings"
+              isDisabled={saving}
+              aria-busy={saving}
+              className="save-button"
+            >
+              {saving ? <Spinner size="sm" /> : <Icon icon={saveIcon} aria-hidden />}
+              {saving ? '正在保存…' : '保存设置'}
+            </Button>
+          )}
+        </div>
       </header>
       <section className="panel-heading">
         <SpiralBackdrop wide />
@@ -119,7 +135,7 @@ const App = () => {
             </Tabs.List>
           </Tabs.ListContainer>
           <Tabs.Panel id="settings" shouldForceMount hidden={tab !== 'settings'}>
-            <Settings state={state} onSaved={load} />
+            <Settings state={state} onSaved={load} busy={saving} setBusy={setSaving} />
           </Tabs.Panel>
           <Tabs.Panel id="sign" shouldForceMount hidden={tab !== 'sign'}>
             <Sign state={state} />

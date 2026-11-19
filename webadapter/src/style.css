@@ -66,6 +66,11 @@ pre:focus-visible {
   min-height: 94px;
   gap: 20px;
 }
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
 .brand {
   display: flex;
   gap: 12px;
@@ -231,9 +236,12 @@ h1 {
 }
 .settings-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 270px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   align-items: start;
+}
+.panel:has(.tabs__panel:not([hidden]) .settings-savebar) {
+  padding-bottom: max(150px, env(safe-area-inset-bottom));
 }
 .settings-sections {
   display: grid;
@@ -269,6 +277,15 @@ h1 {
 }
 .card__header > div {
   min-width: 0;
+}
+.section-card > .section-action {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding: 0;
+}
+.section-action .save-button {
+  min-width: 112px;
 }
 .card__header .card__description {
   margin-top: 5px;
@@ -329,9 +346,14 @@ h1 {
   width: 100%;
   min-height: 74px;
   padding: 14px 16px;
+  border: 1px solid #c6d4df;
   border-radius: 14px;
   background: #e9eff3;
   cursor: pointer;
+}
+.switch-row[data-selected='true'] .switch__content {
+  border-color: #9db4c5;
+  background: #e0eaf1;
 }
 .switch-copy {
   display: grid;
@@ -350,7 +372,7 @@ h1 {
   height: 30px;
   border-radius: 20px;
   flex-shrink: 0;
-  background: #718593;
+  background: #82929e;
 }
 .switch-row[data-selected='true'] .switch__control {
   background: var(--accent);
@@ -362,9 +384,10 @@ h1 {
   margin-inline-start: 4px;
   background: #f9fbfc;
   box-shadow: 0 1px 3px #22323c33;
+  transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .switch-row[data-selected='true'] .switch__thumb {
-  margin-inline-start: 28px;
+  transform: translateX(24px);
 }
 .switch-row .switch__content:hover {
   background: #e1eaf0;
@@ -474,46 +497,51 @@ h1 {
     monospace;
   resize: vertical;
 }
-.side-note {
-  position: sticky;
-  top: 24px;
-  padding: 26px 23px;
-  background: #dce6ed;
+.settings-savebar {
+  position: fixed;
+  z-index: 20;
+  inset-inline: max(36px, env(safe-area-inset-left)) max(36px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  max-width: 1208px;
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 20px;
+  background: var(--surface);
   border: 1px solid #c6d4df;
-  border-radius: var(--radius-panel);
+  border-radius: 22px;
+  box-shadow: 0 8px 24px #253a4b16;
 }
-.side-note h3 {
-  font-size: 18px;
+.save-copy {
+  flex: 1;
+  min-width: 0;
+}
+.save-copy strong {
+  font-size: 14px;
   font-weight: 700;
-  margin: 0 0 14px;
 }
-.side-note p {
-  font-size: 14px;
-  line-height: 1.85;
-  color: #4c6171;
-}
-.status-list {
-  display: grid;
-  gap: 8px;
-  padding: 20px 0;
-  margin-top: 20px;
-  font-size: 14px;
-}
-.status-list span {
-  color: #4c6171;
+.save-feedback {
+  margin: 5px 0 0;
+  color: var(--muted);
   font-size: 13px;
-}
-.status-list strong {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
   overflow-wrap: anywhere;
+  max-height: 5em;
+  overflow-y: auto;
 }
-.status-list strong + span {
-  margin-top: 12px;
+.save-feedback.error {
+  color: #943c44;
+}
+.save-feedback.success {
+  color: #355e51;
 }
 .save-button {
-  width: 100%;
-  margin-top: 14px;
+  flex-shrink: 0;
+  min-width: 144px;
+}
+.settings-sections :is(input, textarea, button) {
+  scroll-margin-block: 24px 170px;
 }
 .panel .button {
   border: 1px solid transparent;
@@ -801,9 +829,8 @@ pre {
   .panel {
     padding: 0 22px 20px;
   }
-  .settings-layout {
-    grid-template-columns: minmax(0, 1fr) 230px;
-    gap: 18px;
+  .settings-savebar {
+    inset-inline: max(22px, env(safe-area-inset-left)) max(22px, env(safe-area-inset-right));
   }
   .panel-heading {
     grid-template-columns: 1fr;
@@ -822,21 +849,6 @@ pre {
     grid-template-columns: 1fr;
   }
 }
-@media (max-width: 740px) {
-  .settings-layout {
-    grid-template-columns: 1fr;
-  }
-  .side-note {
-    position: static;
-  }
-  .status-list {
-    grid-template-columns: auto 1fr;
-    gap: 12px;
-  }
-  .status-list strong + span {
-    margin-top: 0;
-  }
-}
 @media (max-width: 560px) {
   :root {
     --radius-panel: 24px;
@@ -847,6 +859,13 @@ pre {
   }
   .panel-topbar {
     min-height: 80px;
+    padding-block: 12px;
+    gap: 12px;
+  }
+  .topbar-actions {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
   }
   .brand {
     font-size: 15px;
@@ -910,6 +929,16 @@ pre {
   .fields {
     grid-template-columns: 1fr;
   }
+  .settings-savebar {
+    inset-inline: max(14px, env(safe-area-inset-left)) max(14px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    gap: 12px;
+    padding: 14px;
+    border-radius: 18px;
+  }
+  .save-button {
+    min-width: 120px;
+  }
   .workspace-tabs .tabs__tab,
   .fields .input,
   .fields .select__trigger {
@@ -933,7 +962,8 @@ pre {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .panel .button {
+  .panel .button,
+  .switch-row .switch__thumb {
     transition: none;
   }
   .panel .button:active {

@@ -1,6 +1,7 @@
 import config from '@/config'
 import { PluginPath } from '@/dir'
 import path from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 import type {
   AccountOption,
   BotAdapter,
@@ -152,16 +153,33 @@ export function updateSettings(patch: Partial<Config>) {
       patch.platforms ?? settings.platforms,
       patch.defaultPlatform ?? settings.defaultPlatform
     )
+    const restart = (
+      [
+        'enabled',
+        'botId',
+        'targetId',
+        'timeoutMs',
+        'path',
+        'apiKey',
+        'localPort',
+        'defaultPlatform',
+        'platforms'
+      ] as const
+    ).some((key) => Object.hasOwn(patch, key) && !isDeepStrictEqual(patch[key], settings[key]))
     const previous = { ...settings }
     Object.assign(settings, patch)
     try {
-      await stop()
-      await start()
+      if (restart) {
+        await stop()
+        await start()
+      }
       await config.configSave()
     } catch (error) {
       Object.assign(settings, previous)
-      await stop()
-      await start()
+      if (restart) {
+        await stop()
+        await start()
+      }
       throw error
     }
   })

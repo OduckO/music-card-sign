@@ -112,11 +112,13 @@ export const Section = ({
   title,
   description,
   icon,
+  action,
   children
 }: {
   title: string
   description: string
   icon: IconifyIcon
+  action?: ReactNode
   children: ReactNode
 }) => (
   <Card className="section-card">
@@ -128,5 +130,6 @@ export const Section = ({
       </div>
     </Card.Header>
     <Card.Content className="fields">{children}</Card.Content>
+    {action && <Card.Footer className="section-action">{action}</Card.Footer>}
   </Card>
 )

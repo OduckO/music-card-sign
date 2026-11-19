@@ -26,18 +26,22 @@ import {
 
 export const Settings = ({
   state,
-  onSaved
+  onSaved,
+  busy,
+  setBusy
 }: {
   state: PanelState
   onSaved: () => Promise<void>
+  busy: boolean
+  setBusy: (value: boolean) => void
 }) => {
-  const [settings, setSettings] = useState(state.config)
+  const [changes, setChanges] = useState<Partial<PanelState['config']>>({})
+  const settings = { ...state.config, ...changes }
   const [platforms, setPlatforms] = useState(() => platformRows(settings.platforms))
   const [testMusic, setTestMusic] = useState(() => musicForm(settings.testMusic))
   const [showErrors, setShowErrors] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [clearKey, setClearKey] = useState(false)
-  const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<{ error: boolean; text: string } | null>(null)
   const [friends, setFriends] = useState<FriendList | null>(null)
   const [friendError, setFriendError] = useState('')
@@ -47,7 +51,7 @@ export const Settings = ({
       ? state.accounts[0].id
       : ''
   const patch = <Key extends keyof typeof settings>(key: Key, value: (typeof settings)[Key]) =>
-    setSettings((previous) => ({ ...previous, [key]: value }))
+    setChanges((previous) => ({ ...previous, [key]: value }))
   const commandBots = [
     ...state.commandBots,
     ...[...new Set([...settings.commandBotBlacklist, ...settings.commandBotWhitelist])]
@@ -98,7 +102,7 @@ export const Settings = ({
     setNotice(null)
     try {
       const result = await api<{ message: string }>('/config', {
-        ...settings,
+        ...changes,
         platforms: platformsFromRows(platforms, settings.platforms),
         testMusic: musicFromForm(testMusic, settings.testMusic),
         ...(clearKey ? { apiKey: '' } : apiKey ? { apiKey } : {})
@@ -106,6 +110,7 @@ export const Settings = ({
       setApiKey('')
       setClearKey(false)
       await onSaved()
+      setChanges({})
       setNotice({ error: false, text: result.message })
     } catch (error) {
       setNotice({ error: true, text: error instanceof Error ? error.message : String(error) })
@@ -114,13 +119,35 @@ export const Settings = ({
     }
   }
 
+  const saveButton = (
+    <Button
+      type="submit"
+      variant="secondary"
+      isDisabled={busy}
+      aria-busy={busy}
+      className="save-button"
+    >
+      {busy ? <Spinner size="sm" /> : <Icon icon={saveIcon} aria-hidden />}
+      {busy ? '正在保存…' : '保存设置'}
+    </Button>
+  )
+
   return (
-    <div className="settings-layout">
-      <div className="settings-sections">
+    <form
+      id="music-card-settings"
+      className="settings-layout"
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault()
+        void save()
+      }}
+    >
+      <div className="settings-sections" inert={busy}>
         <Section
           icon={settingsIcon}
           title="签名服务"
           description="使用已登录的 icqq 账号生成音卡。"
+          action={saveButton}
         >
           <Switch
             isSelected={settings.enabled}
@@ -130,7 +157,7 @@ export const Settings = ({
             <Switch.Content>
               <div className="switch-copy">
                 <Label>启用音卡签名</Label>
-                <Description>关闭后停止处理新的签名请求。</Description>
+                <Description>保存后生效；关闭后停止处理新的签名请求。</Description>
               </div>
               <span className="switch-state" aria-hidden>
                 {settings.enabled ? '已开启' : '已关闭'}
@@ -197,6 +224,7 @@ export const Settings = ({
           icon={settingsIcon}
           title="聊天指令响应"
           description="只控制接收指令的 Bot。签名账号、HTTP 和 Handler 不受名单影响。"
+          action={saveButton}
         >
           <Select
             className="wide"
@@ -227,35 +255,37 @@ export const Settings = ({
           </Select>
           {(
             [
-              ['commandBotBlacklist', '黑名单 Bot', '仅黑名单模式生效；选中的 Bot 全部静默。'],
-              ['commandBotWhitelist', '白名单 Bot', '仅白名单模式生效；只有选中的 Bot 可响应。']
+              ['blacklist', 'commandBotBlacklist', '黑名单 Bot', '选中的 Bot 全部静默。'],
+              ['whitelist', 'commandBotWhitelist', '白名单 Bot', '只有选中的 Bot 可响应。']
             ] as const
-          ).map(([field, label, description]) => (
-            <Select
-              key={field}
-              selectionMode="multiple"
-              value={settings[field]}
-              onChange={(keys) => patch(field, keys.map(String))}
-              placeholder="从在线 Bot 中多选"
-            >
-              <Label>{label}</Label>
-              <Select.Trigger>
-                <Select.Value />
-                <Select.Indicator />
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox renderEmptyState={() => '暂无在线 Bot'}>
-                  {commandBots.map(({ id, name }) => (
-                    <ListBox.Item key={id} id={id} textValue={`${name}（${id}）`}>
-                      {name}（{id}）
-                      <ListBox.ItemIndicator />
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-              <Description>{description}切换模式会保留两份名单。</Description>
-            </Select>
-          ))}
+          )
+            .filter(([mode]) => mode === settings.commandBotMode)
+            .map(([, field, label, description]) => (
+              <Select
+                key={field}
+                selectionMode="multiple"
+                value={settings[field]}
+                onChange={(keys) => patch(field, keys.map(String))}
+                placeholder="从在线 Bot 中多选"
+              >
+                <Label>{label}</Label>
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox renderEmptyState={() => '暂无在线 Bot'}>
+                    {commandBots.map(({ id, name }) => (
+                      <ListBox.Item key={id} id={id} textValue={`${name}（${id}）`}>
+                        {name}（{id}）
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+                <Description>{description}切换模式会保留两份名单。</Description>
+              </Select>
+            ))}
           {settings.commandBotMode === 'whitelist' && !settings.commandBotWhitelist.length && (
             <p role="alert" className="feedback error wide">
               白名单为空：保存后本插件全部聊天指令都会静默，包括帮助与设置指令。 请先选择允许响应的
@@ -267,6 +297,7 @@ export const Settings = ({
           icon={server}
           title="HTTP 接口"
           description="外部调用使用此路由；面板操作沿用面板登录鉴权。"
+          action={saveButton}
         >
           <Field
             label="签名路由"
@@ -311,6 +342,7 @@ export const Settings = ({
           onChange={setPlatforms}
           previous={settings.platforms}
           showErrors={showErrors}
+          action={saveButton}
         />
         <MusicEditor
           value={testMusic}
@@ -318,30 +350,24 @@ export const Settings = ({
           previous={settings.testMusic}
           platforms={platformOptions}
           showErrors={showErrors}
+          action={saveButton}
         />
       </div>
-      <aside className="side-note">
-        <h3>保存后即时生效</h3>
-        <p>签名服务会按新配置重新加载。账号、路由与平台的修改会应用到后续请求。</p>
-        <div className="status-list">
-          <span>在线 icqq</span>
-          <strong>{state.accounts.map(({ id }) => id).join('、') || '无'}</strong>
-          <span>默认平台</span>
-          <strong>{state.config.defaultPlatform}</strong>
+      <aside className="settings-savebar" aria-label="设置保存">
+        <div className="save-copy">
+          <strong>保存后即时生效</strong>
+          <p
+            role={notice?.error ? 'alert' : 'status'}
+            className={`save-feedback${notice ? (notice.error ? ' error' : ' success') : ''}`}
+          >
+            {notice?.text || '保存整页修改；名单不影响签名服务开关。'}
+          </p>
         </div>
-        <Button onPress={save} isDisabled={busy} aria-busy={busy} className="save-button">
+        <Button type="submit" isDisabled={busy} aria-busy={busy} className="save-button">
           {busy ? <Spinner size="sm" /> : <Icon icon={saveIcon} aria-hidden />}
           {busy ? '正在保存…' : '保存设置'}
         </Button>
-        {notice && (
-          <p
-            role={notice.error ? 'alert' : 'status'}
-            className={notice.error ? 'feedback error' : 'feedback success'}
-          >
-            {notice.text}
-          </p>
-        )}
       </aside>
-    </div>
+    </form>
   )
 }
