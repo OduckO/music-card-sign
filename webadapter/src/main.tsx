@@ -14,6 +14,19 @@ import { api, request } from './api'
 import type { PanelState } from './types'
 import './style.css'
 
+// 锅巴外层尺寸样式缺失时，避免本页 iframe 回落到浏览器默认的 300 × 150。
+const frame = window.frameElement as HTMLIFrameElement | null
+if (frame) {
+  Object.assign(frame.style, {
+    display: 'block',
+    width: '100%',
+    height: '80dvh',
+    minHeight: '560px',
+    boxSizing: 'border-box',
+    border: '0'
+  })
+}
+
 void Promise.all(
   [
     ['Regular', '400'],
