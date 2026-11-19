@@ -7,5 +7,6 @@ export declare class MusicCardManage extends plugin<'message'> {
     setBot(e: CommandEvent): Promise<boolean>;
     setTarget(e: CommandEvent): Promise<boolean>;
     setPlatform(e: CommandEvent): Promise<boolean>;
+    setTimeout(e: CommandEvent): Promise<boolean>;
     update(e: CommandEvent): Promise<boolean>;
 }
