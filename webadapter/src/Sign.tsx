@@ -11,6 +11,7 @@ import code from '@iconify-icons/solar/code-square-bold-duotone'
 import copyIcon from '@iconify-icons/solar/copy-bold-duotone'
 import check from '@iconify-icons/solar/check-circle-bold-duotone'
 import refresh from '@iconify-icons/solar/refresh-bold-duotone'
+import play from '@iconify-icons/solar/play-bold'
 import type { MusicRequest } from '../../src/types'
 import type { PanelState, SignResult } from './types'
 import { Field, Section } from './components'
@@ -56,71 +57,55 @@ export const Sign = ({ state }: { state: PanelState }) => {
   }
   return (
     <div className="request-layout">
-      <div>
-        <Section
-          icon={send}
-          title="歌曲请求"
-          description="支持自定义歌曲、ID 查询和扩展平台。返回完整签名 JSON。"
-        >
-          <Field label="请求 JSON" value={request} onChange={setRequest} multiline />
-          <Switch isSelected={forceFresh} onChange={setForceFresh} className="switch-row wide">
-            <Switch.Content>
-              <div className="switch-copy">
-                <Label>强制重新签名</Label>
-                <Description>本次请求绕过缓存。</Description>
-              </div>
-              <span className="switch-state" aria-hidden>
-                {forceFresh ? '已开启' : '已关闭'}
-              </span>
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-            </Switch.Content>
-          </Switch>
-          <div className="request-actions wide">
-            <Button
-              variant="secondary"
-              onPress={() => setRequest(JSON.stringify(state.config.testMusic, null, 2))}
-            >
-              <Icon icon={refresh} aria-hidden />
-              载入测试歌曲
-            </Button>
-            <Button
-              className="request-submit"
-              onPress={submit}
-              isDisabled={busy || !state.status.enabled}
-              aria-busy={busy}
-            >
-              {busy ? <Spinner size="sm" /> : <Icon icon={send} aria-hidden />}
-              {busy ? '正在签名…' : '请求音卡'}
-            </Button>
-          </div>
-        </Section>
-        <div className="request-hints">
-          <p>
-            <strong>custom</strong> · title / url 必填；audio、singer、image 可空。
-          </p>
-          <p>
-            <strong>ID 模式</strong> · 提供 type 和 id，由内置或注册的解析器查询。
-          </p>
-          <p>
-            <strong>平台</strong> · _platform 优先；标题末尾标记其次，再识别跳转链接。
-          </p>
-          <p>
-            <strong>缓存</strong> · 完全相同的请求会复用已签名音卡。
-          </p>
+      <Section
+        icon={send}
+        title="歌曲请求"
+        description="支持自定义歌曲、ID 查询和扩展平台。返回完整签名 JSON。"
+      >
+        <Field label="请求 JSON" value={request} onChange={setRequest} multiline />
+        <Switch isSelected={forceFresh} onChange={setForceFresh} className="switch-row wide">
+          <Switch.Content>
+            <div className="switch-copy">
+              <Label>强制重新签名</Label>
+              <Description>本次请求绕过缓存。</Description>
+            </div>
+            <span className="switch-state" aria-hidden>
+              {forceFresh ? '已开启' : '已关闭'}
+            </span>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch.Content>
+        </Switch>
+        <div className="request-actions wide">
+          <Button
+            variant="secondary"
+            onPress={() => setRequest(JSON.stringify(state.config.testMusic, null, 2))}
+          >
+            <Icon icon={refresh} aria-hidden />
+            载入测试歌曲
+          </Button>
+          <Button
+            className="request-submit"
+            onPress={submit}
+            isDisabled={busy || !state.status.enabled}
+            aria-busy={busy}
+          >
+            {busy ? <Spinner size="sm" /> : <Icon icon={send} aria-hidden />}
+            {busy ? '正在签名…' : '请求音卡'}
+          </Button>
         </div>
         {!state.status.enabled && (
-          <p role="status" className="feedback error">
+          <p role="status" className="feedback error wide">
             签名服务未开启，请先到设置页启用。
           </p>
         )}
         {error && (
-          <p role="alert" className="feedback error">
+          <p role="alert" className="feedback error wide">
             {error}
           </p>
         )}
-      </div>
+      </Section>
       <Card className="result-card" aria-busy={busy}>
         <Card.Header>
           <Icon icon={code} aria-hidden className="section-icon" />
@@ -133,29 +118,61 @@ export const Sign = ({ state }: { state: PanelState }) => {
           {result ? (
             <>
               <div className="music-preview">
-                <div className="record-art" aria-hidden="true">
-                  <span />
-                  {music?.preview && (
-                    <img
-                      className="music-cover"
-                      src={music.preview}
-                      alt=""
-                      width={76}
-                      height={76}
-                      data-loaded={coverLoaded}
-                      onLoad={() => setCoverLoaded(true)}
-                      onError={() => setCoverLoaded(false)}
-                    />
-                  )}
-                </div>
-                <div>
-                  <h3>{String(music?.title ?? '音卡')}</h3>
-                  <p>{String(music?.desc ?? '')}</p>
-                  <div className="music-meta">
-                    <span>APPID {String(music?.appid ?? '')}</span>
-                    <span>{result.elapsedMs} ms</span>
+                <div className="music-card-main">
+                  <div className="music-card-copy">
+                    <h3>{music?.title ?? '音卡'}</h3>
+                    <p>{music?.desc}</p>
+                  </div>
+                  <div className="music-artwork">
+                    <div className="record-art" aria-hidden="true">
+                      <span />
+                      {music?.preview && (
+                        <img
+                          className="music-cover"
+                          src={music.preview}
+                          alt=""
+                          width={76}
+                          height={76}
+                          data-loaded={coverLoaded}
+                          onLoad={() => setCoverLoaded(true)}
+                          onError={() => setCoverLoaded(false)}
+                        />
+                      )}
+                    </div>
+                    {music?.musicUrl && (
+                      <a
+                        className="music-play"
+                        href={music.musicUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label="在新窗口打开歌曲音频"
+                        title="在新窗口打开歌曲音频"
+                      >
+                        <Icon icon={play} aria-hidden />
+                      </a>
+                    )}
                   </div>
                 </div>
+                {(music?.tag || music?.tagIcon) && (
+                  <div className="music-platform">
+                    {music.tagIcon && (
+                      <img
+                        src={music.tagIcon}
+                        alt=""
+                        width={18}
+                        height={18}
+                        onError={({ currentTarget }) => {
+                          currentTarget.hidden = true
+                        }}
+                      />
+                    )}
+                    {music.tag && <span>{music.tag}</span>}
+                  </div>
+                )}
+              </div>
+              <div className="music-meta">
+                <span>APPID {music?.appid ?? '—'}</span>
+                <span>签名耗时 {result.elapsedMs} ms</span>
               </div>
               <div className="result-toolbar">
                 <span>原始 JSON</span>
@@ -185,6 +202,24 @@ export const Sign = ({ state }: { state: PanelState }) => {
           )}
         </Card.Content>
       </Card>
+      <dl className="request-hints" aria-label="请求字段与签名规则">
+        <div>
+          <dt>自定义歌曲</dt>
+          <dd>type 填 custom；title、url 必填，audio、singer、image 可留空。</dd>
+        </div>
+        <div>
+          <dt>ID 查询</dt>
+          <dd>提供 type 和 id，由内置或注册的解析器补全歌曲信息。</dd>
+        </div>
+        <div>
+          <dt>平台选择</dt>
+          <dd>_platform 优先，其次是标题末尾标记，再识别跳转链接。</dd>
+        </div>
+        <div>
+          <dt>缓存复用</dt>
+          <dd>完全相同的请求复用已签名音卡，开启强制签名可跳过缓存。</dd>
+        </div>
+      </dl>
     </div>
   )
 }
