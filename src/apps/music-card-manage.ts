@@ -10,28 +10,24 @@ export class MusicCardManage extends plugin<'message'> {
       priority: -10000,
       namespace: 'music-card-manage',
       rule: [
-        { reg: '^#音乐签名(?:帮助)?$', fnc: 'help', permission: 'master' },
-        { reg: '^#音乐签名状态$', fnc: 'status', permission: 'master' },
+        { reg: '^#音乐签名(?:帮助)?$', fnc: 'help' },
+        { reg: '^#音乐签名状态$', fnc: 'status' },
         {
           reg: '^#设置音乐签名平台(?:\\s+[\\s\\S]+)?$',
-          fnc: 'setPlatform',
-          permission: 'master'
+          fnc: 'setPlatform'
         },
         {
           reg: '^#设置音乐签名(?:[Bb][Oo][Tt]|账号)(?:\\s+[\\s\\S]+)?$',
-          fnc: 'setBot',
-          permission: 'master'
+          fnc: 'setBot'
         },
-        { reg: '^#(开启|关闭)音乐签名服务$', fnc: 'toggle', permission: 'master' },
+        { reg: '^#(开启|关闭)音乐签名服务$', fnc: 'toggle' },
         {
           reg: '^#设置音乐签名联系人(?:\\s+[\\s\\S]+)?$',
-          fnc: 'setTarget',
-          permission: 'master'
+          fnc: 'setTarget'
         },
         {
           reg: '^#音乐签名(?:强制更新|更新(?:日志)?)$',
-          fnc: 'update',
-          permission: 'master'
+          fnc: 'update'
         }
       ]
     })

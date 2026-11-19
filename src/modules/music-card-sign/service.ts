@@ -2,6 +2,8 @@ import config from '@/config'
 import { PluginPath } from '@/dir'
 import path from 'node:path'
 import type {
+  AccountOption,
+  BotAdapter,
   BotCandidate,
   CommandEvent,
   Config,
@@ -42,6 +44,25 @@ function getBots() {
 }
 
 export const getSigningBots = () => getBots().flatMap((bot) => nativeBot(bot) ?? [])
+
+export const getCommandBots = (): AccountOption[] =>
+  Array.from(Bot.uin || []).flatMap((id) => {
+    const bot = Bot[id] as (typeof Bot)[number] & BotAdapter & { online?: boolean }
+    if (!bot) return []
+    const sdk = bot.sdk ?? bot
+    if (
+      bot.online === false ||
+      sdk.online === false ||
+      (typeof sdk.isOnline === 'function' && !sdk.isOnline())
+    )
+      return []
+    return [
+      {
+        id: String(id),
+        name: `${bot.nickname || sdk.nickname || id} · ${bot.adapter?.name || '未知适配器'}`
+      }
+    ]
+  })
 
 export function getSigningFriends(botId: string) {
   const bots = getSigningBots()

@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { command, fixture, type FixtureReply } from './helpers/plugin'
 
-test('帮助按需渲染 React 图片，服务尚未初始化时也能使用', async (t) => {
+test('帮助对非主人公开，按需渲染 React 图片且不启动签名服务', async (t) => {
   const { manageApp, screenshots, directory, hostRoot, stack } = await fixture(
     t,
     { defaultPlatform: 'kugou_concept' },
@@ -14,6 +14,7 @@ test('帮助按需渲染 React 图片，服务尚未初始化时也能使用', a
   const replies: FixtureReply[] = []
   const event = {
     ...command('#音乐签名帮助'),
+    isMaster: false,
     reply: async (message: FixtureReply) => {
       replies.push(message)
       return { message_id: [1] }
@@ -55,6 +56,7 @@ test('帮助按需渲染 React 图片，服务尚未初始化时也能使用', a
   assert.doesNotMatch(data.html, /class="spiral-art"/)
   assert.match(data.html, /<h1>音乐签名使用帮助<\/h1>/)
   assert.match(data.html, /class="help-emblem"/)
+  assert.doesNotMatch(data.html, /以下指令仅主人可用|help-permission/)
 })
 
 test('截图失败会返回同一组文字帮助，下一次请求仍能出图', async (t) => {
@@ -92,7 +94,7 @@ test('只保留状态指令，状态图显示当前配置且不泄露 API Key', 
     targetId: '234567890'
   })
   const rule = manageApp.rule.find(({ fnc }) => fnc === 'status')
-  assert.equal(rule?.permission, 'master')
+  assert.equal(rule?.permission, undefined)
   assert.ok(rule && new RegExp(rule.reg).test('#音乐签名状态'))
   assert.ok(!manageApp.rule.some(({ reg }) => new RegExp(reg).test('#音乐签名设置')))
   const replies: FixtureReply[] = []

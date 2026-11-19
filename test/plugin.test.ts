@@ -104,8 +104,8 @@ test('入口仅导入应用类，配置、服务、命令和更新模块按需�
   assert.equal(logs.filter(({ message }) => message.includes('导入完成')).length, 3)
   await assert.rejects(instance.init(), /配置运行模块/)
   await assert.rejects(async () => instance.accept({}), /配置运行模块/)
-  await assert.rejects(testApp.probe(command('#音之测测')), /命令运行模块/)
-  await assert.rejects(manageApp.update(command('#音乐签名更新')), /更新运行模块/)
+  await assert.rejects(testApp.probe(command('#音之测测')), /配置运行模块/)
+  await assert.rejects(manageApp.update(command('#音乐签名更新')), /配置运行模块/)
   assert.equal(stack.length, 0)
 })
 
@@ -176,7 +176,7 @@ test('多个音卡应用由本体统一加载，命令各注册一次且仅服�
   ]) {
     const matched = rules.filter((rule) => new RegExp(rule.reg).test(message))
     assert.equal(matched.length, 1, `${message} 应只注册一次`)
-    assert.equal(matched[0].permission, 'master')
+    assert.equal(matched[0].permission, undefined)
   }
   assert.deepEqual(
     instances.filter((app) => app.handler?.length).map((app) => app.namespace),
@@ -205,6 +205,7 @@ test('云崽 init 挂载服务，主人音卡命令直接发送捕获 JSON，卸
   const { instance, bot, stack, cards, testApp, manageApp } = await fixture(t)
   const replies: FixtureReply[] = []
   const e: FixtureCommandEvent = {
+    isMaster: true,
     self_id: bot.uin,
     msg:
       '#签名音卡 ' +
@@ -291,7 +292,7 @@ test('本次签名回包在 accept 终止后续识别，其他消息和分享照
 test('默认平台指令持久保存并立即用于 Handler，非法平台保留原配置', async (t) => {
   const { instance, cards, hostRoot, manageApp } = await fixture(t, {}, { noScreenshots: true })
   const rule = manageApp.rule.find((entry) => entry.fnc === 'setPlatform')
-  assert.equal(rule?.permission, 'master')
+  assert.equal(rule?.permission, undefined)
   assert.ok(rule && new RegExp(rule.reg).test('#设置音乐签名平台 default'))
   const request = {
     type: 'custom',
@@ -304,7 +305,7 @@ test('默认平台指令持久保存并立即用于 Handler，非法平台保留
     replies.push(message)
     return true
   }
-  await manageApp.setPlatform({ msg: '#设置音乐签名平台', reply })
+  await manageApp.setPlatform({ isMaster: true, msg: '#设置音乐签名平台', reply })
   assert.match(replies.at(-1)!, /用法/)
   for (const [platform, appid] of [
     ['qq', 100497308],
@@ -313,7 +314,7 @@ test('默认平台指令持久保存并立即用于 Handler，非法平台保留
     ['qq', 100497308],
     ['default', 102021671]
   ] as const) {
-    await manageApp.setPlatform({ msg: `#设置音乐签名平台 ${platform}`, reply })
+    await manageApp.setPlatform({ isMaster: true, msg: `#设置音乐签名平台 ${platform}`, reply })
     assert.match(replies.at(-1)!, new RegExp(`已设为 ${platform}`))
     const raw = await instance.signCard({}, request, rejectSign)
     assert.equal(JSON.parse(raw).meta.music.appid, appid)
@@ -323,7 +324,7 @@ test('默认平台指令持久保存并立即用于 Handler，非法平台保留
     assert.equal(yaml.defaultPlatform, platform)
   }
   for (const platform of ['不存在', 'txqq']) {
-    await manageApp.setPlatform({ msg: `#设置音乐签名平台 ${platform}`, reply })
+    await manageApp.setPlatform({ isMaster: true, msg: `#设置音乐签名平台 ${platform}`, reply })
     assert.match(replies.at(-1)!, /设置失败.*未知音卡平台/)
   }
   const raw = await instance.signCard({}, request, rejectSign)
@@ -353,6 +354,7 @@ test('ICQQ 音卡直接使用 Bot SDK 发送到群聊或私聊，不经宿主 re
     return true
   }
   await testApp.probe({
+    isMaster: true,
     self_id: bot.uin,
     group_id: '345678901',
     user_id: '234567890',
@@ -361,7 +363,13 @@ test('ICQQ 音卡直接使用 Bot SDK 发送到群聊或私聊，不经宿主 re
   })
   assert.deepEqual(sent, [{ kind: 'group', id: 345678901, raw: cards[0] }])
   assert.match(replies.at(-1)!, /音之测测通过/)
-  await testApp.probe({ self_id: bot.uin, user_id: '234567890', msg: '#音之测测', reply })
+  await testApp.probe({
+    isMaster: true,
+    self_id: bot.uin,
+    user_id: '234567890',
+    msg: '#音之测测',
+    reply
+  })
   assert.deepEqual(sent.at(-1), { kind: 'private', id: 234567890, raw: cards[1] })
   assert.ok(logs.some(({ message }) => /原生 SDK/.test(message)))
 })
@@ -375,6 +383,7 @@ test('ICQQ SDK 发送失败报告原始错误，不再通过宿主 reply 重发�
   })
   const replies: FixtureReply[] = []
   await testApp.probe({
+    isMaster: true,
     self_id: bot.uin,
     user_id: '234567890',
     msg: '#音之测测',
@@ -419,16 +428,17 @@ test('JiuLi onUnload 释放等待中的回传、监听器和 HTTP 路由', async
   assert.equal(bot.listenerCount('message.private'), 0)
 })
 
-test('音之测测使用默认歌曲，发送完整回包并报告耗时，命令要求主人权限', async (t) => {
+test('音之测测使用默认歌曲，发送完整回包并报告耗时，由入口检查主人身份', async (t) => {
   const { bot, cards, directory, testApp } = await fixture(t)
   const rule = testApp.rule.find((entry) => entry.fnc === 'probe')
-  assert.equal(rule?.permission, 'master')
+  assert.equal(rule?.permission, undefined)
   assert.ok(rule)
   assert.ok(new RegExp(rule.reg).test('#音之测测'))
   assert.ok(new RegExp(rule.reg).test('音之测测'))
   const replies: FixtureReply[] = []
   assert.equal(
     await testApp.probe({
+      isMaster: true,
       self_id: bot.uin,
       msg: '#音之测测',
       reply: async (data) => {
@@ -462,6 +472,7 @@ test('音之测测支持自定义测试歌曲和隐藏平台字段', async (t) =
   }
   const replies: FixtureReply[] = []
   await testApp.probe({
+    isMaster: true,
     self_id: bot.uin,
     msg: '#音之测测 ' + JSON.stringify(data),
     reply: async (reply) => {
@@ -480,6 +491,7 @@ test('音之测测在服务关闭或无在线 icqq 时报告生成失败', async
   const { bot, cards, testApp, manageApp } = await fixture(t)
   const replies: FixtureReply[] = []
   const e: FixtureCommandEvent = {
+    isMaster: true,
     self_id: bot.uin,
     msg: '#音之测测',
     reply: async (data) => {
@@ -492,7 +504,7 @@ test('音之测测在服务关闭或无在线 icqq 时报告生成失败', async
   const offlineReply = replies.at(-1)
   assert.ok(typeof offlineReply === 'string')
   assert.match(offlineReply, /音之测测失败.*生成\/回传.*在线 icqq/)
-  await manageApp.toggle({ msg: '#关闭音乐签名服务', reply: async () => true })
+  await manageApp.toggle({ isMaster: true, msg: '#关闭音乐签名服务', reply: async () => true })
   await testApp.probe(e)
   const disabledReply = replies.at(-1)
   assert.ok(typeof disabledReply === 'string')
@@ -506,6 +518,7 @@ test('音之测测报告回传超时，等待项释放后仍可继续测试', as
   const normal = bot.pickFriend
   bot.pickFriend = () => ({ share: async () => {} })
   const e: FixtureCommandEvent = {
+    isMaster: true,
     self_id: bot.uin,
     msg: '#音之测测',
     reply: async (data) => {
@@ -532,6 +545,7 @@ test('音之测测区分当前会话 JSON 发送失败，不误报通过', async
   const { bot, testApp } = await fixture(t)
   const replies: FixtureReply[] = []
   await testApp.probe({
+    isMaster: true,
     self_id: bot.uin,
     msg: '#音之测测',
     reply: async (data) => {
@@ -550,6 +564,7 @@ test('OneBot v11 会话自动选择 icqq 签名，发送符合协议的完整 JS
   const { bot, cards, logs, testApp } = await fixture(t)
   const replies: FixtureReply[] = []
   await testApp.probe({
+    isMaster: true,
     self_id: 987654321,
     bot: { adapter: { name: 'OneBotv11' } },
     msg: '#音之测测',
@@ -594,6 +609,7 @@ test('OneBot v11 群聊和私聊由配置的 icqq 签名，再由收指令账号
   for (const [index, session] of sessions.entries()) {
     const replies: FixtureReply[] = []
     await testApp.probe({
+      isMaster: true,
       self_id: receiverId,
       ...session,
       msg: '#音之测测 ' + JSON.stringify(music),
@@ -646,6 +662,7 @@ test('另一个 ICQQ 账号收到指令时，由它的 SDK 发回配置账号签
     return true
   }
   await testApp.probe({
+    isMaster: true,
     self_id: receiverId,
     group_id: '345678901',
     user_id: '456789012',
@@ -654,6 +671,7 @@ test('另一个 ICQQ 账号收到指令时，由它的 SDK 发回配置账号签
   })
   assert.match(replies.at(-1)!, /音之测测通过/)
   await testApp.probe({
+    isMaster: true,
     self_id: receiverId,
     user_id: '456789012',
     msg: '#音之测测',
@@ -678,6 +696,7 @@ test('音之测测在等待回传前响应，并记录超时和释放等待项',
     }
   })
   await testApp.probe({
+    isMaster: true,
     self_id: bot.uin,
     msg: '音之测测',
     reply: async (message) => {
@@ -697,6 +716,7 @@ test('OneBot 开始通知没有回执时仍进入签名并发送音卡', async (
   const replies: FixtureReply[] = []
   const notice = Promise.withResolvers<true>()
   const sending = testApp.probe({
+    isMaster: true,
     bot: { adapter: { name: 'OneBotv11' } },
     msg: '#音之测测',
     reply: async (message) => {
@@ -732,6 +752,7 @@ test('音卡收到即转发，测试完成不等待开始通知回执或缓存�
   let completed = false
   const sending = testApp
     .probe({
+      isMaster: true,
       bot: { adapter: { name: 'OneBotv11' } },
       msg: '#音之测测',
       reply: async (message) => {
@@ -765,6 +786,7 @@ test('音卡收到即转发，测试完成不等待开始通知回执或缓存�
 test('测试开始通知抛错时仍签名，错误写入通知日志', async (t) => {
   const { cards, logs, testApp } = await fixture(t)
   await testApp.probe({
+    isMaster: true,
     msg: '#音之测测',
     reply: async (message) => {
       if (typeof message === 'string' && message.includes('音之测测开始'))
@@ -783,6 +805,7 @@ test('音卡发送及失败通知无回执时有等待上限，迟到的失败�
   const failureReply = Promise.withResolvers<true>()
   const replies: FixtureReply[] = []
   const sending = testApp.probe({
+    isMaster: true,
     bot: { adapter: { name: 'OneBotv11' } },
     msg: '#音之测测',
     reply: async (message) => {
@@ -809,6 +832,7 @@ test('测试成功通知无回执时也能结束，保留成功日志', async (t
   const { logs, testApp } = await fixture(t, { timeoutMs: 25 })
   const notice = Promise.withResolvers<true>()
   const sending = testApp.probe({
+    isMaster: true,
     msg: '#音之测测',
     reply: async (message) => {
       if (typeof message === 'string' && message.includes('音之测测通过')) return notice.promise
@@ -836,6 +860,7 @@ test('ICQQ 原生 SDK 发卡没有回执时同样报告发送超时', async (t) 
   })
   const replies: FixtureReply[] = []
   const sending = testApp.probe({
+    isMaster: true,
     self_id: bot.uin,
     user_id: '234567890',
     msg: '#音之测测',
@@ -861,6 +886,7 @@ test('发送失败记录协议端原始错误，失败回复包含详情', async
   const { bot, logs, testApp } = await fixture(t)
   const replies: FixtureReply[] = []
   await testApp.probe({
+    isMaster: true,
     self_id: bot.uin,
     bot: { adapter: { name: 'OneBotv11' } },
     msg: '#音之测测',
@@ -880,6 +906,7 @@ test('未支持的会话适配器明确报告，不能假报音卡发送成功',
   const { bot, testApp } = await fixture(t)
   const replies: FixtureReply[] = []
   await testApp.probe({
+    isMaster: true,
     self_id: bot.uin,
     bot: { adapter: { name: 'QQBot' } },
     msg: '#音之测测',
@@ -1171,6 +1198,7 @@ test('回传失败不写入缓存，音之测测绕过已有缓存检测当前�
   })
   const replies: FixtureReply[] = []
   await testApp.probe({
+    isMaster: true,
     self_id: bot.uin,
     msg: '#音之测测',
     reply: async (data) => {
@@ -1190,7 +1218,7 @@ test('主人设置签名 Bot 后配置持久保存，HTTP 和 Handler 立即使�
     { noScreenshots: true }
   )
   const rule = manageApp.rule.find((entry) => entry.fnc === 'setBot')
-  assert.equal(rule?.permission, 'master')
+  assert.equal(rule?.permission, undefined)
   assert.ok(rule)
   assert.ok(new RegExp(rule.reg).test('#设置音乐签名Bot 123456789'))
   assert.ok(new RegExp(rule.reg).test('#设置音乐签名bot 自动'))
@@ -1199,7 +1227,7 @@ test('主人设置签名 Bot 后配置持久保存，HTTP 和 Handler 立即使�
     replies.push(message)
     return true
   }
-  await manageApp.setBot({ msg: '#设置音乐签名Bot 123456789', reply })
+  await manageApp.setBot({ isMaster: true, msg: '#设置音乐签名Bot 123456789', reply })
   const saved: Config = YAML.parse(
     await readFile(join(directory, '../../config/music-card-sign.yaml'), 'utf8')
   )
@@ -1218,14 +1246,14 @@ test('主人设置签名 Bot 后配置持久保存，HTTP 和 Handler 立即使�
   assert.equal(res.statusCode, 200)
   assert.equal(JSON.parse(res.body).meta.music.title, cachedInput.title)
   await instance.signCard({ self_id: 987654321 }, cachedInput, rejectSign)
-  await manageApp.status({ reply })
+  await manageApp.status({ isMaster: true, reply })
   assert.match(replies.at(-1)!, /签名 Bot  123456789/)
-  await manageApp.setBot({ msg: '#设置音乐签名bot 自动', reply })
+  await manageApp.setBot({ isMaster: true, msg: '#设置音乐签名bot 自动', reply })
   assert.equal(
     YAML.parse(await readFile(join(directory, '../../config/music-card-sign.yaml'), 'utf8')).botId,
     ''
   )
-  await manageApp.status({ reply })
+  await manageApp.status({ isMaster: true, reply })
   assert.match(replies.at(-1)!, /签名 Bot  自动选择/)
 })
 
@@ -1236,18 +1264,18 @@ test('签名 Bot 指令提示用法，参数或保存失败时保留原账号', 
     replies.push(message)
     return true
   }
-  await manageApp.setBot({ msg: '#设置音乐签名Bot', reply })
+  await manageApp.setBot({ isMaster: true, msg: '#设置音乐签名Bot', reply })
   assert.match(replies.at(-1)!, /用法/)
-  await manageApp.setBot({ msg: '#设置音乐签名Bot abc', reply })
+  await manageApp.setBot({ isMaster: true, msg: '#设置音乐签名Bot abc', reply })
   assert.match(replies.at(-1)!, /Bot 号/)
   const write = fs.writeFile
   fs.writeFile = async () => {
     throw new Error('保存失败')
   }
   try {
-    await manageApp.setBot({ msg: '#设置音乐签名Bot 234567890', reply })
+    await manageApp.setBot({ isMaster: true, msg: '#设置音乐签名Bot 234567890', reply })
     assert.match(replies.at(-1)!, /保存失败/)
-    await manageApp.status({ reply })
+    await manageApp.status({ isMaster: true, reply })
     assert.match(replies.at(-1)!, /签名 Bot  123456789/)
   } finally {
     fs.writeFile = write
@@ -1265,7 +1293,7 @@ test('联系人指令保存配置，音之测测使用新联系人并可恢复�
     { noScreenshots: true }
   )
   const rule = manageApp.rule.find((entry) => entry.fnc === 'setTarget')
-  assert.equal(rule?.permission, 'master')
+  assert.equal(rule?.permission, undefined)
   assert.ok(rule)
   assert.ok(new RegExp(rule.reg).test('#设置音乐签名联系人 987654321'))
   const replies: string[] = []
@@ -1273,31 +1301,31 @@ test('联系人指令保存配置，音之测测使用新联系人并可恢复�
     replies.push(message)
   }
   const configPath = join(hostRoot, 'config/music-card-sign.yaml')
-  await manageApp.setTarget({ msg: '#设置音乐签名联系人 987654321', reply })
+  await manageApp.setTarget({ isMaster: true, msg: '#设置音乐签名联系人 987654321', reply })
   assert.match(replies.at(-1)!, /已设为 987654321/)
   assert.equal(YAML.parse(await readFile(configPath, 'utf8')).targetId, '987654321')
   await testApp.probe(command('#音之测测'))
   assert.deepEqual(targets, [987654321])
   assert.ok(logs.some(({ message }) => /接收 QQ=987654321.*提交分享/.test(message)))
-  await manageApp.status({ reply })
+  await manageApp.status({ isMaster: true, reply })
   assert.match(replies.at(-1)!, /接收联系人  987654321/)
   const write = fs.writeFile
   fs.writeFile = async () => {
     throw new Error('保存失败')
   }
   try {
-    await manageApp.setTarget({ msg: '#设置音乐签名联系人 自己', reply })
+    await manageApp.setTarget({ isMaster: true, msg: '#设置音乐签名联系人 自己', reply })
     assert.match(replies.at(-1)!, /保存失败/)
   } finally {
     fs.writeFile = write
   }
   await testApp.probe(command('#音之测测'))
   assert.deepEqual(targets, [987654321, 987654321])
-  await manageApp.setTarget({ msg: '#设置音乐签名联系人', reply })
+  await manageApp.setTarget({ isMaster: true, msg: '#设置音乐签名联系人', reply })
   assert.match(replies.at(-1)!, /用法/)
-  await manageApp.setTarget({ msg: '#设置音乐签名联系人 abc', reply })
+  await manageApp.setTarget({ isMaster: true, msg: '#设置音乐签名联系人 abc', reply })
   assert.match(replies.at(-1)!, /联系人.*QQ/)
-  await manageApp.setTarget({ msg: '#设置音乐签名联系人 自己', reply })
+  await manageApp.setTarget({ isMaster: true, msg: '#设置音乐签名联系人 自己', reply })
   assert.equal(YAML.parse(await readFile(configPath, 'utf8')).targetId, '')
   await testApp.probe(command('#音之测测'))
   assert.equal(targets.at(-1), bot.uin)
@@ -1332,6 +1360,7 @@ test('首次升级迁移旧 JSON 配置并保留原文件', async (t) => {
   )
   const replies: string[] = []
   await manageApp.status({
+    isMaster: true,
     reply: async (message) => {
       replies.push(message)
     }

@@ -6,6 +6,7 @@ import type { HttpRequest, MusicRequest } from '@/types'
 import { readBody } from '@/models/http'
 import { MusicSignError, platforms } from '@/models/music-sign'
 import {
+  getCommandBots,
   getServiceStatus,
   getSigningBots,
   getSigningFriends,
@@ -79,6 +80,7 @@ export function init(ctx: PageContext) {
         id: String(bot.uin),
         name: bot.nickname || String(bot.uin)
       })),
+      commandBots: getCommandBots(),
       platforms: [...new Set([...Object.keys(platforms), ...Object.keys(settings.platforms)])],
       status: (await getServiceStatus()) ?? { enabled: false, bots: [], pending: 0 }
     }

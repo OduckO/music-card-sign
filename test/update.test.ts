@@ -9,7 +9,7 @@ test('更新、强制更新和日志交给本体更新器，仅指定本插件�
   const { hostRoot, directory, bot, logs, manageApp } = await fixture(t)
   assert.equal(typeof manageApp.update, 'function')
   const rule = manageApp.rule.find((entry) => entry.fnc === 'update')
-  assert.equal(rule?.permission, 'master')
+  assert.equal(rule?.permission, undefined)
   assert.ok(rule)
   await mkdir(join(directory, '.git'))
   await mkdir(join(hostRoot, 'plugins/other'))
@@ -71,6 +71,7 @@ test('解压安装的更新请求提示缺少 Git，不调用本体更新器', a
   assert.equal(typeof manageApp.update, 'function')
   const replies: FixtureReply[] = []
   await manageApp.update({
+    isMaster: true,
     msg: '#音乐签名更新',
     reply: async (message) => {
       replies.push(message)
@@ -107,14 +108,14 @@ test('本体拒绝更新时记录日志，未回复则提示，已回复则不�
     }
     Object.defineProperty(e, 'isMaster', { value: isMaster })
     assert.equal(await manageApp.update(e), true)
-    assert.equal(replies.length, 1)
+    assert.equal(replies.length, isMaster ? 1 : 0)
     if (isMaster) assert.equal(replies[0], '正在更新，请稍候再试')
-    else assert.match(String(replies[0]), /本体更新器未执行.*更新/)
+    else assert.ok(logs.some(({ message }) => /静默忽略.*仅主人/.test(message)))
   }
   assert.equal(
     logs.filter(({ level, message }) => level === 'warn' && /本体更新器未执行/.test(message))
       .length,
-    2
+    1
   )
 })
 
@@ -132,6 +133,7 @@ test('本体更新器抛出的错误记录日志，并回到发指令的会话',
   )
   const replies: FixtureReply[] = []
   await manageApp.update({
+    isMaster: true,
     msg: '#音乐签名强制更新',
     reply: async (message) => {
       replies.push(message)
@@ -150,6 +152,7 @@ test('宿主缺少更新器时音卡仍正常启动，执行更新时才报告�
   await mkdir(join(directory, '.git'))
   const replies: FixtureReply[] = []
   await manageApp.update({
+    isMaster: true,
     msg: '#音乐签名更新',
     reply: async (message) => {
       replies.push(message)

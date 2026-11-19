@@ -28,6 +28,7 @@ export type FixtureReply =
 export type FixtureReplyResult = boolean | void | { message_id?: number[]; error?: string[] }
 
 export interface FixtureCommandEvent<Message = FixtureReply> {
+  isMaster?: boolean
   self_id?: string | number
   group_id?: string | number
   user_id?: string | number
@@ -66,7 +67,9 @@ export interface FixtureManageApp extends FixtureApp {
   setTarget: (event: FixtureCommandEvent<string>) => Promise<boolean>
   setPlatform: (event: FixtureCommandEvent<string>) => Promise<boolean>
   update: (event: FixtureCommandEvent) => Promise<boolean>
-  status: (event: Pick<FixtureCommandEvent<string>, 'reply'>) => Promise<boolean>
+  status: (
+    event: Pick<FixtureCommandEvent<string>, 'reply'> & Partial<FixtureCommandEvent<string>>
+  ) => Promise<boolean>
 }
 
 export interface FixtureResponse {
@@ -110,6 +113,7 @@ export interface FixtureHandlers {
 }
 
 export const command = (msg: string): FixtureCommandEvent => ({
+  isMaster: true,
   msg,
   reply: async () => ({ message_id: [1] })
 })

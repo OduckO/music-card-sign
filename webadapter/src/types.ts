@@ -4,6 +4,7 @@ export interface PanelState {
   config: Omit<Config, 'apiKey'>
   hasApiKey: boolean
   accounts: AccountOption[]
+  commandBots: AccountOption[]
   platforms: string[]
   status: { enabled: boolean; bots: string[]; pending: number }
 }

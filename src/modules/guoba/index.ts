@@ -1,8 +1,8 @@
 import config from '@/config'
-import { getSigningBots, updateSettings } from '@/modules/music-card-sign/service'
+import { getCommandBots, getSigningBots, updateSettings } from '@/modules/music-card-sign/service'
 import { configPatch } from '@/modules/music-card-sign/settings'
 import { errorMessage } from '@/utils'
-import { musicForm, platformRows } from '@/modules/music-card-sign/config-form'
+import { commandBotModes, musicForm, platformRows } from '@/modules/music-card-sign/config-form'
 import { applyFormData, editorSchemas, type FormConfig } from './forms'
 import type { Result as GuobaResultType, Schemas, SupportGuoba } from 'trss-yunzai/guoba'
 
@@ -50,6 +50,32 @@ const schemas: Schemas<FormConfig> = [
     component: 'InputNumber',
     componentProps: { min: 1, max: 2147483647, step: 1000 }
   },
+  { component: 'SOFT_GROUP_BEGIN', label: '聊天指令响应' },
+  {
+    field: 'commandBotMode',
+    label: '响应模式',
+    component: 'Select',
+    componentProps: { options: commandBotModes },
+    bottomHelpMessage:
+      commandBotModes.map(({ label, description }) => `${label}：${description}`).join('\n') +
+      '\n只控制接收指令的 Bot，不影响签名账号、HTTP 或 Handler。两份名单分别保存，只有当前模式生效。被拦截的指令会在日志中提示调整名单或关闭限制。'
+  },
+  {
+    field: 'commandBotBlacklist',
+    label: '黑名单 Bot',
+    component: 'Select',
+    componentProps: { mode: 'multiple', placeholder: '选择需要保持静默的 Bot' },
+    bottomHelpMessage:
+      '从框架在线 Bot 中多选，仅黑名单模式使用。选中的 Bot 不执行也不回复本插件任何聊天指令，包括帮助。'
+  },
+  {
+    field: 'commandBotWhitelist',
+    label: '白名单 Bot（空名单会全部静默）',
+    component: 'Select',
+    componentProps: { mode: 'multiple', placeholder: '选择允许响应的 Bot' },
+    bottomHelpMessage:
+      '特别注意：启用白名单但未选择任何 Bot，会让本插件全部聊天指令静默，包括帮助和设置指令。请先选择允许响应的 Bot；若已无法通过指令操作，请在锅巴或 WebUI 将响应模式设为「关闭限制」。HTTP 和 Handler 签名仍可使用。'
+  },
   { component: 'SOFT_GROUP_BEGIN', label: 'HTTP 接口' },
   { field: 'path', label: '签名路由', component: 'Input' },
   {
@@ -82,12 +108,27 @@ const schemas: Schemas<FormConfig> = [
 export function supportGuoba() {
   logger.info('[音卡签名] 锅巴读取插件配置')
   const bots = getSigningBots()
+  const commandBots = getCommandBots()
   const botId = config.config.botId || (bots.length === 1 ? String(bots[0].uin) : '')
   const platformOptions = [
     ...builtinPlatforms,
     ...Object.keys(config.config.platforms).map((name) => ({ label: name, value: name }))
   ].filter((option, index, all) => all.findIndex(({ value }) => value === option.value) === index)
   const accountSchemas = schemas.map((schema) => {
+    if (schema.field === 'commandBotBlacklist' || schema.field === 'commandBotWhitelist') {
+      const saved = config.config[schema.field]
+      return Object.assign({}, schema, {
+        componentProps: {
+          ...schema.componentProps,
+          options: [
+            ...commandBots.map(({ id, name }) => ({ value: id, label: `${name}（${id}）` })),
+            ...saved
+              .filter((id) => !commandBots.some((bot) => bot.id === id))
+              .map((id) => ({ value: id, label: `${id}（当前不在线）` }))
+          ]
+        }
+      })
+    }
     if (schema.field === 'defaultPlatform') {
       return Object.assign({}, schema, {
         componentProps: { ...schema.componentProps, options: platformOptions }

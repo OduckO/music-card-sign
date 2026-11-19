@@ -15,6 +15,7 @@ import { api } from './api'
 import { AccountField, Field, Section } from './components'
 import { MusicEditor, PlatformEditor } from './ConfigEditors'
 import {
+  commandBotModes,
   musicForm,
   musicFromForm,
   musicFormErrors,
@@ -45,8 +46,14 @@ export const Settings = ({
     : state.accounts.length === 1
       ? state.accounts[0].id
       : ''
-  const patch = (key: keyof typeof settings, value: string | number | boolean) =>
+  const patch = <Key extends keyof typeof settings>(key: Key, value: (typeof settings)[Key]) =>
     setSettings((previous) => ({ ...previous, [key]: value }))
+  const commandBots = [
+    ...state.commandBots,
+    ...[...new Set([...settings.commandBotBlacklist, ...settings.commandBotWhitelist])]
+      .filter((id) => !state.commandBots.some((bot) => bot.id === id))
+      .map((id) => ({ id, name: '当前不在线' }))
+  ]
   const platformOptions = [
     ...new Set([
       ...state.platforms.filter((name) => !Object.hasOwn(state.config.platforms, name)),
@@ -185,6 +192,76 @@ export const Settings = ({
             onChange={(v) => patch('timeoutMs', Number(v))}
             description="查询、回传和协议端发送的最长等待。"
           />
+        </Section>
+        <Section
+          icon={settingsIcon}
+          title="聊天指令响应"
+          description="只控制接收指令的 Bot。签名账号、HTTP 和 Handler 不受名单影响。"
+        >
+          <Select
+            className="wide"
+            selectedKey={settings.commandBotMode}
+            onSelectionChange={(key) => {
+              const mode = commandBotModes.find(({ value }) => value === key)
+              if (mode) patch('commandBotMode', mode.value)
+            }}
+          >
+            <Label>响应模式</Label>
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                {commandBotModes.map(({ label, value }) => (
+                  <ListBox.Item key={value} id={value} textValue={label}>
+                    {label}
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+            <Description>
+              {commandBotModes.find(({ value }) => value === settings.commandBotMode)?.description}
+            </Description>
+          </Select>
+          {(
+            [
+              ['commandBotBlacklist', '黑名单 Bot', '仅黑名单模式生效；选中的 Bot 全部静默。'],
+              ['commandBotWhitelist', '白名单 Bot', '仅白名单模式生效；只有选中的 Bot 可响应。']
+            ] as const
+          ).map(([field, label, description]) => (
+            <Select
+              key={field}
+              selectionMode="multiple"
+              value={settings[field]}
+              onChange={(keys) => patch(field, keys.map(String))}
+              placeholder="从在线 Bot 中多选"
+            >
+              <Label>{label}</Label>
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox renderEmptyState={() => '暂无在线 Bot'}>
+                  {commandBots.map(({ id, name }) => (
+                    <ListBox.Item key={id} id={id} textValue={`${name}（${id}）`}>
+                      {name}（{id}）
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+              <Description>{description}切换模式会保留两份名单。</Description>
+            </Select>
+          ))}
+          {settings.commandBotMode === 'whitelist' && !settings.commandBotWhitelist.length && (
+            <p role="alert" className="feedback error wide">
+              白名单为空：保存后本插件全部聊天指令都会静默，包括帮助与设置指令。 请先选择允许响应的
+              Bot，或将响应模式设为「关闭限制」。触发指令时，日志也会提示恢复方法。
+            </p>
+          )}
         </Section>
         <Section
           icon={server}

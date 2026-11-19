@@ -103,6 +103,11 @@ for (const host of ['qqbot-web', 'guoba'] as const) {
       { id: String(bot.uin), name: '签名账号' },
       { id: String(secondId), name: '另一个签名账号' }
     ])
+    assert.deepEqual((await settings()).commandBots, [
+      { id: String(bot.uin), name: '签名账号 · ICQQ' },
+      { id: String(secondId), name: '另一个签名账号 · ICQQ' },
+      { id: '678901234', name: '另一个签名账号 · OneBotv11' }
+    ])
     const friends = async (botId: string) => {
       const response = await post('/friends', { botId })
       assert.equal(response.status, 200)
@@ -125,18 +130,28 @@ for (const host of ['qqbot-web', 'guoba'] as const) {
     assert.notEqual((await settings()).config.path, '/changed')
     const saved = await post('/config', {
       defaultPlatform: 'kugou_concept',
-      botId: String(bot.uin)
+      botId: String(bot.uin),
+      commandBotMode: 'blacklist',
+      commandBotBlacklist: [String(bot.uin)]
     })
     assert.equal(saved.status, 200)
     assert.equal((await settings()).config.defaultPlatform, 'kugou_concept')
     assert.equal((await settings()).hasApiKey, true, '未提交 API Key 时保留原值')
+    assert.equal((await settings()).config.commandBotMode, 'blacklist')
+    assert.deepEqual((await settings()).config.commandBotBlacklist, [String(bot.uin)])
+    assert.equal(
+      (await post('/config', { commandBotMode: 'whitelist', commandBotWhitelist: [] })).status,
+      200
+    )
+    assert.deepEqual((await settings()).config.commandBotWhitelist, [])
+    assert.deepEqual((await settings()).config.commandBotBlacklist, [String(bot.uin)])
     const cleared = await post('/config', { apiKey: '' })
     assert.equal(cleared.status, 200)
     assert.equal((await settings()).hasApiKey, false)
 
     const request = { type: 'custom', title: '测试曲', url: 'https://example.com/song' }
     const signed = await post('/sign', { request })
-    assert.equal(signed.status, 200)
+    assert.equal(signed.status, 200, '空白名单静默聊天指令，WebUI 签名仍可使用该 Bot')
     const result = ((await signed.json()) as { result: SignResult }).result
     assert.equal(result.raw, cards[0], '回传保留签名 JSON 原文')
     assert.equal(result.card.meta.music.appid, 101706348)

@@ -217,7 +217,7 @@ export interface HttpRequest extends IncomingMessage {
 }
 
 export type CommandEvent = Pick<CustomEvent, 'msg' | 'reply'> &
-  Partial<Pick<CustomEvent, 'self_id'>> & {
+  Partial<Pick<CustomEvent, 'self_id' | 'isMaster'>> & {
     group_id?: string | number
     user_id?: string | number
     bot?: { adapter?: { name: string } }

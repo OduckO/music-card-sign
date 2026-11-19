@@ -50,14 +50,6 @@ body {
   height: 220px;
   padding: 40px 48px;
 }
-.help-permission {
-  position: absolute;
-  top: 44px;
-  right: 48px;
-  margin: 0;
-  font-size: 14px;
-  color: var(--muted);
-}
 .hero h1 {
   position: relative;
   z-index: 1;

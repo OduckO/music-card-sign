@@ -67,6 +67,87 @@ async function guobaFixture(t: TestContext) {
   }
 }
 
+test('锅巴 Bot 名单多选覆盖所有在线适配器，模式说明和空白名单提醒完整，切换立即生效', async (t) => {
+  const { guoba: firstGuoba, directory, bot, testApp, configPath, logs } = await guobaFixture(t)
+  const receiverId = '345678901'
+  Object.assign(Bot, {
+    uin: [bot.uin, Number(receiverId), 456789012],
+    [receiverId]: { nickname: '转发账号', adapter: { name: 'OneBotv11' }, online: true },
+    [456789012]: { nickname: '离线账号', adapter: { name: 'OneBotv11' }, online: false }
+  })
+  assert.equal(
+    (await firstGuoba.configInfo.setConfigData({ commandBotBlacklist: ['567890123'] }, context))
+      .isOk,
+    true
+  )
+  const module = (await import(pathToFileURL(join(directory, 'guoba.support.js')).href)) as {
+    supportGuoba: typeof supportGuoba
+  }
+  const info = module.supportGuoba().configInfo
+  const modeSchema = info.schemas.find(({ field }) => field === 'commandBotMode')
+  assert.equal(modeSchema?.component, 'Select')
+  assert.match(String(modeSchema?.bottomHelpMessage), /关闭限制.*黑名单.*白名单/s)
+  assert.match(String(modeSchema?.bottomHelpMessage), /只有当前模式生效/)
+  for (const field of ['commandBotBlacklist', 'commandBotWhitelist'] as const) {
+    const schema = info.schemas.find((item) => item.field === field)
+    assert.equal(schema?.component, 'Select')
+    assert.partialDeepStrictEqual(schema?.componentProps, {
+      mode: 'multiple',
+      options: [
+        { value: String(bot.uin), label: '签名账号 · ICQQ（123456789）' },
+        { value: receiverId, label: '转发账号 · OneBotv11（345678901）' },
+        ...(field === 'commandBotBlacklist'
+          ? [{ value: '567890123', label: '567890123（当前不在线）' }]
+          : [])
+      ]
+    })
+  }
+  const whitelistSchema = info.schemas.find(({ field }) => field === 'commandBotWhitelist')
+  assert.match(String(whitelistSchema?.label), /空名单会全部静默/)
+  assert.match(String(whitelistSchema?.bottomHelpMessage), /特别注意.*包括帮助和设置.*关闭限制/)
+
+  const replies: FixtureReply[] = []
+  const event = {
+    ...command('#音之测测'),
+    self_id: bot.uin,
+    reply: async (message: FixtureReply) => {
+      replies.push(message)
+      return true
+    }
+  }
+  assert.equal(
+    (
+      await info.setConfigData(
+        {
+          commandBotMode: 'whitelist',
+          commandBotBlacklist: [bot.uin, ` ${bot.uin} `],
+          commandBotWhitelist: []
+        },
+        context
+      )
+    ).isOk,
+    true
+  )
+  await testApp.probe(event)
+  assert.equal(replies.length, 0)
+  assert.ok(logs.some(({ message }) => /白名单为空.*加入白名单.*关闭限制/.test(message)))
+  assert.equal((await info.setConfigData({ commandBotWhitelist: [bot.uin] }, context)).isOk, true)
+  await testApp.probe(event)
+  assert.match(String(replies.at(-1)), /音之测测通过/)
+  assert.equal((await info.setConfigData({ commandBotMode: 'blacklist' }, context)).isOk, true)
+  const before = replies.length
+  await testApp.probe(event)
+  assert.equal(replies.length, before)
+  assert.equal((await info.setConfigData({ commandBotMode: 'off' }, context)).isOk, true)
+  await testApp.probe(event)
+  assert.match(String(replies.at(-1)), /音之测测通过/)
+  const yaml: Config = YAML.parse(await readFile(configPath, 'utf8'))
+  assert.equal(yaml.commandBotMode, 'off')
+  assert.deepEqual(yaml.commandBotBlacklist, [String(bot.uin)])
+  assert.deepEqual(yaml.commandBotWhitelist, [String(bot.uin)])
+  assert.deepEqual(info.getConfigData().commandBotWhitelist, yaml.commandBotWhitelist)
+})
+
 test('锅巴保存取消 triptrap 等待请求，只释放插件自己的监听并能继续签名', async (t) => {
   const { guoba, bot, instance, stack, configPath, testApp } = await guobaFixture(t)
   const events = new Trapper()
@@ -125,6 +206,7 @@ test('锅巴保存取消 triptrap 等待请求，只释放插件自己的监听�
   bot.pickFriend = () => ({ share: async () => {} })
   const replies: FixtureReply[] = []
   await testApp.probe({
+    isMaster: true,
     msg: '#音之测测',
     reply: async (message) => {
       replies.push(message)
@@ -147,6 +229,9 @@ test('锅巴根入口提供账号、好友与固定字段子表单，JSON 作为
   assert.deepEqual(fields, [
     'apiKey',
     'botId',
+    'commandBotBlacklist',
+    'commandBotMode',
+    'commandBotWhitelist',
     'defaultPlatform',
     'enabled',
     'localPort',
@@ -428,6 +513,11 @@ test('锅巴拒绝坏字段，校验失败保持原配置和已挂载路由', as
     { timeoutMs: 0 },
     { localPort: 65536 },
     { enabled: 'true' },
+    { commandBotMode: 'invalid' },
+    { commandBotBlacklist: '123456789' },
+    { commandBotWhitelist: [null] },
+    { commandBotWhitelist: [''] },
+    { commandBotWhitelist: [{}] },
     { defaultPlatform: '' },
     { defaultPlatform: 'unknown' },
     { defaultPlatform: 'txqq' },

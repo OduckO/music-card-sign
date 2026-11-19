@@ -1,4 +1,24 @@
-import type { MusicRequest, PlatformInput } from '../../types'
+import type { Config, MusicRequest, PlatformInput } from '../../types'
+
+export const commandBotModes = [
+  {
+    label: '关闭限制',
+    value: 'off',
+    description: '所有 Bot 都可响应本插件聊天指令；帮助公开，其他指令仅主人可用。'
+  },
+  {
+    label: '黑名单',
+    value: 'blacklist',
+    description:
+      '名单内的 Bot 静默忽略本插件全部聊天指令，只记录日志；其他 Bot 正常响应。空黑名单不限制任何 Bot。'
+  },
+  {
+    label: '白名单',
+    value: 'whitelist',
+    description:
+      '只有名单内的 Bot 可响应本插件聊天指令，其他 Bot 全部静默，只记录日志。白名单为空时，所有 Bot 都会静默。'
+  }
+] satisfies Array<{ label: string; value: Config['commandBotMode']; description: string }>
 
 export const musicSourceOptions = [
   { label: 'QQ 音乐 · qq', value: 'qq' },

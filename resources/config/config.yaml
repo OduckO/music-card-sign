@@ -1,6 +1,9 @@
 enabled: true
 botId: ''
 targetId: ''
+commandBotMode: off
+commandBotBlacklist: []
+commandBotWhitelist: []
 defaultPlatform: default
 path: /music_card/card
 timeoutMs: 15000

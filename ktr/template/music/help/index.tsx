@@ -43,7 +43,6 @@ const commandIcons = {
 const Help = ({ data }: TemplateProps<HelpData>) => (
   <main className="help-poster">
     <header className="hero">
-      <p className="help-permission">以下指令仅主人可用</p>
       <h1>音乐签名使用帮助</h1>
       <p className="hero-caption">先用 #音之测测 检查签名与发卡。</p>
       <span className="help-emblem" aria-hidden>
@@ -125,6 +124,6 @@ const Help = ({ data }: TemplateProps<HelpData>) => (
 
 export default defineTemplate({
   name: '音乐签名帮助',
-  description: '主人指令、签名服务设置与 API 说明',
+  description: '聊天指令、签名服务设置与 API 说明',
   component: Help
 })

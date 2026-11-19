@@ -9,7 +9,7 @@ export const help = (e: CommandEvent) =>
     'music/help',
     { path: config.config.path, defaultPlatform: config.config.defaultPlatform },
     [
-      '音乐签名帮助（主人指令）',
+      '音乐签名帮助',
       ...helpGroups.flatMap((group) =>
         group.commands.map(([command, description]) => `${command}：${description}`)
       ),
