@@ -73,6 +73,8 @@ export interface MusicCard extends Record<string, unknown> {
             jumpUrl?: string;
             musicUrl?: string;
             preview?: string;
+            tag?: string;
+            tagIcon?: string;
         };
     };
 }
