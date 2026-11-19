@@ -249,9 +249,11 @@ test('锅巴根入口提供账号、好友与固定字段子表单，JSON 作为
     'testSong.title',
     'testSong.type',
     'testSong.url',
-    'timeoutMs'
+    'timeoutSeconds'
   ])
   const data = info.getConfigData()
+  assert.equal(data.timeoutSeconds, 15)
+  assert.equal(Object.hasOwn(data, 'timeoutMs'), false)
   assert.equal(data.enabled, true)
   assert.equal(data.targetId, '')
   assert.deepEqual(data.targetFriend, [])
@@ -431,6 +433,29 @@ test('锅巴单选好友写入联系人，清空选择仍可手填 QQ，辅助�
   assert.equal(info.getConfigData().targetId, '')
 })
 
+test('锅巴秒数往返保留毫秒精度，其他设置保存不改变超时', async (t) => {
+  const { guoba, configPath } = await guobaFixture(t)
+  const info = guoba.configInfo
+  for (const [seconds, milliseconds] of [
+    [15, 15000],
+    [1.001, 1001],
+    [0.001, 1],
+    [2147483.647, 2147483647]
+  ]) {
+    assert.equal((await info.setConfigData({ timeoutSeconds: seconds }, context)).isOk, true)
+    assert.equal(info.getConfigData().timeoutSeconds, seconds)
+    const stored = YAML.parse(await readFile(configPath, 'utf8'))
+    assert.equal(stored.timeoutMs, milliseconds)
+    assert.equal(Object.hasOwn(stored, 'timeoutSeconds'), false)
+  }
+  assert.equal((await info.setConfigData({ timeoutMs: 12500 }, context)).isOk, true)
+  assert.equal(info.getConfigData().timeoutSeconds, 12.5)
+  assert.equal((await info.setConfigData(info.getConfigData(), context)).isOk, true)
+  assert.equal((await info.setConfigData({ commandBotMode: 'whitelist' }, context)).isOk, true)
+  assert.equal(info.getConfigData().timeoutSeconds, 12.5)
+  assert.equal(info.getConfigData().enabled, true)
+})
+
 test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号、联系人及自定义平台', async (t) => {
   const { guoba, configPath, stack, bot, cards, targets, testApp } = await guobaFixture(t)
   const testMusic = {
@@ -447,7 +472,7 @@ test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号、联系
       targetId: '987654321',
       defaultPlatform: 'custom-app',
       path: '/guoba/music',
-      timeoutMs: 500,
+      timeoutSeconds: 0.5,
       apiKey: 'guoba-offline-test-key',
       platforms: JSON.stringify(platforms),
       testMusic: JSON.stringify(testMusic)
@@ -460,6 +485,8 @@ test('锅巴保存写入 YAML，并立即更新路由、鉴权、账号、联系
   assert.equal(yaml.targetId, '987654321')
   assert.equal(yaml.defaultPlatform, 'custom-app')
   assert.equal(yaml.timeoutMs, 500)
+  assert.equal(guoba.configInfo.getConfigData().timeoutSeconds, 0.5)
+  assert.equal(Object.hasOwn(yaml, 'timeoutSeconds'), false)
   assert.deepEqual(yaml.platforms, platforms)
   assert.deepEqual(yaml.testMusic, testMusic)
   assert.equal(stack.length, 3)
@@ -510,6 +537,12 @@ test('锅巴拒绝坏字段，校验失败保持原配置和已挂载路由', as
     { targetId: 987654321 },
     { path: '/bad/' },
     { timeoutMs: 0 },
+    { timeoutSeconds: 0 },
+    { timeoutSeconds: -1 },
+    { timeoutSeconds: 2147483.648 },
+    { timeoutSeconds: '15' },
+    { timeoutSeconds: null },
+    { timeoutSeconds: NaN },
     { localPort: 65536 },
     { enabled: 'true' },
     { commandBotMode: 'invalid' },

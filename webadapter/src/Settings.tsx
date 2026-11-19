@@ -37,6 +37,7 @@ export const Settings = ({
 }) => {
   const [changes, setChanges] = useState<Partial<PanelState['config']>>({})
   const settings = { ...state.config, ...changes }
+  const [timeoutSeconds, setTimeoutSeconds] = useState<string>()
   const [platforms, setPlatforms] = useState(() => platformRows(settings.platforms))
   const [testMusic, setTestMusic] = useState(() => musicForm(settings.testMusic))
   const [showErrors, setShowErrors] = useState(false)
@@ -103,6 +104,9 @@ export const Settings = ({
     try {
       const result = await api<{ message: string }>('/config', {
         ...changes,
+        ...(timeoutSeconds === undefined
+          ? {}
+          : { timeoutMs: Math.round(Number(timeoutSeconds) * 1000) }),
         platforms: platformsFromRows(platforms, settings.platforms),
         testMusic: musicFromForm(testMusic, settings.testMusic),
         ...(clearKey ? { apiKey: '' } : apiKey ? { apiKey } : {})
@@ -111,6 +115,7 @@ export const Settings = ({
       setClearKey(false)
       await onSaved()
       setChanges({})
+      setTimeoutSeconds(undefined)
       setNotice({ error: false, text: result.message })
     } catch (error) {
       setNotice({ error: true, text: error instanceof Error ? error.message : String(error) })
@@ -213,11 +218,12 @@ export const Settings = ({
             </Select.Popover>
           </Select>
           <Field
-            label="超时（毫秒）"
+            label="回传超时（秒）"
             type="number"
-            value={String(settings.timeoutMs)}
-            onChange={(v) => patch('timeoutMs', Number(v))}
-            description="查询、回传和协议端发送的最长等待。"
+            inputMode="decimal"
+            value={timeoutSeconds ?? String(settings.timeoutMs / 1000)}
+            onChange={setTimeoutSeconds}
+            description="查询、回传和协议端发送的最长等待。可填小数，保存时自动换算为毫秒。"
           />
         </Section>
         <Section

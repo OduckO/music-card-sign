@@ -45,10 +45,12 @@ const schemas: Schemas<FormConfig> = [
     componentProps: { isRadioSelection: true, maxSelectCount: 1 }
   },
   {
-    field: 'timeoutMs',
-    label: '查询、回传与发送超时（毫秒）',
+    field: 'timeoutSeconds',
+    label: '回传超时（秒）',
     component: 'InputNumber',
-    componentProps: { min: 1, max: 2147483647, step: 1000 }
+    bottomHelpMessage:
+      '查询、回传和协议端发送的最长等待。可填小数，例如 15 秒；保存时自动换算为毫秒。',
+    componentProps: { min: 0.001, max: 2147483.647, step: 1, precision: 3 }
   },
   { component: 'SOFT_GROUP_BEGIN', label: '聊天指令响应' },
   {
@@ -183,8 +185,10 @@ export function supportGuoba() {
     configInfo: {
       schemas: [...accountSchemas, ...editorSchemas(platformOptions)],
       getConfigData() {
+        const { timeoutMs, ...settings } = config.config
         return {
-          ...config.config,
+          ...settings,
+          timeoutSeconds: timeoutMs / 1000,
           targetFriend: [],
           platformEntries: platformRows(config.config.platforms),
           testSong: musicForm(config.config.testMusic),

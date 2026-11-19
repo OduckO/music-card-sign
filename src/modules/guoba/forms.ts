@@ -10,7 +10,8 @@ import {
   type PlatformRow
 } from '@/modules/music-card-sign/config-form'
 
-export type FormConfig = Omit<Config, 'platforms' | 'testMusic'> & {
+export type FormConfig = Omit<Config, 'platforms' | 'testMusic' | 'timeoutMs'> & {
+  timeoutSeconds: number
   platforms: string
   testMusic: string
   platformEntries: PlatformRow[]
@@ -143,7 +144,12 @@ export const editorSchemas = (
 ]
 
 export const applyFormData = (data: Record<string, unknown>, previous: Config) => {
-  const { platformEntries, testSong: nestedSong, ...settings } = data
+  const { platformEntries, testSong: nestedSong, timeoutSeconds, ...settings } = data
+  if (timeoutSeconds !== undefined) {
+    if (typeof timeoutSeconds !== 'number' || !Number.isFinite(timeoutSeconds))
+      throw new Error('回传超时请填写秒数')
+    settings.timeoutMs = Math.round(timeoutSeconds * 1000)
+  }
   // 普通锅巴提交点号字段，Next 提交嵌套对象。
   const songFields = Object.keys(settings).filter((key) => key.startsWith('testSong.'))
   const testSong = songFields.length

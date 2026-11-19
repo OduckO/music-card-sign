@@ -61,6 +61,7 @@ export const Field = ({
   value,
   onChange,
   type = 'text',
+  inputMode,
   multiline = false,
   required = false,
   disabled = false,
@@ -71,6 +72,7 @@ export const Field = ({
   value: string
   onChange: (value: string) => void
   type?: 'text' | 'password' | 'number' | 'url'
+  inputMode?: 'numeric' | 'decimal'
   multiline?: boolean
   required?: boolean
   disabled?: boolean
@@ -100,7 +102,7 @@ export const Field = ({
         type={type}
         spellCheck={false}
         autoComplete="off"
-        inputMode={type === 'number' ? 'numeric' : undefined}
+        inputMode={inputMode ?? (type === 'number' ? 'numeric' : undefined)}
       />
     )}
     {description && <Description>{description}</Description>}
