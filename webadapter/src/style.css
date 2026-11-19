@@ -183,49 +183,73 @@ h1 {
   word-break: normal;
 }
 .workspace-tabs {
-  margin-top: 28px;
+  margin-top: 24px;
 }
 #workspace {
   scroll-margin-top: 24px;
 }
 .workspace-tabs > .tabs__list-container {
   display: flex;
-  justify-content: flex-start;
-  margin-bottom: 26px;
+  width: 100%;
+  margin-bottom: 20px;
   background: transparent;
   border-radius: 0;
 }
 .workspace-tabs .tabs__list-container__scroller {
+  width: 100%;
   background: transparent;
 }
 .workspace-tabs .tabs__list {
-  width: auto;
-  background: transparent;
-  gap: 5px;
-  padding: 5px;
+  width: 100%;
+  background: #dfe7ec;
+  gap: 6px;
+  padding: 6px;
   border: 1px solid #c6d4df;
-  border-radius: 13px;
+  border-radius: 20px;
 }
 .workspace-tabs .tabs__tab {
-  min-width: 140px;
-  gap: 9px;
-  height: 44px;
-  border-radius: 9px;
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: 14px;
+  height: auto;
+  min-height: 72px;
+  padding: 14px 22px;
+  border-radius: 14px;
   color: var(--muted);
   font-size: 14px;
+  text-align: left;
 }
 .workspace-tabs .tabs__tab[data-selected='true'] {
   color: #304e65;
-  font-weight: 600;
+}
+.workspace-tabs .tabs__tab[data-hovered='true']:not([data-selected='true']) {
+  background: #ffffff70;
+  color: var(--foreground);
 }
 .workspace-tabs .tabs__indicator {
-  border-radius: 9px;
-  background: #f9fbfc;
+  border-radius: 14px;
+  background: var(--surface);
   box-shadow: 0 2px 5px #253a4b0d;
 }
 .workspace-tabs .tabs__tab svg {
-  width: 17px;
-  height: 17px;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+.workspace-tab-copy {
+  display: grid;
+  gap: 4px;
+  line-height: 1.4;
+}
+.workspace-tab-copy > span {
+  font-size: 15px;
+  font-weight: 700;
+}
+.workspace-tab-copy small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
 }
 .workspace-tabs > [role='tabpanel'] {
   padding: 0;
@@ -916,15 +940,18 @@ pre {
   .workspace-tabs {
     margin-top: 22px;
   }
-  .workspace-tabs > .tabs__list-container {
-    margin-bottom: 20px;
-  }
-  .workspace-tabs .tabs__list {
-    width: 100%;
-  }
   .workspace-tabs .tabs__tab {
-    flex: 1;
-    min-width: 0;
+    justify-content: center;
+    gap: 9px;
+    min-height: 52px;
+    padding: 12px 8px;
+  }
+  .workspace-tabs .tabs__tab svg {
+    width: 20px;
+    height: 20px;
+  }
+  .workspace-tab-copy small {
+    display: none;
   }
   .fields {
     grid-template-columns: 1fr;
@@ -939,7 +966,6 @@ pre {
   .save-button {
     min-width: 120px;
   }
-  .workspace-tabs .tabs__tab,
   .fields .input,
   .fields .select__trigger {
     min-height: 44px;

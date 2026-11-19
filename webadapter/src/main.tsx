@@ -135,14 +135,20 @@ const App = () => {
         >
           <Tabs.ListContainer>
             <Tabs.List aria-label="音卡工作台">
-              <Tabs.Tab id="settings">
+              <Tabs.Tab id="settings" aria-label="服务设置">
                 <Icon icon={settingsIcon} aria-hidden />
-                服务设置
+                <span className="workspace-tab-copy">
+                  <span>服务设置</span>
+                  <small>账号、平台与响应规则</small>
+                </span>
                 <Tabs.Indicator />
               </Tabs.Tab>
-              <Tabs.Tab id="sign">
+              <Tabs.Tab id="sign" aria-label="请求音卡">
                 <Icon icon={musicNotes} aria-hidden />
-                请求音卡
+                <span className="workspace-tab-copy">
+                  <span>请求音卡</span>
+                  <small>提交歌曲，查看签名结果</small>
+                </span>
                 <Tabs.Indicator />
               </Tabs.Tab>
             </Tabs.List>
