@@ -289,6 +289,171 @@ test('本次签名回包在 accept 终止后续识别，其他消息和分享照
   assert.ok(instance.priority < 0, 'accept 必须在分享识别插件之前执行')
 })
 
+for (const [view, appid] of [
+  ['music', 100495085],
+  ['news', 100495085],
+  ['news', 100446242]
+] as const) {
+  test(`${view}/${appid} 回包在 Bot.em 上报前截获，全局监听抛错不影响签名`, async (t) => {
+    const { instance, bot, host } = await fixture(t)
+    let reports = 0
+    for (const name of ['message.private.friend', 'message', 'sync.message', 'sync']) {
+      host.on(name, () => {
+        reports++
+        throw new Error('其他插件的全局监听错误')
+      })
+    }
+    bot.pickFriend = (id) => ({
+      share: async (content, platform) => {
+        assert.equal(platform.appid, appid === 100446242 ? 102021671 : appid)
+        const raw = JSON.stringify({
+          app: view === 'music' ? 'com.tencent.music.lua' : 'com.tencent.tuwen.lua',
+          view,
+          prompt: content.content,
+          meta: {
+            [view]: {
+              appid,
+              title: content.title,
+              desc: content.summary,
+              jumpUrl: content.url,
+              ...(content.audio ? { musicUrl: content.audio } : {}),
+              preview: 'https://qq.ugcimg.cn/converted-cover'
+            }
+          }
+        })
+        const event: MusicEvent = {
+          self_id: bot.uin,
+          from_id: bot.uin,
+          to_id: id,
+          message_type: 'private',
+          message: [{ type: 'json', data: raw }]
+        }
+        bot.emit('message.private.friend', event)
+        bot.emit('message', event)
+        bot.emit('sync.message', { ...event })
+        bot.emit('sync', { ...event })
+      }
+    })
+    const raw = await instance.signCard(
+      {},
+      {
+        title: '我们',
+        singer: '歌手',
+        _platform: appid === 100446242 ? 'default' : 'netease',
+        url: 'https://music.163.com/#/song?id=186016',
+        audio: view === 'music' ? 'https://example.com/song.mp3' : ''
+      },
+      rejectSign
+    )
+    assert.equal(JSON.parse(raw).view, view)
+    assert.equal(reports, 0)
+    assert.equal(bot.listenerCount('message.private.friend'), 0)
+    assert.equal(bot.listenerCount('sync.message'), 0)
+  })
+}
+
+for (const failure of ['timeout', 'submission', 'mismatch'] as const) {
+  test(`${failure} 后的迟到卡片和标题不匹配卡片不进入全局上报，普通消息保持原行为`, async (t) => {
+    const { instance, bot, host } = await fixture(t, {
+      timeoutMs: 25,
+      targetId: '234567890'
+    })
+    const originalEm = host.em
+    const reports: MusicEvent[] = []
+    host.on('message', (event) => reports.push(event))
+    host.on('sync', (event) => reports.push(event))
+    let echo: MusicEvent | undefined
+    bot.pickFriend = (id) => ({
+      share: async (content, platform) => {
+        assert.equal(platform.appid, 102021671)
+        echo = {
+          self_id: bot.uin,
+          from_id: bot.uin,
+          to_id: id,
+          message_type: 'private',
+          time: Math.floor(Date.now() / 1000),
+          message: [
+            {
+              type: 'json',
+              data: JSON.stringify({
+                app: 'com.tencent.tuwen.lua',
+                view: 'news',
+                prompt: '[分享]标题被服务端修改',
+                meta: {
+                  news: { appid: 100446242, title: '标题被服务端修改', jumpUrl: content.url }
+                }
+              })
+            }
+          ]
+        }
+        if (failure !== 'timeout') {
+          if (failure === 'mismatch') bot.emit('message.private.friend', echo)
+          bot.emit('message', echo)
+        }
+        if (failure === 'submission') throw new Error('提交失败')
+      }
+    })
+    await assert.rejects(
+      instance.signCard(
+        {},
+        { title: '我们', url: 'https://example.com/song', audio: '' },
+        rejectSign
+      ),
+      failure === 'timeout' ? /超时/ : failure === 'mismatch' ? /字段不匹配/ : /提交失败/
+    )
+    assert.ok(echo)
+    assert.equal(bot.listenerCount('message.private.friend'), 0)
+    assert.equal(bot.listenerCount('sync.message'), 0)
+    // 请求结束后没有 SDK 监听，另一个回包对象也必须被全局入口识别。
+    bot.emit('message', { ...echo })
+    bot.emit('sync', { ...echo })
+    assert.equal(reports.length, 0)
+    for (const event of [
+      { ...echo, group_id: 456789012, message_type: 'group' },
+      { ...echo, from_id: 345678901 },
+      { ...echo, self_id: 987654321 },
+      { ...echo, to_id: 456789012 },
+      { ...echo, time: echo.time! - 10 },
+      { ...echo, message: [{ type: 'text', data: '普通文本' }] },
+      {
+        ...echo,
+        message: [
+          {
+            type: 'json',
+            data: '{"view":"news","meta":{"news":{"appid":200079,"jumpUrl":"https://example.com/song"}}}'
+          }
+        ]
+      },
+      {
+        ...echo,
+        message: [
+          {
+            type: 'json',
+            data: '{"view":"news","meta":{"news":{"appid":102021671,"jumpUrl":"https://example.com/other"}}}'
+          }
+        ]
+      }
+    ]) {
+      assert.equal(host.em('message.private.friend', event), event)
+    }
+    assert.equal(reports.length, 8)
+    await instance.cleanup[0].dispose()
+    assert.notEqual(host.em, originalEm)
+    assert.equal(host.em('message.private.friend', echo), echo)
+    assert.equal(reports.length, 9, '卸载恢复本体上报方法')
+  })
+}
+
+test('HTTP 挂载失败时恢复 Bot.em，不留下全局拦截方法', async (t) => {
+  const { instance, host } = await fixture(t, {}, { deferInit: true })
+  const originalEm = host.em
+  t.mock.method(Bot.express, 'use', () => {
+    throw new Error('HTTP 挂载失败')
+  })
+  await assert.rejects(instance.init(), /HTTP 挂载失败/)
+  assert.equal(host.em, originalEm)
+})
+
 test('默认平台指令持久保存并立即用于 Handler，非法平台保留原配置', async (t) => {
   const { instance, cards, hostRoot, manageApp } = await fixture(t, {}, { noScreenshots: true })
   const rule = manageApp.rule.find((entry) => entry.fnc === 'setPlatform')
@@ -1007,6 +1172,7 @@ test('损坏缓存不返回错误卡片，重新签成功后修复文件', async
   const path = join(cacheDirectory, filename)
   const stored: CacheRecord = JSON.parse(await readFile(path, 'utf8'))
   const wrong: MusicCard = JSON.parse(stored.raw)
+  assert.ok(wrong.meta.music)
   wrong.meta.music.title = '另一首歌'
   await writeFile(path, JSON.stringify({ ...stored, raw: JSON.stringify(wrong) }))
   await cleanup.restore()

@@ -46,7 +46,7 @@ export const Sign = ({ state }: { state: PanelState }) => {
       setBusy(false)
     }
   }
-  const music = result?.card.meta.music
+  const music = result?.card.meta.music ?? result?.card.meta.news
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(result!.raw)

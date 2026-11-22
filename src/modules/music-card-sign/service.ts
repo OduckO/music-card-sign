@@ -26,7 +26,11 @@ import { MusicCardCache } from '@/models/music-cache'
 import { resolveWithHandler } from './resolver'
 
 const settings = config.config
-let service: { signer: MusicSigner; unmount: () => Promise<void> } | null = null
+let service: {
+  signer: MusicSigner
+  unmount: () => Promise<void>
+  restoreEvents: () => void
+} | null = null
 let lifecycle = Promise.resolve()
 
 function serialize<T>(operation: () => Promise<T>): Promise<T> {
@@ -100,12 +104,30 @@ async function start() {
     onCacheError: (error) => logger.warn(`[音卡缓存] ${errorMessage(error)}`),
     onLog: (level, message) => logger[level](`[音卡签名] ${message}`)
   })
+  const host = Bot
+  const originalEm = host.em
+  // accept 早于正则处理，但晚于全局上报；在 Bot.em 展开父级事件之前拦截回包。
+  const filteredEm: typeof originalEm = function (this: typeof Bot, name = '', event = {}) {
+    if (
+      (name === 'message' ||
+        name.startsWith('message.') ||
+        name === 'sync' ||
+        name.startsWith('sync.')) &&
+      signer.isSigningEcho(event)
+    )
+      return
+    return originalEm.call(this, name, event)
+  }
+  host.em = filteredEm
+  const restoreEvents = () => {
+    if (host.em === filteredEm) host.em = originalEm
+  }
   try {
     const unmount = await mountService(Bot.express as ExpressHost, signer, {
       ...settings,
       onLog: (level, message) => logger[level](`[音卡 HTTP] ${message}`)
     })
-    service = { signer, unmount }
+    service = { signer, unmount, restoreEvents }
     logger.mark(
       `[音卡签名] 已挂载 ${settings.path}` +
         (settings.localPort
@@ -114,6 +136,7 @@ async function start() {
         `，在线 icqq=${signer.status().bots.join('、') || '无'}`
     )
   } catch (error) {
+    restoreEvents()
     logger.error(`[音卡签名] 启动失败：${errorMessage(error)}`, error)
     await signer.close()
     throw error
@@ -125,6 +148,7 @@ async function stop() {
   service = null
   if (!current) return
   await current.signer.close()
+  current.restoreEvents()
   await current.unmount()
   logger.info('[音卡签名] 服务已关闭')
 }

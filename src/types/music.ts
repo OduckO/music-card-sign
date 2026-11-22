@@ -66,23 +66,24 @@ export interface NormalizedRequest {
   content: ShareContent
 }
 
-export interface MusicCard extends Record<string, unknown> {
-  view: 'music'
+export interface MusicCardMetadata {
+  appid?: string | number
+  title?: string
+  desc?: string
+  jumpUrl?: string
+  musicUrl?: string
+  preview?: string
+  tag?: string
+  tagIcon?: string
+}
+
+export type MusicCard = Record<string, unknown> & {
   prompt?: string
   extra?: string | { appid?: string | number } | null
-  meta: {
-    music: {
-      appid?: string | number
-      title?: string
-      desc?: string
-      jumpUrl?: string
-      musicUrl?: string
-      preview?: string
-      tag?: string
-      tagIcon?: string
-    }
-  }
-}
+} & (
+    | { view: 'music'; meta: { music: MusicCardMetadata; news?: never } }
+    | { view: 'news'; meta: { news: MusicCardMetadata; music?: never } }
+  )
 
 export interface MusicEvent {
   message_id?: string

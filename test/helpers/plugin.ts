@@ -96,6 +96,7 @@ export interface PluginFixture {
   testApp: FixtureTestApp
   manageApp: FixtureManageApp
   bot: IcqqBot & EventEmitter
+  host: EventEmitter & { em: (name: string, event: MusicEvent) => MusicEvent }
   stack: FixtureRouterLayer[]
   cards: string[]
   targets: number[]
@@ -277,19 +278,20 @@ export default async function makeConfig(name, config) {
     pickFriend: (id: number) => ({
       share: async (content: ShareContent, platform: AppPlatform) => {
         targets.push(id)
+        const view = content.audio ? 'music' : 'news'
         const raw = JSON.stringify(
           {
-            app: 'com.tencent.structmsg',
-            view: 'music',
+            app: view === 'music' ? 'com.tencent.music.lua' : 'com.tencent.tuwen.lua',
+            view,
             prompt: content.content,
             extra: 'original-extra',
             meta: {
-              music: {
+              [view]: {
                 appid: platform.appid,
                 title: content.title,
                 desc: content.summary,
                 jumpUrl: content.url,
-                musicUrl: content.audio,
+                ...(content.audio ? { musicUrl: content.audio } : {}),
                 preview: content.image
               }
             }
@@ -310,19 +312,37 @@ export default async function makeConfig(name, config) {
   const stack: FixtureRouterLayer[] = []
   const logs: PluginFixture['logs'] = []
   const segmentStub: Pick<typeof segment, 'raw'> = { raw: (data) => ({ type: 'raw', data }) }
+  const host = Object.assign(new EventEmitter(), {
+    em(this: EventEmitter, name: string, event: MusicEvent) {
+      while (true) {
+        this.emit(name, event)
+        const dot = name.lastIndexOf('.')
+        if (dot < 0) break
+        name = name.slice(0, dot)
+      }
+      return event
+    },
+    uin: [bot.uin],
+    [bot.uin]: { adapter: { name: 'ICQQ' }, sdk: bot },
+    express: {
+      router: { stack },
+      quiet: [],
+      use(path: string, handle: FixtureRouterLayer['handle']) {
+        stack.push({ path, handle })
+      }
+    }
+  })
+  bot.on('message', (event: MusicEvent) => {
+    event.self_id = bot.uin
+    host.em(`message.${event.message_type || 'private'}.friend`, event)
+  })
+  bot.on('sync', (event: MusicEvent) => {
+    event.self_id = bot.uin
+    host.em('sync.message', event)
+  })
   Object.assign(globalThis, {
     segment: segmentStub,
-    Bot: {
-      uin: [bot.uin],
-      [bot.uin]: { adapter: { name: 'ICQQ' }, sdk: bot },
-      express: {
-        router: { stack },
-        quiet: [],
-        use(path: string, handle: FixtureRouterLayer['handle']) {
-          stack.push({ path, handle })
-        }
-      }
-    },
+    Bot: host,
     logger: Object.fromEntries(
       ['mark', 'info', 'error', 'warn'].map((level) => [
         level,
@@ -363,6 +383,7 @@ export default async function makeConfig(name, config) {
     testApp,
     manageApp,
     bot,
+    host,
     stack,
     cards,
     targets,

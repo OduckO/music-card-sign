@@ -86,8 +86,12 @@ test('实际 HTTP：用户请求的封面被 QQ 转存后成功返回，错误�
     { ...withoutAudio, audio: '' },
     { ...withoutAudio, audio: null }
   ]) {
-    delete ark.meta.music.musicUrl
-    raw = JSON.stringify(ark)
+    raw = JSON.stringify({
+      ...ark,
+      app: 'com.tencent.tuwen.lua',
+      view: 'news',
+      meta: { news: { ...ark.meta.music, musicUrl: undefined } }
+    } satisfies MusicCard)
     const emptyAudio = await fetch(url, { ...options, body: JSON.stringify(body) })
     assert.equal(emptyAudio.status, 200)
     assert.match(emptyAudio.headers.get('content-type') ?? '', /application\/json/)
@@ -101,19 +105,26 @@ test('实际 HTTP：用户请求的封面被 QQ 转存后成功返回，错误�
     error: 'audio 必须是 http(s) URL',
     request: invalidAudio
   })
+  ark.meta.music.desc = 'QQ 改写歌手'
   ark.meta.music.musicUrl = 'https://example.com/wrong.mp3'
   raw = JSON.stringify(ark)
-  const failed = await fetch(url, options)
-  assert.equal(failed.status, 503)
-  assert.match(failed.headers.get('content-type') ?? '', /application\/json/)
-  assert.deepEqual(await failed.json(), {
-    error: '音卡回传字段不匹配：musicUrl',
+  const rewritten = await fetch(url, options)
+  assert.equal(rewritten.status, 200)
+  assert.equal(await rewritten.text(), raw)
+  assert.ok(!logs.some((message) => message.includes('offline-qq-token')))
+  assert.equal(signer.status().pending, 0)
+  assert.equal(bot.listenerCount('sync.message'), 0)
+  ark.meta.music.title = 'QQ 回传了不同标题'
+  raw = JSON.stringify(ark)
+  const mismatched = await fetch(url, options)
+  assert.equal(mismatched.status, 503)
+  assert.match(mismatched.headers.get('content-type') ?? '', /application\/json/)
+  assert.deepEqual(await mismatched.json(), {
+    error: '音卡回传字段不匹配：title',
     status: 502,
     request,
-    details: { fields: ['musicUrl'] }
+    details: { fields: ['title'] }
   })
-  assert.ok(logs.some((message) => message.includes(JSON.stringify(request))))
-  assert.ok(!logs.some((message) => message.includes('offline-qq-token')))
   assert.equal(signer.status().pending, 0)
   assert.equal(bot.listenerCount('sync.message'), 0)
   submissionError = { code: -1, message: 'Request failed with status code 530' }
@@ -125,6 +136,7 @@ test('实际 HTTP：用户请求的封面被 QQ 转存后成功返回，错误�
     status: 502,
     request
   })
+  assert.ok(logs.some((message) => message.includes(JSON.stringify(request))))
   assert.equal(signer.status().pending, 0)
   assert.equal(bot.listenerCount('sync.message'), 0)
 })

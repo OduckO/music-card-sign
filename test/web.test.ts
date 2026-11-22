@@ -156,7 +156,8 @@ for (const host of ['qqbot-web', 'guoba'] as const) {
     assert.equal(signed.status, 200, '空白名单静默聊天指令，WebUI 签名仍可使用该 Bot')
     const result = ((await signed.json()) as { result: SignResult }).result
     assert.equal(result.raw, cards[0], '回传保留签名 JSON 原文')
-    assert.equal(result.card.meta.music.appid, 101706348)
+    assert.equal(result.card.view, 'news')
+    assert.equal(result.card.meta.news?.appid, 101706348)
     assert.equal((await post('/sign', { request })).status, 200)
     assert.equal(cards.length, 1, '相同请求复用缓存')
     assert.equal((await post('/sign', { request, forceFresh: true })).status, 200)
@@ -235,7 +236,8 @@ test('保存响应名单与测试歌曲不会关闭服务或中断正在等待�
   assert.equal(status?.pending, 1)
   const card = await result
   assert.ok(typeof card === 'string')
-  assert.equal(JSON.parse(card).meta.music.title, '等待名单保存')
+  assert.equal(JSON.parse(card).view, 'news')
+  assert.equal(JSON.parse(card).meta.news.title, '等待名单保存')
   const saved = await readFile(join(hostRoot, 'config/music-card-sign.yaml'), 'utf8')
   assert.match(saved, /enabled: true/)
   assert.match(saved, /commandBotMode: whitelist/)
