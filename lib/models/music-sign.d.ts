@@ -30,6 +30,7 @@ export declare class MusicSigner {
     readonly submissions: Map<string, Promise<MusicCard>>;
     readonly listeners: Map<IcqqBot, Subscription>;
     readonly echoes: Map<string, number>;
+    readonly submitted: Map<string, number>;
     readonly cacheWrites: Map<string, {
         card: MusicCard;
         promise: Promise<void>;
