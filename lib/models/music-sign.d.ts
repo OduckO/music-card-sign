@@ -21,6 +21,7 @@ export declare class MusicSigner {
     readonly customPlatforms: Record<string, PlatformInput>;
     readonly defaultPlatform: string;
     readonly resolveMusic?: ResolveMusic;
+    readonly searchSinger: NonNullable<SignerOptions['searchSinger']>;
     readonly cache?: CardCache;
     readonly onCacheError?: (error: unknown) => void;
     readonly onLog?: SignerOptions['onLog'];
@@ -36,7 +37,7 @@ export declare class MusicSigner {
         promise: Promise<void>;
     }>;
     closed: boolean;
-    constructor({ getBots, botId, targetId, timeoutMs, customPlatforms, defaultPlatform, resolveMusic, cache, onCacheError, onLog }: SignerOptions);
+    constructor({ getBots, botId, targetId, timeoutMs, customPlatforms, defaultPlatform, resolveMusic, searchSinger, cache, onCacheError, onLog }: SignerOptions);
     bots(): IcqqBot[];
     sign(input: unknown, { forceFresh }?: SignOptions): Promise<MusicCard>;
     signRequest(bot: IcqqBot, data: MusicRequest, platform: AppPlatform, identity: string, key: string, forceFresh: boolean, context: string): Promise<MusicCard>;
