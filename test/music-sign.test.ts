@@ -1443,3 +1443,120 @@ test('缓存目录无法写入时仍返回本次成功签出的音卡并释放�
   assert.equal(signer.status().pending, 0)
   assert.equal(bot.listenerCount('sync.message'), 0)
 })
+
+test('空歌手按完整歌名搜索，不用分享参数查询 ID，精确缓存跳过补全', async (t) => {
+  const bot = new QQBoundary()
+  let queries = 0
+  t.after(() => signer.close())
+  const signer = new MusicSigner({
+    getBots: () => [bot],
+    cache: await diskCache(t),
+    resolveMusic: async () => {
+      assert.fail('完整歌曲请求不应调用 ID 查询')
+    },
+    searchSinger: async (title, url, options) => {
+      queries++
+      assert.equal(title, '用户的长标题，包含逗号与备注')
+      assert.equal(url, 'https://music.163.com/share?token=opaque')
+      assert.equal(options?.timeoutMs, 800)
+      return '补全歌手'
+    }
+  })
+  bot.onShare = (content, app) =>
+    bot.deliver(card({ appid: app.appid, title: content.title, jumpUrl: content.url }))
+  const request = {
+    ...input,
+    title: '用户的长标题，包含逗号与备注',
+    singer: '',
+    url: 'https://music.163.com/share?token=opaque'
+  }
+  const first = await signer.sign(request)
+  assert.equal(bot.shares[0].content.summary, '补全歌手')
+  assert.equal(bot.shares[0].content.title, request.title)
+  assert.equal(bot.shares[0].content.audio, request.audio)
+  assert.equal(request.singer, '')
+  assert.equal(cardText(await signer.sign(request)), cardText(first))
+  assert.equal(queries, 1)
+  await signer.sign({ ...request, singer: '用户指定歌手' })
+  assert.equal(bot.shares[1].content.summary, '用户指定歌手')
+  assert.equal(queries, 1)
+})
+
+test('歌手查询超时后继续分享，空音频保留图文卡而不伪造播放地址', async (t) => {
+  const { searchMusicSinger } = await import('../src/models/music-info')
+  const bot = new QQBoundary()
+  const logs: string[] = []
+  let signal: AbortSignal | null | undefined
+  const signer = new MusicSigner({
+    getBots: () => [bot],
+    timeoutMs: 25,
+    onLog: (_level, message) => logs.push(message),
+    searchSinger: (title, url, options) =>
+      searchMusicSinger(title, url, {
+        ...options,
+        fetchImpl: async (_input, init) => {
+          signal = init?.signal
+          return new Promise<Response>(() => {})
+        }
+      })
+  })
+  t.after(() => signer.close())
+  bot.onShare = (content, app) =>
+    bot.deliver({
+      app: 'com.tencent.tuwen.lua',
+      view: 'news',
+      prompt: content.content,
+      meta: {
+        news: {
+          appid: app.appid,
+          title: content.title,
+          desc: content.summary,
+          jumpUrl: content.url
+        }
+      }
+    })
+  const result = await signer.sign({
+    ...input,
+    singer: '',
+    audio: '',
+    url: 'https://music.163.com/song?id=186016'
+  })
+  assert.equal(result.view, 'news')
+  assert.equal(bot.shares[0].content.summary, '')
+  assert.equal(bot.shares[0].content.audio, '')
+  assert.equal(signal?.aborted, true)
+  assert.ok(logs.some((message) => message.includes('歌手查询失败')))
+  assert.equal(signer.pending.size, 0)
+  assert.equal(bot.listenerCount('sync.message'), 0)
+})
+
+test('ID 扩展可以省略 audio 和 singer，签出图文卡并复用完整回包', async (t) => {
+  const { registerMusicResolver } = await import('../src/models/music-info')
+  let queries = 0
+  t.after(
+    registerMusicResolver('news-provider', async (id) => {
+      assert.equal(id, 'track:00123')
+      queries++
+      return { title: '扩展提供的图文分享', url: input.url }
+    })
+  )
+  const bot = new QQBoundary()
+  t.after(() => signer.close())
+  const signer = new MusicSigner({ getBots: () => [bot], cache: await diskCache(t) })
+  bot.onShare = (content, app) =>
+    bot.deliver({
+      app: 'com.tencent.tuwen.lua',
+      view: 'news',
+      prompt: content.content,
+      meta: {
+        news: { appid: app.appid, title: content.title, jumpUrl: content.url }
+      }
+    })
+  const request = { type: 'news-provider', id: 'track:00123' }
+  const first = await signer.sign(request)
+  assert.equal(first.view, 'news')
+  assert.equal(bot.shares[0].content.audio, '')
+  assert.equal(bot.shares[0].content.title, '扩展提供的图文分享')
+  assert.equal(cardText(await signer.sign(request)), cardText(first))
+  assert.equal(queries, 1)
+})

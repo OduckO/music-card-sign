@@ -44,9 +44,9 @@ export interface MusicRequest extends Record<string, unknown> {
 
 export interface MusicInfo {
   title: string
-  singer: string
+  singer?: string
   url: string
-  audio: string
+  audio?: string
   image?: string
 }
 
@@ -147,6 +147,7 @@ export interface ResolverContext {
   timeoutMs: number
   fetchImpl: MusicFetch
   json: JsonFetcher
+  metadataOnly?: boolean
 }
 
 export type MusicResolver = (id: string, context: ResolverContext) => MusicInfo | Promise<MusicInfo>
@@ -154,12 +155,18 @@ export interface ResolveOptions {
   fetchImpl?: MusicFetch
   timeoutMs?: number
   resolvers?: Record<string, MusicResolver>
+  metadataOnly?: boolean
 }
 export type ResolveMusic = (
   type: string,
   id: string | number,
   options?: ResolveOptions
 ) => Promise<MusicInfo>
+export type SearchSinger = (
+  title: string,
+  url: string,
+  options?: Pick<ResolveOptions, 'fetchImpl' | 'timeoutMs'>
+) => Promise<string>
 export interface SignOptions {
   forceFresh?: boolean
 }
@@ -184,6 +191,7 @@ export interface SignerOptions {
   customPlatforms?: Record<string, PlatformInput>
   defaultPlatform?: string
   resolveMusic?: ResolveMusic
+  searchSinger?: SearchSinger
   cache?: CardCache
   onCacheError?: (error: unknown) => void
   onLog?: (level: 'info' | 'warn' | 'error', message: string) => void

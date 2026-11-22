@@ -125,15 +125,15 @@ export async function sendMusicCard(e: CustomEvent) {
 
 账号按请求 `self_id` / `bot_id`、配置 `botId`、当前 ICQQ 事件账号、唯一在线 icqq 账号的顺序选择。OneBot v11 会话账号不会覆盖签名账号。
 
-音卡平台按 `_platform`、`platform`、`source`、请求跳转链接、配置 `defaultPlatform` 的顺序选择。只识别跳转地址，`audio` 不参与。初始默认平台是 `default`（appid `102021671`，包名和签名为空）；命令和锅巴修改默认平台后，Handler 同时生效。`type` 用于 ID 查询来源，完整规则见 [自定义平台](api.md#自定义平台)。
+音卡平台按 `_platform`、`platform`、`source`、标题末尾的历史平台标记、请求跳转链接、配置 `defaultPlatform` 的顺序选择。只识别跳转地址，`audio` 不参与。初始默认平台是 `default`（appid `102021671`，包名和签名为空）；命令和锅巴修改默认平台后，Handler 同时生效。`type` 用于 ID 查询来源，完整规则见 [自定义平台](api.md#自定义平台)。
 
 扩展平台的 `PlatformInput` 只要求 `appid`，`appname`、`appsign` 和兼容字段 `app_sign` 可省略或为空；提交时省略的字段使用空字符串。
 
 分享目标使用配置的 `targetId`，为空时使用选中的签名账号。捕获要求发送者为该签名账号、接收者为分享目标，并匹配歌曲与平台字段。联系人无需回复；设置目标会重建服务并取消旧等待。
 
-回包以 `appid`、`prompt`、`title` 和 `jumpUrl` 识别归属，再检查 `desc` 与 `musicUrl`。QQ 可转存封面，`preview` 不参与匹配；已确认本次回包的字段错误会抛出 `MusicSignError`，`status` 为 `502`，`details.fields` 包含字段名。
+回包以 `appid`、`prompt`、`title` 和 `jumpUrl` 识别归属，长标题接受结尾带省略号的截断形式。`desc`、`musicUrl` 和 `preview` 可由 QQ 改写，不参与匹配；已确认本次回包的字段错误会抛出 `MusicSignError`，`status` 为 `502`，`details.fields` 包含字段名。空音频支持 `view: "news"`、`meta.news` 的图文卡。
 
-匹配的内部回包通过应用的 `accept` 返回 `return` 终止后续插件分发，避免触发其他插件的分享解析。普通用户分享继续分发；SDK 的收包日志仍会记录。
+SDK 监听先捕获回包，匹配后立即返回。框架的 `Bot.em` 上报入口拦截已提交的内部分享，包括超时或提交失败后的迟到回包；应用 `accept` 保留回包检查。普通用户分享、群聊及其他指令继续分发，SDK 收包日志仍会记录。带歌曲链接的测试与发卡指令使用更早的规则优先级，避免被分享解析插件抢先处理。
 
 `replyCard` 对 ICQQ 使用 `Bot[e.self_id].sdk.sendGroupMsg()` 或 `sendPrivateMsg()` 直接发送原生 JSON 段，按事件的 `group_id` / `user_id` 选择当前会话，绕过宿主的 Markdown 消息加工。OneBot v11 使用 `e.reply(segment.raw({ type: 'json', data: { data: raw } }))`。两种方式都保留已签出的原文和平台字段；发送失败时抛出含协议端详情的错误。其他会话适配器会明确提示未支持。
 
@@ -269,9 +269,9 @@ interface SongApiResponse {
   data?: {
     id: string
     name: string
-    artist: string
+    artist?: string
     link: string
-    playUrl: string
+    playUrl?: string
     cover?: string
   }
 }
@@ -411,6 +411,7 @@ type MusicResolver = (id: string, context: ResolverContext) => MusicInfo | Promi
 | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `id`                                        | 字符串 ID；字符串原样保留，数字请求转换为十进制字符串                                    |
 | `context.type`                              | 本次查询来源名，与请求 `type` 一致                                                       |
+| `context.metadataOnly`                      | 为 `true` 时只需要歌曲信息，可跳过额外的播放地址查询                                     |
 | `context.timeoutMs`                         | 整次查询的时间上限，包含所有 API 请求及响应读取                                          |
 | `context.signal`                            | 超时或查询结束后取消；自己的 API 客户端应接收该信号                                      |
 | `context.json(endpoint, params?, options?)` | 发起 HTTP 请求并读取 JSON；`params` 为字符串查询参数，`options` 可携带请求方法、头和正文 |
@@ -420,17 +421,17 @@ type MusicResolver = (id: string, context: ResolverContext) => MusicInfo | Promi
 
 返回值要求：
 
-| 标准字段 | 必需 | 示例 API 字段 | 要求                                     |
-| -------- | ---- | ------------- | ---------------------------------------- |
-| `title`  | 是   | `name`        | 非空歌名字符串                           |
-| `singer` | 是   | `artist`      | 非空歌手字符串，多位歌手由自己的插件组合 |
-| `url`    | 是   | `link`        | 歌曲跳转的 HTTP(S) 地址                  |
-| `audio`  | 是   | `playUrl`     | 实际音频的 HTTP(S) 地址                  |
-| `image`  | 否   | `cover`       | 图片 HTTP(S) 地址，可省略或为空          |
+| 标准字段 | 必需 | 示例 API 字段 | 要求                                                    |
+| -------- | ---- | ------------- | ------------------------------------------------------- |
+| `title`  | 是   | `name`        | 非空歌名字符串                                          |
+| `singer` | 否   | `artist`      | 歌手字符串，可省略或为空，多位歌手由自己的插件组合      |
+| `url`    | 是   | `link`        | 歌曲跳转的 HTTP(S) 地址                                 |
+| `audio`  | 否   | `playUrl`     | 实际音频的 HTTP(S) 地址，可省略或为空；无音频生成图文卡 |
+| `image`  | 否   | `cover`       | 图片 HTTP(S) 地址，可省略或为空                         |
 
-上表是 ID 查询返回类型 `MusicInfo` 的要求，解析器仍需返回可用的 `audio` 地址。直接提交歌曲信息时的可空音频规则见 [Handler 接入](#handler-接入)。
+ID 查询与直接歌曲信息都允许没有音频。仅返回 `{ title: song.name, url: song.link }` 也能生成图文分享；可用歌手、音频和封面按需添加。普通 ID 查询不会在查完后再查一次歌手，扩展应把已知歌手一起返回。
 
-ID 查询返回的 `title` 和 `singer` 会去掉两端空白，地址会验证并规范化；协议相对地址 `//...` 会补为 HTTPS。接口业务失败、歌曲 ID 不符或无法取得播放地址时，自己的解析器应抛出错误。音卡插件会检查标准字段，但不会替你检查自定义 API 的业务码或 ID 是否匹配。
+ID 查询返回的 `title` 和 `singer` 会去掉两端空白，地址会验证并规范化；协议相对地址 `//...` 会补为 HTTPS。接口业务失败或歌曲 ID 不符时，自己的解析器应抛出错误；歌曲存在但无播放权限时，可以返回空 `audio`。音卡插件会检查标准字段，但不会替你检查自定义 API 的业务码或 ID 是否匹配。
 
 `json()` 会检查 HTTP 状态并解析 JSON，不检查你的业务码；`fetchImpl()` 还需要调用方检查 `response.ok`。两者限制为 HTTP(S)，不自动跟随重定向。API 需要跟随重定向时，可使用自己的客户端并传递 `signal`。
 
@@ -465,23 +466,23 @@ export async function queryMusicById(id: string) {
 }
 ```
 
-`options` 可传 `timeoutMs`、`fetchImpl` 和 `resolvers`。本次调用的 `resolvers[type]` 优先于全局注册，其次使用内置来源。直接调用 `resolveMusicInfo()` 使用函数注册表；声明式查询 Handler 由音卡服务调用。需要在同一进程中直接查询 Handler 来源时，可调用 `lib/modules/music-card-sign/resolver` 导出的 `resolveWithHandler(type, id, options)`，调用级 `resolvers[type]` 仍优先。
+`options` 可传 `timeoutMs`、`fetchImpl`、`resolvers` 和 `metadataOnly`。`metadataOnly: true` 只查询歌曲信息并返回空音频，内置 QQ 音乐、网易云和酷我会跳过播放接口；自定义解析器可读取上下文中的同名字段。本次调用的 `resolvers[type]` 优先于全局注册，其次使用内置来源。直接调用 `resolveMusicInfo()` 使用函数注册表；声明式查询 Handler 由音卡服务调用。需要在同一进程中直接查询 Handler 来源时，可调用 `lib/modules/music-card-sign/resolver` 导出的 `resolveWithHandler(type, id, options)`，调用级 `resolvers[type]` 仍优先。
 
 ### 接入检查
 
-| 现象                         | 检查方法                                                                          |
-| ---------------------------- | --------------------------------------------------------------------------------- |
-| 找不到模块                   | 核对两个插件是否并列安装、导入路径层级及 `music-card-sign/lib` 是否存在           |
-| 提示未注册该音乐来源         | 确认应用已加载；Handler key 或直接注册的来源名需与请求 `type` 一致                |
-| 放进 `models/` 后没有生效    | 模型文件需由已加载的应用导入，并在生命周期中调用注册函数                          |
-| 单文件 JS 没有被加载         | 确认位于 `plugins/example/` 且导出插件类；直接导入其他 JS 模块时填写 `.js` 扩展名 |
-| 查询 Handler 没有被调用      | key 应为 `music.info.<type>`，与请求的 `type` 完全一致；用测试命令排除缓存        |
-| API 没有收到请求             | 用 `#音之测测` 排除缓存，并检查音卡服务开关、在线 icqq 账号和来源注册             |
-| API 成功，但歌曲信息校验失败 | 核对字段映射，ID 查询要求非空 `title/singer` 及有效 `url/audio`                   |
-| 设置了 ID 却没有查询         | 请求中有歌名时走完整歌曲模式；只传 ID 时省略 `title/song/name`                    |
-| 卡片平台与返回链接不同       | 平台在查询前确定；用 `_platform` 指定应用，或调整请求跳转地址及默认平台           |
-| 改了 API 后仍返回旧卡        | 精确缓存命中会跳过查询，用测试命令强制重新生成                                    |
-| 查询一直等待或超时后仍发请求 | 检查 API 客户端的超时与 `signal` 支持                                             |
+| 现象                         | 检查方法                                                                                       |
+| ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| 找不到模块                   | 核对两个插件是否并列安装、导入路径层级及 `music-card-sign/lib` 是否存在                        |
+| 提示未注册该音乐来源         | 确认应用已加载；Handler key 或直接注册的来源名需与请求 `type` 一致                             |
+| 放进 `models/` 后没有生效    | 模型文件需由已加载的应用导入，并在生命周期中调用注册函数                                       |
+| 单文件 JS 没有被加载         | 确认位于 `plugins/example/` 且导出插件类；直接导入其他 JS 模块时填写 `.js` 扩展名              |
+| 查询 Handler 没有被调用      | key 应为 `music.info.<type>`，与请求的 `type` 完全一致；用测试命令排除缓存                     |
+| API 没有收到请求             | 用 `#音之测测` 排除缓存，并检查音卡服务开关、在线 icqq 账号和来源注册                          |
+| API 成功，但歌曲信息校验失败 | 核对字段映射，要求非空 `title` 与有效 `url`；`singer/audio/image` 可为空，非空地址须为 HTTP(S) |
+| 设置了 ID 却没有查询         | 请求中有歌名时走完整歌曲模式；只传 ID 时省略 `title/song/name`                                 |
+| 卡片平台与返回链接不同       | 平台在查询前确定；用 `_platform` 指定应用，或调整请求跳转地址及默认平台                        |
+| 改了 API 后仍返回旧卡        | 精确缓存命中会跳过查询，用测试命令强制重新生成                                                 |
+| 查询一直等待或超时后仍发请求 | 检查 API 客户端的超时与 `signal` 支持                                                          |
 
 ## 测试与资源释放
 

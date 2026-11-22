@@ -16,6 +16,7 @@ import type {
 } from '@/types'
 import { errorMessage } from '@/utils'
 import { signingEchoes } from './music-echo'
+import { resolveMusicInfo, searchMusicSinger } from './music-info'
 
 export const platforms: Record<string, AppPlatform> = {
   default: {
@@ -417,6 +418,7 @@ export class MusicSigner {
   readonly customPlatforms: Record<string, PlatformInput>
   readonly defaultPlatform: string
   readonly resolveMusic?: ResolveMusic
+  readonly searchSinger: NonNullable<SignerOptions['searchSinger']>
   readonly cache?: CardCache
   readonly onCacheError?: (error: unknown) => void
   readonly onLog?: SignerOptions['onLog']
@@ -437,6 +439,7 @@ export class MusicSigner {
     customPlatforms = {},
     defaultPlatform = 'default',
     resolveMusic,
+    searchSinger = searchMusicSinger,
     cache,
     onCacheError,
     onLog
@@ -454,6 +457,7 @@ export class MusicSigner {
     selectPlatform({}, customPlatforms, defaultPlatform)
     this.defaultPlatform = defaultPlatform
     this.resolveMusic = resolveMusic
+    this.searchSinger = searchSinger
     this.cache = cache
     this.onCacheError = onCacheError
     this.onLog = onLog
@@ -548,38 +552,70 @@ export class MusicSigner {
       }
     }
     if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
-    if (data.id !== undefined && !(data.title ?? data.song ?? data.name)) {
+    const needsInfo = data.id !== undefined && !(data.title ?? data.song ?? data.name)
+    const resolve = this.resolveMusic ?? resolveMusicInfo
+    if (needsInfo) {
       this.onLog?.('info', `${context} 查询歌曲信息，来源=${data.type || 'qq'} ID=${data.id}`)
-      const resolve = this.resolveMusic ?? (await import('./music-info')).resolveMusicInfo
-      const info = await resolve(data.type || 'qq', data.id, { timeoutMs: this.timeoutMs })
+      const info = await resolve(data.type || 'qq', data.id!, { timeoutMs: this.timeoutMs })
       data = { ...info, ...data }
     }
     // 使用开始时的平台配置，避免异步歌曲查询期间配置改变。
     const request = normalizeRequest({ ...data, _platform: platform }, this.customPlatforms)
+    const work: Promise<void>[] = []
+    if (
+      !needsInfo &&
+      !String(data.singer ?? data.artist ?? data.content ?? data.desc ?? '').trim()
+    ) {
+      work.push(
+        this.searchSinger(request.content.title, request.content.url, {
+          timeoutMs: Math.min(this.timeoutMs, 800)
+        })
+          .then((singer) => {
+            if (singer) request.content.summary = singer
+            this.onLog?.(
+              'info',
+              singer
+                ? `${context} 已按歌名补全歌手，歌手=${singer}`
+                : `${context} 歌名搜索未能确定歌手，保留原分享信息`
+            )
+          })
+          .catch((error) =>
+            this.onLog?.('warn', `${context} 歌手查询失败，保留原分享信息：${errorMessage(error)}`)
+          )
+      )
+    }
     if (request.content.audio) {
       const audio = new URL(request.content.audio)
       if (
         (audio.hostname === 'y.qq.com' || audio.hostname.endsWith('.y.qq.com')) &&
         audio.pathname.endsWith('/fcg_pyq_play.fcg')
       ) {
-        try {
-          const response = await fetch(audio, {
-            redirect: 'manual',
-            signal: AbortSignal.timeout(Math.min(this.timeoutMs, 4000))
-          })
-          const location = response.headers.get('location')
-          await response.body?.cancel()
-          if ([301, 302, 303, 307, 308].includes(response.status) && location) {
-            request.content.audio = webUrl(new URL(location, audio).href, 'audio', true)
-            this.onLog?.('info', `${context} 已解析 QQ 播放跳转链接`)
-          } else if (!response.ok) {
-            throw new Error(`QQ 播放链接 HTTP ${response.status}`)
-          }
-        } catch (error) {
-          this.onLog?.('warn', `${context} 播放跳转解析失败，保留原地址：${errorMessage(error)}`)
-        }
+        work.push(
+          (async () => {
+            try {
+              const response = await fetch(audio, {
+                redirect: 'manual',
+                signal: AbortSignal.timeout(Math.min(this.timeoutMs, 4000))
+              })
+              const location = response.headers.get('location')
+              await response.body?.cancel()
+              if ([301, 302, 303, 307, 308].includes(response.status) && location) {
+                request.content.audio = webUrl(new URL(location, audio).href, 'audio', true)
+                this.onLog?.('info', `${context} 已解析 QQ 播放跳转链接`)
+              } else if (!response.ok) {
+                throw new Error(`QQ 播放链接 HTTP ${response.status}`)
+              }
+            } catch (error) {
+              this.onLog?.(
+                'warn',
+                `${context} 播放跳转解析失败，保留原地址：${errorMessage(error)}`
+              )
+            }
+          })()
+        )
       }
     }
+    if (work.length) await Promise.all(work)
     if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
     const card = await this.submit(bot, request, key, context)
     const cache = this.cache

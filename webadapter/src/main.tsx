@@ -42,10 +42,12 @@ void Promise.all(
 const App = () => {
   const [state, setState] = useState<PanelState | null>(null)
   const [error, setError] = useState('')
+  const [refreshError, setRefreshError] = useState('')
   const [tab, setTab] = useState('settings')
   const [saving, setSaving] = useState(false)
   const load = async () => {
     setState(await api<PanelState>('/config'))
+    setRefreshError('')
   }
   const retry = () => {
     setError('')
@@ -115,6 +117,11 @@ const App = () => {
           </div>
         )}
       </section>
+      {refreshError && (
+        <p role="alert" className="feedback error">
+          配置刷新失败：{refreshError}。已保留当前输入，切换页面可重试。
+        </p>
+      )}
       {error ? (
         <div className="load-error">
           <h2>无法读取配置</h2>
@@ -130,7 +137,14 @@ const App = () => {
         <Tabs
           id="workspace"
           selectedKey={tab}
-          onSelectionChange={(key) => setTab(String(key))}
+          onSelectionChange={(key) => {
+            const next = String(key)
+            if (next === tab) return
+            setTab(next)
+            void load().catch((failure: unknown) => {
+              setRefreshError(failure instanceof Error ? failure.message : String(failure))
+            })
+          }}
           className="workspace-tabs"
         >
           <Tabs.ListContainer>

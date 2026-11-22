@@ -5,7 +5,8 @@ import type {
   MusicInfo,
   MusicResolver,
   ResolverContext,
-  ResolveOptions
+  ResolveOptions,
+  SearchSinger
 } from '@/types'
 
 const PLATFORMS = new Set(['qq', '163', 'kugou', 'kuwo', 'migu'])
@@ -61,30 +62,21 @@ function metadataError(type: string) {
   return musicError('ERR_MUSIC_METADATA', type, '官方接口未返回与 ID 匹配的歌曲信息')
 }
 
-function audioError(type: string) {
-  return musicError(
-    'ERR_MUSIC_AUDIO_UNAVAILABLE',
-    type,
-    '官方公开接口未返回可用音频 URL；可能需要登录、版权授权或配置 resolvers 覆盖'
-  )
-}
-
 function validateInfo(info: MusicInfo, type: string): MusicInfo {
-  if (
-    !info ||
-    typeof info.title !== 'string' ||
-    !info.title.trim() ||
-    typeof info.singer !== 'string' ||
-    !info.singer.trim()
-  ) {
+  if (!info || typeof info.title !== 'string' || !info.title.trim()) {
     throw metadataError(type)
   }
-  if (info.audio === undefined || info.audio === null || info.audio === '') throw audioError(type)
+  if (info.singer !== undefined && info.singer !== null && typeof info.singer !== 'string') {
+    throw metadataError(type)
+  }
   return {
     title: info.title.trim(),
-    singer: info.singer.trim(),
+    singer: info.singer?.trim() ?? '',
     url: httpUrl(info.url, type, 'url'),
-    audio: httpUrl(info.audio, type, 'audio'),
+    audio:
+      info.audio === undefined || info.audio === null || info.audio === ''
+        ? ''
+        : httpUrl(info.audio, type, 'audio'),
     image:
       info.image === undefined || info.image === null || info.image === ''
         ? ''
@@ -93,7 +85,7 @@ function validateInfo(info: MusicInfo, type: string): MusicInfo {
 }
 
 // QQ: fcg_play_single_song -> CgiGetVkey -> response sip + matching purl.
-async function qq(id: string, { json }: ResolverContext): Promise<MusicInfo> {
+async function qq(id: string, { json, metadataOnly }: ResolverContext): Promise<MusicInfo> {
   const type = 'qq'
   const key = /^\d+$/.test(id) ? 'songid' : 'songmid'
   const detail = checkCode(
@@ -113,6 +105,24 @@ async function qq(id: string, { json }: ResolverContext): Promise<MusicInfo> {
     )
   const mid = song?.mid ?? song?.songmid
   if (!song || typeof mid !== 'string' || !/^[a-z\d]+$/i.test(mid)) throw metadataError(type)
+  const album = song.album
+  const info: MusicInfo = {
+    title: song.title || song.name,
+    singer: Array.isArray(song.singer)
+      ? song.singer
+          .map((artist: ApiResponse) => artist?.name)
+          .filter(Boolean)
+          .join(' / ')
+      : '',
+    url: `https://y.qq.com/n/ryqq/songDetail/${mid}`,
+    audio: '',
+    image:
+      album?.picUrl ||
+      (typeof album?.mid === 'string' && /^[a-z\d]+$/i.test(album.mid)
+        ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${album.mid}.jpg`
+        : '')
+  }
+  if (metadataOnly) return info
   const response = checkCode(
     await json(
       'https://u.y.qq.com/cgi-bin/musicu.fcg',
@@ -145,39 +155,20 @@ async function qq(id: string, { json }: ResolverContext): Promise<MusicInfo> {
     Array.isArray(vkey?.midurlinfo) &&
     vkey.midurlinfo.find((entry: ApiResponse) => entry?.songmid === mid)
   const purl = item?.purl
-  if (typeof purl !== 'string' || !purl.trim()) throw audioError(type)
-  let audio
+  if (typeof purl !== 'string' || !purl.trim()) return info
   if (/^[a-z][a-z\d+.-]*:/i.test(purl)) {
-    audio = httpUrl(purl, type, 'audio')
+    info.audio = purl
   } else {
     const origin =
       Array.isArray(vkey?.sip) &&
       vkey.sip.find((value: unknown) => typeof value === 'string' && value.trim())
-    if (!origin) throw audioError(type)
-    audio = new URL(purl, httpUrl(origin, type, 'audio origin')).href
+    if (origin) info.audio = new URL(purl, httpUrl(origin, type, 'audio origin')).href
   }
-  const album = song.album
-  const image =
-    album?.picUrl ||
-    (typeof album?.mid === 'string' && /^[a-z\d]+$/i.test(album.mid)
-      ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${album.mid}.jpg`
-      : '')
-  return {
-    title: song.title || song.name,
-    singer: Array.isArray(song.singer)
-      ? song.singer
-          .map((artist: ApiResponse) => artist?.name)
-          .filter(Boolean)
-          .join(' / ')
-      : '',
-    url: `https://y.qq.com/n/ryqq/songDetail/${mid}`,
-    audio,
-    image
-  }
+  return info
 }
 
 // 163: song/detail -> song/enhance/player/url; no guessed song/media/outer URL.
-async function netease(id: string, { json }: ResolverContext): Promise<MusicInfo> {
+async function netease(id: string, { json, metadataOnly }: ResolverContext): Promise<MusicInfo> {
   const type = '163'
   const ids = JSON.stringify([id])
   const detail = checkCode(await json('https://music.163.com/api/song/detail', { ids }), type, 200)
@@ -185,6 +176,20 @@ async function netease(id: string, { json }: ResolverContext): Promise<MusicInfo
     Array.isArray(detail.songs) &&
     detail.songs.find((item: ApiResponse) => item && sameId(item.id, id))
   if (!song) throw metadataError(type)
+  const artists = song.artists ?? song.ar
+  const info: MusicInfo = {
+    title: song.name,
+    singer: Array.isArray(artists)
+      ? artists
+          .map((item: ApiResponse) => item?.name)
+          .filter(Boolean)
+          .join(' / ')
+      : '',
+    url: `https://music.163.com/song?id=${id}`,
+    audio: '',
+    image: (song.album ?? song.al)?.picUrl
+  }
+  if (metadataOnly) return info
   const response = checkCode(
     await json('https://music.163.com/api/song/enhance/player/url', {
       ids,
@@ -196,20 +201,8 @@ async function netease(id: string, { json }: ResolverContext): Promise<MusicInfo
   const audio =
     Array.isArray(response.data) &&
     response.data.find((item: ApiResponse) => item && sameId(item.id, id))
-  if (!audio || (audio.code !== undefined && String(audio.code) !== '200')) throw audioError(type)
-  const artists = song.artists ?? song.ar
-  return {
-    title: song.name,
-    singer: Array.isArray(artists)
-      ? artists
-          .map((item: ApiResponse) => item?.name)
-          .filter(Boolean)
-          .join(' / ')
-      : '',
-    url: `https://music.163.com/song?id=${id}`,
-    audio: audio.url,
-    image: (song.album ?? song.al)?.picUrl
-  }
+  if (audio && (audio.code === undefined || String(audio.code) === '200')) info.audio = audio.url
+  return info
 }
 
 // Kugou: mobile playInfo returns songName/singerName/url/imgUrl for the requested hash.
@@ -235,7 +228,7 @@ async function kugou(id: string, { json }: ResolverContext): Promise<MusicInfo> 
 }
 
 // Kuwo: musicInfo -> playUrl. Public web APIs may require cookies/CSRF on live servers.
-async function kuwo(id: string, { json }: ResolverContext): Promise<MusicInfo> {
+async function kuwo(id: string, { json, metadataOnly }: ResolverContext): Promise<MusicInfo> {
   const type = 'kuwo'
   const detail = checkCode(
     await json('https://www.kuwo.cn/api/www/music/musicInfo', {
@@ -247,6 +240,14 @@ async function kuwo(id: string, { json }: ResolverContext): Promise<MusicInfo> {
   )
   const song = detail.data
   if (!song || (song.rid !== undefined && !sameId(song.rid, id))) throw metadataError(type)
+  const info: MusicInfo = {
+    title: song.name,
+    singer: song.artist,
+    url: `https://www.kuwo.cn/play_detail/${id}`,
+    audio: '',
+    image: song.pic
+  }
+  if (metadataOnly) return info
   const response = checkCode(
     await json('https://www.kuwo.cn/api/v1/www/music/playUrl', {
       mid: id,
@@ -256,16 +257,11 @@ async function kuwo(id: string, { json }: ResolverContext): Promise<MusicInfo> {
     type,
     200
   )
-  return {
-    title: song.name,
-    singer: song.artist,
-    url: `https://www.kuwo.cn/play_detail/${id}`,
-    audio: response.data?.url,
-    image: song.pic
-  }
+  info.audio = response.data?.url
+  return info
 }
 
-// Migu legacy getSongInfo: songItem.songName/singer/img/mp3; missing mp3 is an error.
+// Migu legacy getSongInfo: songItem.songName/singer/img/mp3.
 async function migu(id: string, { json }: ResolverContext): Promise<MusicInfo> {
   const type = 'migu'
   const response = await json('https://music.migu.cn/v3/api/music/audioPlayer/getSongInfo', {
@@ -292,6 +288,141 @@ async function migu(id: string, { json }: ResolverContext): Promise<MusicInfo> {
 const DEFAULT_RESOLVERS: Record<string, MusicResolver> = { qq, 163: netease, kugou, kuwo, migu }
 const registeredResolvers = new Map<string, { resolver: MusicResolver }>()
 
+export function musicIdFromUrl(value: string): { type: string; id: string } | undefined {
+  const url = new URL(value)
+  const path = url.hash.startsWith('#/') ? new URL(url.hash.slice(1), url.origin) : url
+  const host = url.hostname
+  if (host === 'music.163.com' && /^\/(?:m\/)?song\/?$/.test(path.pathname)) {
+    const id = path.searchParams.get('id')
+    if (id && /^\d+$/.test(id)) return { type: '163', id }
+  }
+  if (host === 'y.qq.com' || host === 'i.y.qq.com') {
+    const match = path.pathname.match(/\/song(?:Detail)?\/([a-z\d]+)(?:\.html)?\/?$/i)
+    const id =
+      match?.[1] ??
+      (/\/(?:playsong|song)\.html$/.test(path.pathname)
+        ? (path.searchParams.get('songmid') ?? path.searchParams.get('songMid'))
+        : null)
+    if (id && /^[a-z\d]+$/i.test(id)) return { type: 'qq', id }
+  }
+  if ((host === 'www.kugou.com' || host === 'm.kugou.com') && /^\/song\/?$/.test(url.pathname)) {
+    const id = new URLSearchParams(url.hash.slice(1)).get('hash') ?? url.searchParams.get('hash')
+    if (id && /^[a-f\d]{32}$/i.test(id)) return { type: 'kugou', id }
+  }
+  if (host === 'www.kuwo.cn' || host === 'kuwo.cn') {
+    const id = path.pathname.match(/^\/play_detail\/(\d+)\/?$/)?.[1]
+    if (id) return { type: 'kuwo', id }
+  }
+  if (host === 'music.migu.cn') {
+    const id = path.pathname.match(/^\/v3\/music\/song\/(\d+)\/?$/)?.[1]
+    if (id) return { type: 'migu', id }
+  }
+}
+
+export const searchMusicSinger: SearchSinger = async (title, url, options = {}) => {
+  const host = new URL(url).hostname
+  const source =
+    host === 'music.163.com' || host === '163cn.tv'
+      ? '163'
+      : host === 'kugou.com' || host.endsWith('.kugou.com')
+        ? 'kugou'
+        : 'qq'
+  const expected = musicIdFromUrl(url)
+  const info = await resolveMusicInfo('search', title, {
+    timeoutMs: 800,
+    ...options,
+    metadataOnly: true,
+    resolvers: {
+      search: async (query, { json }) => {
+        let songs: Array<{ title: unknown; singer: string; ids: unknown[] }>
+        if (source === '163') {
+          const data = checkCode(
+            await json('https://music.163.com/api/search/get', {
+              s: query,
+              type: '1',
+              limit: '20',
+              offset: '0'
+            }),
+            source,
+            200
+          )
+          songs = (Array.isArray(data.result?.songs) ? data.result.songs : []).map(
+            (song: ApiResponse) => ({
+              title: song?.name,
+              singer: (Array.isArray(song?.artists) ? song.artists : [])
+                .map((artist: ApiResponse) => artist?.name)
+                .filter((name: unknown) => typeof name === 'string' && name.trim())
+                .join(' / '),
+              ids: [song?.id]
+            })
+          )
+        } else if (source === 'kugou') {
+          const data = checkCode(
+            await json('https://mobileservice.kugou.com/api/v3/search/song', {
+              keyword: query,
+              page: '1',
+              pagesize: '20',
+              showtype: '1'
+            }),
+            source,
+            0
+          )
+          if (data.status !== 1) throw musicError('ERR_MUSIC_RESPONSE', source, '搜索接口返回失败')
+          songs = (Array.isArray(data.data?.info) ? data.data.info : []).map(
+            (song: ApiResponse) => ({
+              title: song?.songname,
+              singer: typeof song?.singername === 'string' ? song.singername : '',
+              ids: [song?.hash]
+            })
+          )
+        } else {
+          const data = checkCode(
+            await json('https://c.y.qq.com/soso/fcgi-bin/client_search_cp', {
+              w: query,
+              p: '1',
+              n: '20',
+              format: 'json'
+            }),
+            source,
+            0
+          )
+          songs = (Array.isArray(data.data?.song?.list) ? data.data.song.list : []).map(
+            (song: ApiResponse) => ({
+              title: song?.songname,
+              singer: (Array.isArray(song?.singer) ? song.singer : [])
+                .map((artist: ApiResponse) => artist?.name)
+                .filter((name: unknown) => typeof name === 'string' && name.trim())
+                .join(' / '),
+              ids: [song?.songmid, song?.songid]
+            })
+          )
+        }
+        const name = query.trim().normalize('NFKC').toLowerCase()
+        const matches = songs.filter(
+          (song) =>
+            typeof song.title === 'string' &&
+            song.title.trim().normalize('NFKC').toLowerCase() === name
+        )
+        const linked =
+          expected?.type === source
+            ? matches.find((song) =>
+                song.ids.some((id) =>
+                  source === 'kugou'
+                    ? String(id).toLowerCase() === expected.id.toLowerCase()
+                    : sameId(id, expected.id)
+                )
+              )
+            : undefined
+        const singers = new Set(
+          (linked ? [linked] : matches).map((song) => song.singer.trim()).filter(Boolean)
+        )
+        return { title, url, singer: singers.size === 1 ? [...singers][0] : '' }
+      }
+    }
+  })
+  return info.singer ?? ''
+}
+
 export function registerMusicResolver(type: string, resolver: MusicResolver) {
   if (typeof type !== 'string' || !type.trim() || typeof resolver !== 'function') {
     throw new TypeError('音乐来源名称必须是非空字符串，resolver 必须是函数')
@@ -304,14 +435,19 @@ export function registerMusicResolver(type: string, resolver: MusicResolver) {
 }
 
 /**
- * 返回 { title, singer, url, audio, image }，封面可为空。
+ * 返回 { title, singer, url, audio, image }，歌手、音频和封面可为空。
  * 调用级 resolvers 优先于插件注册的解析器，其次使用内置来源。
  * 保留 ID 字符串，超时覆盖完整解析过程。
  */
 export async function resolveMusicInfo(
   type: string,
   id: string | number,
-  { fetchImpl = globalThis.fetch, timeoutMs = 8000, resolvers = {} }: ResolveOptions = {}
+  {
+    fetchImpl = globalThis.fetch,
+    timeoutMs = 8000,
+    resolvers = {},
+    metadataOnly = false
+  }: ResolveOptions = {}
 ): Promise<MusicInfo> {
   if (typeof type !== 'string') throw musicError('ERR_MUSIC_PLATFORM', type, '不支持的音乐平台')
   if (
@@ -404,10 +540,11 @@ export async function resolveMusicInfo(
           fetchImpl: boundedFetch,
           signal: controller.signal,
           timeoutMs,
-          json
+          json,
+          metadataOnly
         })
       )
-      .then((info) => validateInfo(info, type))
+      .then((info) => validateInfo(metadataOnly ? { ...info, audio: '' } : info, type))
     return await Promise.race([work, timeout])
   } finally {
     clearTimeout(timer)

@@ -235,7 +235,8 @@ export default async function makeConfig(name, config) {
     plugin: (globalThis as { plugin?: typeof plugin }).plugin,
     Bot: globalThis.Bot,
     logger: globalThis.logger,
-    segment: globalThis.segment
+    segment: globalThis.segment,
+    fetch: globalThis.fetch
   }
   const loaded: { instance?: FixturePlugin; stopService?: () => Promise<void> } = {}
   t.after(async () => {
@@ -249,7 +250,21 @@ export default async function makeConfig(name, config) {
       await rm(hostRoot, { recursive: true, force: true })
     }
   })
+  const fetchStub: typeof fetch = async (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : String(input))
+    switch (url.origin + url.pathname) {
+      case 'https://music.163.com/api/search/get':
+        return Response.json({ code: 200, result: { songs: [] } })
+      case 'https://mobileservice.kugou.com/api/v3/search/song':
+        return Response.json({ status: 1, errcode: 0, data: { info: [] } })
+      case 'https://c.y.qq.com/soso/fcgi-bin/client_search_cp':
+        return Response.json({ code: 0, data: { song: { list: [] } } })
+      default:
+        return old.fetch(input, init)
+    }
+  }
   Object.assign(globalThis, {
+    fetch: fetchStub,
     plugin: class {
       cleanup: FixtureCleanup[] = []
 

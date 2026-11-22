@@ -21,7 +21,9 @@ import {
   musicFormErrors,
   platformRows,
   platformsFromRows,
-  platformRowErrors
+  platformRowErrors,
+  type PlatformRow,
+  type MusicForm
 } from '../../src/modules/music-card-sign/config-form'
 
 export const Settings = ({
@@ -38,8 +40,10 @@ export const Settings = ({
   const [changes, setChanges] = useState<Partial<PanelState['config']>>({})
   const settings = { ...state.config, ...changes }
   const [timeoutSeconds, setTimeoutSeconds] = useState<string>()
-  const [platforms, setPlatforms] = useState(() => platformRows(settings.platforms))
-  const [testMusic, setTestMusic] = useState(() => musicForm(settings.testMusic))
+  const [platformDraft, setPlatforms] = useState<PlatformRow[]>()
+  const [musicDraft, setTestMusic] = useState<MusicForm>()
+  const platforms = platformDraft ?? platformRows(settings.platforms)
+  const testMusic = musicDraft ?? musicForm(settings.testMusic)
   const [showErrors, setShowErrors] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [clearKey, setClearKey] = useState(false)
@@ -107,8 +111,12 @@ export const Settings = ({
         ...(timeoutSeconds === undefined
           ? {}
           : { timeoutMs: Math.round(Number(timeoutSeconds) * 1000) }),
-        platforms: platformsFromRows(platforms, settings.platforms),
-        testMusic: musicFromForm(testMusic, settings.testMusic),
+        ...(platformDraft === undefined
+          ? {}
+          : { platforms: platformsFromRows(platformDraft, settings.platforms) }),
+        ...(musicDraft === undefined
+          ? {}
+          : { testMusic: musicFromForm(musicDraft, settings.testMusic) }),
         ...(clearKey ? { apiKey: '' } : apiKey ? { apiKey } : {})
       })
       setApiKey('')
@@ -116,6 +124,8 @@ export const Settings = ({
       await onSaved()
       setChanges({})
       setTimeoutSeconds(undefined)
+      setPlatforms(undefined)
+      setTestMusic(undefined)
       setNotice({ error: false, text: result.message })
     } catch (error) {
       setNotice({ error: true, text: error instanceof Error ? error.message : String(error) })

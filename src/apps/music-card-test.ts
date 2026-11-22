@@ -7,7 +7,7 @@ export class MusicCardTest extends plugin<'message'> {
       name: '音卡签名测试与发卡',
       dsc: '音之测测与签名音卡指令',
       event: 'message',
-      priority: -10000,
+      priority: -Infinity,
       namespace: 'music-card-test',
       rule: [
         { reg: '^#?音之测测(?:\\s+[\\s\\S]+)?$', fnc: 'probe' },

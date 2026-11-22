@@ -300,11 +300,9 @@ for (const entry of cases) {
     fixture.done()
   })
 
-  test(`${entry.type}: absent audio fails instead of manufacturing a playback URL`, async () => {
+  test(`${entry.type}: absent audio preserves metadata without manufacturing a playback URL`, async () => {
     const fixture = fixtures(entry.type === 'qq' ? qqSteps(entry.id, '') : entry.steps(null))
-    await assert.rejects(resolve(entry.type, entry.id, fixture), {
-      code: 'ERR_MUSIC_AUDIO_UNAVAILABLE'
-    })
+    assert.deepEqual(await resolve(entry.type, entry.id, fixture), { ...entry.want, audio: '' })
     fixture.done()
   })
 
@@ -388,8 +386,8 @@ test('unsafe URL schemes in resolver output are rejected', async () => {
   }
 })
 
-test('missing title or singer fails; a genuinely absent cover is returned as empty', async () => {
-  for (const field of ['title', 'singer']) {
+test('missing title fails; singer, audio and cover may be absent', async () => {
+  for (const field of ['title']) {
     await assert.rejects(
       resolve('163', '00123', {
         resolvers: { 163: async () => ({ ...cases[1].want, [field]: '' }) }
@@ -398,8 +396,12 @@ test('missing title or singer fails; a genuinely absent cover is returned as emp
     )
   }
   const info = await resolve('163', '00123', {
-    resolvers: { 163: async () => ({ ...cases[1].want, image: undefined }) }
+    resolvers: {
+      163: async () => ({ title: cases[1].want.title, url: cases[1].want.url })
+    }
   })
+  assert.equal(info.singer, '')
+  assert.equal(info.audio, '')
   assert.equal(info.image, '')
 })
 
@@ -434,9 +436,7 @@ test('platform error responses and unrelated songs are not used as metadata', as
 test('QQ relative audio requires a real HTTP(S) stream origin from the response', async () => {
   const steps = qqSteps('00Track9')
   steps[1].data.req_0.data.sip = []
-  await assert.rejects(resolve('qq', '00Track9', fixtures(steps)), {
-    code: 'ERR_MUSIC_AUDIO_UNAVAILABLE'
-  })
+  assert.equal((await resolve('qq', '00Track9', fixtures(steps))).audio, '')
   const unsafe = qqSteps('00Track9')
   unsafe[1].data.req_0.data.sip = ['file:///tmp/']
   await assert.rejects(resolve('qq', '00Track9', fixtures(unsafe)), { code: 'ERR_MUSIC_URL' })
@@ -576,11 +576,60 @@ test('注册解析器仍检查完整歌曲信息，并在超时后中止信号',
   )
   t.after(slow)
   t.after(incomplete)
-  await assert.rejects(resolve('incomplete-plugin', '00123'), { code: 'ERR_MUSIC_METADATA' })
+  await assert.rejects(resolve('incomplete-plugin', '00123'), { code: 'ERR_MUSIC_URL' })
   await assert.rejects(resolve('slow-plugin', '00123', { timeoutMs: 15 }), {
     code: 'ERR_MUSIC_TIMEOUT'
   })
   assert.equal(signal?.aborted, true)
+})
+
+test('metadata-only queries reuse song detail and never request playback URLs', async () => {
+  for (const entry of cases) {
+    const fixture = fixtures([entry.steps()[0]])
+    const info = await resolve(entry.type, entry.id, { ...fixture, metadataOnly: true })
+    assert.deepEqual(info, { ...entry.want, audio: '' })
+    fixture.done()
+  }
+})
+
+test('网易云没有授权播放的记录仍可返回图文分享信息', async () => {
+  const steps = neteaseSteps()
+  steps[1].data.data[1].code = 403
+  assert.deepEqual(await resolve('163', '00123', fixtures(steps)), {
+    ...cases[1].want,
+    audio: ''
+  })
+})
+
+test('歌手补全仅从已知歌曲页面提取 ID，不使用歌名、音频或任意网站参数', async () => {
+  const { musicIdFromUrl } = await import('../src/models/music-info')
+  for (const [url, type, id] of [
+    ['https://music.163.com/#/song?id=186016', '163', '186016'],
+    ['https://music.163.com/song?id=00123', '163', '00123'],
+    ['https://y.qq.com/n/ryqq/songDetail/00Track9', 'qq', '00Track9'],
+    ['https://y.qq.com/n/yqq/song/00Track9.html', 'qq', '00Track9'],
+    ['https://i.y.qq.com/v8/playsong.html?songmid=00Track9', 'qq', '00Track9'],
+    [
+      'https://www.kugou.com/song/#hash=B3A52A7A958BF0AED0EBFBA2E9A818B7',
+      'kugou',
+      'B3A52A7A958BF0AED0EBFBA2E9A818B7'
+    ],
+    ['https://www.kuwo.cn/play_detail/00123', 'kuwo', '00123'],
+    ['https://music.migu.cn/v3/music/song/00123', 'migu', '00123']
+  ]) {
+    assert.deepEqual(musicIdFromUrl(url), { type, id })
+  }
+  for (const url of [
+    'https://example.com/song?id=186016',
+    'https://music.163.com.example.com/song?id=186016',
+    'https://music.163.com/playlist?id=186016',
+    'https://music.163.com/song?id=invalid',
+    'https://y.qq.com/?mid=00Track9',
+    'https://www.kugou.com/song/#hash=not-a-hash',
+    'https://music.163.com/song/media/outer/url?id=186016.mp3'
+  ]) {
+    assert.equal(musicIdFromUrl(url), undefined)
+  }
 })
 
 test('自定义解析器竞速返回成功后取消剩余 API 请求', async () => {
@@ -614,4 +663,160 @@ test('自定义解析器竞速返回成功后取消剩余 API 请求', async () 
   assert.deepEqual(info, cases[1].want)
   assert.equal(slowSignal?.aborted, true)
   assert.equal(slowStopped, true)
+})
+
+test('歌名搜索不依赖链接 ID，完整传递长标题和歌名自带标点', async () => {
+  const { searchMusicSinger } = await import('../src/models/music-info')
+  const title = '我们打着光脚在风车下跑，手上的狗尾巴草摇啊摇'
+  for (const sample of [
+    {
+      url: 'https://163cn.tv/opaque-share-token',
+      step: get(
+        'music.163.com',
+        '/api/search/get',
+        { s: title, type: '1' },
+        {
+          code: 200,
+          result: { songs: [{ id: 123, name: title, artists: [{ name: '搜索歌手' }] }] }
+        }
+      )
+    },
+    {
+      url: 'https://www.kugou.com/song/#hash=not-a-queryable-hash',
+      step: get(
+        'mobileservice.kugou.com',
+        '/api/v3/search/song',
+        { keyword: title },
+        {
+          status: 1,
+          errcode: 0,
+          data: { info: [{ hash: 'ignored', songname: title, singername: '搜索歌手' }] }
+        }
+      )
+    },
+    {
+      url: 'https://y.qq.com/n2m/share/details?u=opaque-token',
+      step: get(
+        'c.y.qq.com',
+        '/soso/fcgi-bin/client_search_cp',
+        { w: title },
+        {
+          code: 0,
+          data: { song: { list: [{ songname: title, singer: [{ name: '搜索歌手' }] }] } }
+        }
+      )
+    },
+    {
+      url: 'https://example.com/share?track=non-queryable',
+      step: get(
+        'c.y.qq.com',
+        '/soso/fcgi-bin/client_search_cp',
+        { w: title },
+        {
+          code: 0,
+          data: { song: { list: [{ songname: title, singer: [{ name: '搜索歌手' }] }] } }
+        }
+      )
+    }
+  ]) {
+    const fixture = fixtures([sample.step])
+    assert.equal(await searchMusicSinger(title, sample.url, fixture), '搜索歌手')
+    fixture.done()
+  }
+})
+
+test('歌名搜索只接受完整同名结果，重复版本同歌手可用，异歌手同名不猜测', async () => {
+  const { searchMusicSinger } = await import('../src/models/music-info')
+  for (const [songs, expected] of [
+    [[{ songname: '我们（现场版）', singer: [{ name: '不相关歌手' }] }], ''],
+    [
+      [
+        { songname: '我们', singer: [{ name: '甲' }] },
+        { songname: '我们', singer: [{ name: '甲' }] }
+      ],
+      '甲'
+    ],
+    [
+      [
+        { songname: '我们', singer: [{ name: '甲' }] },
+        { songname: '我们', singer: [{ name: '乙' }] }
+      ],
+      ''
+    ],
+    [[{ songname: null, singer: [{ name: '甲' }] }], '']
+  ] as const) {
+    const fixture = fixtures([
+      get(
+        'c.y.qq.com',
+        '/soso/fcgi-bin/client_search_cp',
+        { w: '我们' },
+        { code: 0, data: { song: { list: songs } } }
+      )
+    ])
+    assert.equal(await searchMusicSinger('我们', 'https://example.com/share', fixture), expected)
+    fixture.done()
+  }
+})
+
+test('链接 ID 只区分歌名匹配的搜索结果，指向另一首歌时不能覆盖标题', async () => {
+  const { searchMusicSinger } = await import('../src/models/music-info')
+  for (const [id, expected] of [
+    ['1', '甲'],
+    ['2', '乙'],
+    ['3', '']
+  ] as const) {
+    const fixture = fixtures([
+      get(
+        'music.163.com',
+        '/api/search/get',
+        { s: '我们' },
+        {
+          code: 200,
+          result: {
+            songs: [
+              { id: 1, name: '我们', artists: [{ name: '甲' }] },
+              { id: 2, name: '我们', artists: [{ name: '乙' }] },
+              { id: 3, name: '另外一首歌', artists: [{ name: '丙' }] }
+            ]
+          }
+        }
+      )
+    ])
+    assert.equal(
+      await searchMusicSinger('我们', `https://music.163.com/song?id=${id}`, fixture),
+      expected
+    )
+    fixture.done()
+  }
+})
+
+test('搜索等待上限覆盖响应体，超时取消请求，成功后也释放查询信号', async () => {
+  const { searchMusicSinger } = await import('../src/models/music-info')
+  let signal: AbortSignal | null | undefined
+  await assert.rejects(
+    searchMusicSinger('我们', 'https://example.com/share', {
+      timeoutMs: 25,
+      fetchImpl: async (_input, options) => {
+        signal = options?.signal
+        const response = new Response()
+        response.json = () => new Promise(() => {})
+        return response
+      }
+    }),
+    /解析超时 \(25ms\)/
+  )
+  assert.equal(signal?.aborted, true)
+  const singer = await searchMusicSinger('我们', 'https://example.com/share', {
+    fetchImpl: async (_input, options) => {
+      signal = options?.signal
+      return new Response(
+        JSON.stringify({
+          code: 0,
+          data: { song: { list: [{ songname: '我们', singer: [{ name: '甲' }] }] } }
+        })
+      )
+    }
+  })
+  assert.equal(singer, '甲')
+  assert.equal(signal?.aborted, true)
 })

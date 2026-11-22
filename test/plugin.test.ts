@@ -1331,9 +1331,14 @@ test('歌曲查询 Handler 的错误、无效字段和超时在提交前失败�
   await assert.rejects(instance.signCard({}, data, rejectSign), /开发者 API 查询失败/)
   handlers.add({
     ...entry,
-    fn: () => ({ title: '测试', singer: '歌手', url: 'https://example.com/song', audio: '' })
+    fn: () => ({
+      title: '测试',
+      singer: '歌手',
+      url: 'https://example.com/song',
+      audio: 'file:///song.mp3'
+    })
   })
-  await assert.rejects(instance.signCard({}, data, rejectSign), /可用音频 URL/)
+  await assert.rejects(instance.signCard({}, data, rejectSign), /audio 只允许 HTTP\(S\) URL/)
   let signal: AbortSignal | undefined
   handlers.add({
     ...entry,
@@ -1347,6 +1352,99 @@ test('歌曲查询 Handler 的错误、无效字段和超时在提交前失败�
   assert.equal(cards.length, 0)
   assert.equal(bot.listenerCount('sync.message'), 0)
   assert.equal(bot.listenerCount('message.private'), 0)
+})
+
+test('本插件带链接的指令先于分享解析，静默权限检查也不会落入其他插件', async (t) => {
+  const { testApp, manageApp } = await fixture(t)
+  assert.ok(testApp.priority < Number.MIN_SAFE_INTEGER)
+  assert.ok(manageApp.priority < Number.MIN_SAFE_INTEGER)
+  let parsedLinks = 0
+  const routes = [
+    ...testApp.rule.map((rule) => ({
+      priority: testApp.priority,
+      pattern: new RegExp(rule.reg),
+      run: (e: FixtureCommandEvent) =>
+        rule.fnc === 'probe' ? testApp.probe(e) : testApp.forwardCard(e)
+    })),
+    {
+      priority: Number.MIN_SAFE_INTEGER,
+      pattern: /https?:\/\/\S+/,
+      run: async (_e: FixtureCommandEvent) => {
+        parsedLinks++
+        return true
+      }
+    }
+  ].toSorted((a, b) => a.priority - b.priority)
+  const dispatch = async (e: FixtureCommandEvent) => {
+    for (const route of routes) {
+      if (route.pattern.test(e.msg) && (await route.run(e)) !== false) return
+    }
+  }
+  for (const name of ['#音之测测', '#签名音卡']) {
+    await dispatch({
+      ...command(
+        `${name} {"type":"custom","title":"测试","url":"https://music.163.com/song?id=186016"}`
+      ),
+      isMaster: false,
+      reply: async () => assert.fail('未授权指令应保持静默')
+    })
+  }
+  assert.equal(parsedLinks, 0)
+  await dispatch(command('听听这首歌 https://music.163.com/song?id=186016'))
+  assert.equal(parsedLinks, 1, '其他消息中的歌曲链接仍交给分享解析插件')
+})
+
+test('Handler ID 查询省略音频时返回完整图文卡，HTTP 和缓存保持原 JSON', async (t) => {
+  const { instance, bot, handlers, stack } = await fixture(t)
+  let queries = 0
+  handlers.add({
+    key: 'music.info.news-handler',
+    ns: 'example/news-handler.js',
+    fn: () => {
+      queries++
+      return { title: 'Handler 图文卡', url: 'https://example.com/news' }
+    }
+  })
+  bot.pickFriend = (to) => ({
+    share: async (content, app) => {
+      assert.equal(content.audio, '')
+      bot.emit('sync.message', {
+        self_id: bot.uin,
+        from_id: bot.uin,
+        to_id: to,
+        message: [
+          {
+            type: 'json',
+            data: JSON.stringify({
+              app: 'com.tencent.tuwen.lua',
+              view: 'news',
+              prompt: content.content,
+              meta: { news: { appid: app.appid, title: content.title, jumpUrl: content.url } },
+              extension: '原样保留'
+            })
+          }
+        ]
+      })
+    }
+  })
+  const request = { type: 'news-handler', id: 'track:00123', self_id: String(bot.uin) }
+  const raw = await instance.signCard({}, request, rejectSign)
+  assert.equal(JSON.parse(raw).view, 'news')
+  const response: FixtureResponse = {
+    statusCode: 0,
+    body: '',
+    writeHead(statusCode) {
+      this.statusCode = statusCode
+    },
+    end(body) {
+      this.body = body
+    }
+  }
+  await stack[1].handle({ method: 'POST', url: '/', headers: {}, body: request }, response)
+  assert.equal(response.statusCode, 200)
+  assert.equal(response.body, raw)
+  assert.equal(JSON.parse(response.body).extension, '原样保留')
+  assert.equal(queries, 1)
 })
 
 test('回传失败不写入缓存，音之测测绕过已有缓存检测当前回传能力', async (t) => {

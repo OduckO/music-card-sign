@@ -160,9 +160,7 @@ export const MusicEditor = ({
 }) => {
   const update = (key: keyof MusicForm, next: string) => onChange({ ...value, [key]: next })
   const errors = showErrors ? musicFormErrors(value) : {}
-  const [customSource, setCustomSource] = useState(
-    () => !musicSourceOptions.some((item) => item.value === value.type)
-  )
+  const customSource = !musicSourceOptions.some((item) => item.value === value.type)
   return (
     <Section
       icon={music}
@@ -279,10 +277,7 @@ export const MusicEditor = ({
             selectedKey={customSource ? '__custom__' : value.type}
             onSelectionChange={(key) => {
               if (key === null) return
-              if (key === '__custom__') {
-                if (!customSource) update('type', '')
-              } else update('type', String(key))
-              setCustomSource(key === '__custom__')
+              update('type', key === '__custom__' ? '' : String(key))
             }}
           >
             <Label>查询来源 · type</Label>

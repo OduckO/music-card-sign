@@ -7,7 +7,7 @@ export class MusicCardManage extends plugin<'message'> {
       name: '音卡签名管理',
       dsc: '帮助、状态、账号、联系人、平台、服务开关与更新',
       event: 'message',
-      priority: -10000,
+      priority: -Infinity,
       namespace: 'music-card-manage',
       rule: [
         { reg: '^#音乐签名(?:帮助)?$', fnc: 'help' },

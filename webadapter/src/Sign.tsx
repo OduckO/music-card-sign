@@ -18,7 +18,8 @@ import { Field, Section } from './components'
 import { api } from './api'
 
 export const Sign = ({ state }: { state: PanelState }) => {
-  const [request, setRequest] = useState(JSON.stringify(state.config.testMusic, null, 2))
+  const [requestDraft, setRequest] = useState<string>()
+  const request = requestDraft ?? JSON.stringify(state.config.testMusic, null, 2)
   const [forceFresh, setForceFresh] = useState(false)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<SignResult | null>(null)
@@ -33,7 +34,11 @@ export const Sign = ({ state }: { state: PanelState }) => {
     setCoverLoaded(false)
     try {
       const data: MusicRequest = JSON.parse(request)
-      setResult(await api<SignResult>('/sign', { request: data, forceFresh }))
+      const queryById = data?.id !== undefined && !(data.title ?? data.song ?? data.name)
+      // ID 查询和签名分别限时，另留播放跳转解析与网络传输的时间。
+      const timeoutMs =
+        state.config.timeoutMs * (queryById ? 2 : 1) + Math.min(state.config.timeoutMs, 4000) + 5000
+      setResult(await api<SignResult>('/sign', { request: data, forceFresh }, timeoutMs))
     } catch (failure) {
       setError(
         failure instanceof SyntaxError
@@ -78,10 +83,7 @@ export const Sign = ({ state }: { state: PanelState }) => {
           </Switch.Content>
         </Switch>
         <div className="request-actions wide">
-          <Button
-            variant="secondary"
-            onPress={() => setRequest(JSON.stringify(state.config.testMusic, null, 2))}
-          >
+          <Button variant="secondary" onPress={() => setRequest(undefined)}>
             <Icon icon={refresh} aria-hidden />
             载入测试歌曲
           </Button>
