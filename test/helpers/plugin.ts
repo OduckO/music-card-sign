@@ -25,7 +25,10 @@ export type FixtureReply =
   | { type: 'image'; file: string }
   | { type: 'json'; data: string }
   | { type: 'raw'; data: { type: 'json'; data: { data: string } } }
-export type FixtureReplyResult = boolean | void | { message_id?: number[]; error?: string[] }
+export type FixtureReplyResult =
+  | boolean
+  | void
+  | { message_id?: number[]; error?: string | string[] }
 
 export interface FixtureCommandEvent<Message = FixtureReply> {
   isMaster?: boolean

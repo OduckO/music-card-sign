@@ -587,50 +587,54 @@ test('OneBot v11 会话自动选择 icqq 签名，发送符合协议的完整 JS
   assert.ok(logs.some(({ message }) => message.includes('发送成功')))
 })
 
-test('OneBot v11 群聊和私聊由配置的 icqq 签名，再由收指令账号发送原卡', async (t) => {
-  const { bot, cards, targets, logs, testApp } = await fixture(t, { botId: '123456789' })
-  const receiverId = 234567890
-  Object.assign(Bot, {
-    uin: [receiverId, bot.uin],
-    [receiverId]: { adapter: { name: 'OneBotv11' } }
-  })
-  Object.assign(bot, {
-    sendGroupMsg: async () => assert.fail('签名账号不能替 OneBot 会话发送群消息'),
-    sendPrivateMsg: async () => assert.fail('签名账号不能替 OneBot 会话发送私聊消息')
-  })
-  const sessions = [{ group_id: '345678901', user_id: '456789012' }, { user_id: '456789012' }]
-  const music = {
-    type: 'custom',
-    _platform: '163',
-    title: '跨账号音卡',
-    url: 'https://example.com/song',
-    audio: 'https://example.com/audio.mp3'
-  }
-  for (const [index, session] of sessions.entries()) {
-    const replies: FixtureReply[] = []
-    await testApp.probe({
-      isMaster: true,
-      self_id: receiverId,
-      ...session,
-      msg: '#音之测测 ' + JSON.stringify(music),
-      reply: async (message) => {
-        replies.push(message)
-        return { message_id: [1], error: [] }
-      }
+for (const adapter of ['OneBotv11', 'Milky']) {
+  test(`${adapter} 群聊和私聊由配置的 icqq 签名，再由收指令账号发送原卡`, async (t) => {
+    const { bot, cards, targets, logs, testApp } = await fixture(t, { botId: '123456789' })
+    const receiverId = 234567890
+    Object.assign(Bot, {
+      uin: [receiverId, bot.uin],
+      [receiverId]: { adapter: { name: adapter } }
     })
-    assert.equal(cards.length, index + 1)
-    assert.deepEqual(replies[1], {
-      type: 'raw',
-      data: { type: 'json', data: { data: cards[index] } }
+    Object.assign(bot, {
+      sendGroupMsg: async () => assert.fail('签名账号不能替当前会话发送群消息'),
+      sendPrivateMsg: async () => assert.fail('签名账号不能替当前会话发送私聊消息')
     })
-    assert.equal(JSON.parse(cards[index]).meta.music.appid, 100495085)
-    assert.match(String(replies.at(-1)), /音之测测通过/)
-  }
-  assert.deepEqual(targets, [bot.uin, bot.uin])
-  assert.ok(
-    logs.some(({ message }) => message.includes(`[音卡发送] Bot=${receiverId} 适配器=OneBotv11`))
-  )
-})
+    const sessions = [{ group_id: '345678901', user_id: '456789012' }, { user_id: '456789012' }]
+    const music = {
+      type: 'custom',
+      _platform: '163',
+      title: '跨账号音卡',
+      url: 'https://example.com/song',
+      audio: 'https://example.com/audio.mp3'
+    }
+    for (const [index, session] of sessions.entries()) {
+      const replies: FixtureReply[] = []
+      await testApp.probe({
+        isMaster: true,
+        self_id: receiverId,
+        ...session,
+        msg: '#音之测测 ' + JSON.stringify(music),
+        reply: async (message) => {
+          replies.push(message)
+          return { message_id: [1], error: [] }
+        }
+      })
+      assert.equal(cards.length, index + 1)
+      assert.deepEqual(
+        replies[1],
+        adapter === 'OneBotv11'
+          ? { type: 'raw', data: { type: 'json', data: { data: cards[index] } } }
+          : { type: 'json', data: cards[index] }
+      )
+      assert.equal(JSON.parse(cards[index]).meta.music.appid, 100495085)
+      assert.match(String(replies.at(-1)), /音之测测通过/)
+    }
+    assert.deepEqual(targets, [bot.uin, bot.uin])
+    assert.ok(
+      logs.some(({ message }) => message.includes(`[音卡发送] Bot=${receiverId} 适配器=${adapter}`))
+    )
+  })
+}
 
 test('另一个 ICQQ 账号收到指令时，由它的 SDK 发回配置账号签好的原卡', async (t) => {
   const { bot, cards, targets, testApp } = await fixture(t, { botId: '123456789' })
@@ -882,25 +886,32 @@ test('ICQQ 原生 SDK 发卡没有回执时同样报告发送超时', async (t) 
   assert.ok(!replies.some((message) => typeof message === 'object'))
 })
 
-test('发送失败记录协议端原始错误，失败回复包含详情', async (t) => {
-  const { bot, logs, testApp } = await fixture(t)
-  const replies: FixtureReply[] = []
-  await testApp.probe({
-    isMaster: true,
-    self_id: bot.uin,
-    bot: { adapter: { name: 'OneBotv11' } },
-    msg: '#音之测测',
-    reply: async (message) => {
-      replies.push(message)
-      return typeof message === 'object' ? { error: ['retcode=100: JSON unsupported'] } : true
-    }
+for (const adapter of ['OneBotv11', 'Milky']) {
+  test(`${adapter} 发送失败记录协议端原始错误，失败回复包含详情`, async (t) => {
+    const { bot, logs, testApp } = await fixture(t)
+    const replies: FixtureReply[] = []
+    await testApp.probe({
+      isMaster: true,
+      self_id: bot.uin,
+      bot: { adapter: { name: adapter } },
+      msg: '#音之测测',
+      reply: async (message) => {
+        replies.push(message)
+        if (typeof message !== 'object') return true
+        return adapter === 'Milky'
+          ? { retcode: -1, status: 'failed', data: null, error: 'retcode=100: JSON unsupported' }
+          : { error: ['retcode=100: JSON unsupported'] }
+      }
+    })
+    const reply = replies.at(-1)
+    assert.ok(typeof reply === 'string')
+    assert.match(reply, /当前会话发送.*retcode=100: JSON unsupported/)
+    assert.ok(
+      logs.some(({ level, message }) => level === 'error' && message.includes('retcode=100'))
+    )
+    assert.ok(!logs.some(({ message }) => message.includes('发送成功')))
   })
-  const reply = replies.at(-1)
-  assert.ok(typeof reply === 'string')
-  assert.match(reply, /当前会话发送.*retcode=100: JSON unsupported/)
-  assert.ok(logs.some(({ level, message }) => level === 'error' && message.includes('retcode=100')))
-  assert.ok(!logs.some(({ message }) => message.includes('发送成功')))
-})
+}
 
 test('未支持的会话适配器明确报告，不能假报音卡发送成功', async (t) => {
   const { bot, testApp } = await fixture(t)
