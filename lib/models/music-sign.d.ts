@@ -31,7 +31,16 @@ export declare class MusicSigner {
     readonly submissions: Map<string, Promise<MusicCard>>;
     readonly listeners: Map<IcqqBot, Subscription>;
     readonly echoes: Map<string, number>;
-    readonly submitted: Map<string, number>;
+    readonly submitted: Map<string, {
+        botId: string;
+        targetId: string;
+        appid: number;
+        url: string;
+        title: string;
+        prompt: string;
+        started: number;
+        expires: number;
+    }>;
     readonly cacheWrites: Map<string, {
         card: MusicCard;
         promise: Promise<void>;
@@ -42,7 +51,7 @@ export declare class MusicSigner {
     sign(input: unknown, { forceFresh }?: SignOptions): Promise<MusicCard>;
     signRequest(bot: IcqqBot, data: MusicRequest, platform: AppPlatform, identity: string, key: string, forceFresh: boolean, context: string): Promise<MusicCard>;
     submit(bot: IcqqBot, request: NormalizedRequest, key: string, context: string): Promise<MusicCard>;
-    send(bot: IcqqBot, request: NormalizedRequest, key: string, context: string): Promise<MusicCard>;
+    send(bot: IcqqBot, request: NormalizedRequest, key: string, context: string, previous?: Promise<MusicCard>): Promise<MusicCard>;
     unlisten(bot: IcqqBot): void;
     isSigningEcho(event: MusicEvent): boolean;
     markEcho(event: MusicEvent, botId: number, targetId: string): void;

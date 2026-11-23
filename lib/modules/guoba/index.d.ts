@@ -13,7 +13,7 @@ export declare function supportGuoba(): {
         icon: string;
     };
     configInfo: {
-        schemas: import("trss-yunzai/guoba").Schema<"botId" | "targetId" | "defaultPlatform" | "apiKey" | "path" | "enabled" | "commandBotMode" | "commandBotBlacklist" | "commandBotWhitelist" | "localPort" | "platforms" | "testMusic" | "platformEntries" | "timeoutSeconds" | "targetFriend" | "testSong.type" | "testSong.id" | "testSong.platform" | "testSong.title" | "testSong.singer" | "testSong.url" | "testSong.audio" | "testSong.image" | "testSong.mode">[];
+        schemas: import("trss-yunzai/guoba").Schema<"enabled" | "botId" | "targetId" | "commandBotMode" | "commandBotBlacklist" | "commandBotWhitelist" | "defaultPlatform" | "path" | "localPort" | "apiKey" | "platforms" | "testMusic" | "platformEntries" | "timeoutSeconds" | "targetFriend" | "testSong.type" | "testSong.id" | "testSong.platform" | "testSong.title" | "testSong.singer" | "testSong.url" | "testSong.audio" | "testSong.image" | "testSong.mode">[];
         getConfigData(): {
             timeoutSeconds: number;
             targetFriend: never[];
