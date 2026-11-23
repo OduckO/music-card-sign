@@ -39,10 +39,6 @@ jobs:
             - cwd: plugins/temp-plugin
               args: [--ignore-workspace, --frozen-lockfile, --registry=https://registry.npmjs.org]
 
-      - name: Install browser for WebUI regression tests
-        working-directory: plugins/temp-plugin
-        run: pnpm exec playwright install --with-deps chromium
-
       - name: Check types, lint, formatting and test compiled JavaScript
         working-directory: plugins/temp-plugin
         run: |
