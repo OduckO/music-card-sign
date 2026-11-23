@@ -857,6 +857,105 @@ test('歌曲相同但歌手或音频不同的请求串行提交，各自获得�
   assert.equal(signer.submissions.size, 0)
 })
 
+test('同一消息的 sync 和私聊重复回包不能完成下一个排队请求', async (t) => {
+  const bot = new QQBoundary()
+  const signer = new MusicSigner({ getBots: () => [bot], timeoutMs: 1000 })
+  t.after(() => signer.close())
+  const first = signer.sign(input)
+  const otherAudio = 'https://example.com/other.mp3'
+  const second = signer.sign({ ...input, audio: otherAudio })
+  first.catch(() => {})
+  second.catch(() => {})
+  await new Promise((resolve) => setImmediate(resolve))
+  const echo: MusicEvent = {
+    self_id: bot.uin,
+    from_id: bot.uin,
+    to_id: bot.uin,
+    message_id: 'first',
+    time: Math.floor(Date.now() / 1000),
+    message: [{ type: 'json', data: JSON.stringify(card()) }]
+  }
+  bot.emit('sync.message', echo)
+  await first
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(bot.shares.length, 2)
+  bot.emit('message.private.friend', { ...echo })
+  assert.equal(signer.pending.size, 1, '旧消息的另一种上报仍属于第一张卡片')
+  bot.emit('message.private.friend', {
+    ...echo,
+    message_id: 'second',
+    message: [{ type: 'json', data: JSON.stringify(card({ musicUrl: otherAudio })) }]
+  })
+  assert.equal((await second).meta.music?.musicUrl, otherAudio)
+})
+
+test('迟到回包指纹只短期匹配同一歌曲，不吞掉后续手工分享', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1800000000000 })
+  const bot = new QQBoundary()
+  const signer = new MusicSigner({ getBots: () => [bot] })
+  t.after(() => signer.close())
+  bot.onShare = () => bot.deliver(card())
+  await signer.sign(input)
+  const echo = (title = input.title): MusicEvent => ({
+    self_id: bot.uin,
+    from_id: bot.uin,
+    to_id: bot.uin,
+    time: Math.floor(Date.now() / 1000),
+    message: [{ type: 'json', data: JSON.stringify(card({ title })) }]
+  })
+  assert.equal(signer.isSigningEcho(echo('手工分享的另一首歌')), false)
+  t.mock.timers.tick(30000)
+  assert.equal(signer.isSigningEcho(echo()), true, '仍拦截超时后短期到达的回包')
+  t.mock.timers.tick(30000)
+  assert.equal(signer.isSigningEcho(echo()), false, '超过回包保留窗口后恢复正常上报')
+  assert.equal(signer.submitted.size, 0)
+})
+
+test('排队耗时计入超时，过期请求不会继续分享，清理后可以再次签名', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const bot = new QQBoundary()
+  const signer = new MusicSigner({ getBots: () => [bot], timeoutMs: 40 })
+  t.after(() => signer.close())
+  const requests = [1, 2, 3].map((index) =>
+    signer.sign({ ...input, image: `https://example.com/${index}.jpg` }).catch((error) => error)
+  )
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(bot.shares.length, 1)
+  t.mock.timers.tick(40)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(bot.shares.length, 1, '过期的排队请求不得发送到 QQ')
+  for (const result of await Promise.all(requests)) {
+    assert.match(result.message, /超时/)
+    assert.equal(result.status, 504)
+  }
+  assert.equal(signer.pending.size, 0)
+  assert.equal(signer.listeners.size, 0)
+  assert.equal(signer.submissions.size, 0)
+  bot.onShare = () => bot.deliver(card())
+  assert.deepEqual(await signer.sign(input), card())
+})
+
+test('计时器尚未执行时，已经超过截止时间的排队请求也不会发送', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let now = 1000
+  t.mock.method(performance, 'now', () => now)
+  const bot = new QQBoundary()
+  const signer = new MusicSigner({ getBots: () => [bot], timeoutMs: 40 })
+  t.after(() => signer.close())
+  const first = signer.sign(input)
+  const second = assert.rejects(
+    signer.sign({ ...input, image: 'https://example.com/other.jpg' }),
+    /超时/
+  )
+  await new Promise((resolve) => setImmediate(resolve))
+  now += 40
+  bot.deliver(card())
+  await first
+  await second
+  assert.equal(bot.shares.length, 1)
+  assert.equal(signer.pending.size, 0)
+})
+
 test('隐藏平台字段切换网易云，也支持应用三元组', () => {
   assert.equal(normalizeRequest({ ...input, _platform: '163' }).platform.appid, 100495085)
   const custom = {
@@ -930,7 +1029,7 @@ test('兼容 QQ 长标题截断后的 news 回包，标点仍属于原歌曲标�
       }
     } satisfies MusicCard
     const echo: MusicEvent = {
-      message_id: `news:${content.title}`,
+      message_id: `news:${app.appid}:${content.title}`,
       self_id: bot.uin,
       message_type: 'private',
       from_id: bot.uin,

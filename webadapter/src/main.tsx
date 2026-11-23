@@ -1,6 +1,5 @@
-import { StrictMode, useEffect, useState } from 'react'
+import { StrictMode, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Tabs } from '@heroui/react/tabs'
 import { Button } from '@heroui/react/button'
 import { Spinner } from '@heroui/react/spinner'
 import { Icon } from '@iconify/react'
@@ -45,9 +44,17 @@ const App = () => {
   const [refreshError, setRefreshError] = useState('')
   const [tab, setTab] = useState('settings')
   const [saving, setSaving] = useState(false)
+  const refresh = useRef(0)
   const load = async () => {
-    setState(await api<PanelState>('/config'))
-    setRefreshError('')
+    const current = ++refresh.current
+    try {
+      const next = await api<PanelState>('/config')
+      if (current !== refresh.current) return
+      setState(next)
+      setRefreshError('')
+    } catch (failure) {
+      if (current === refresh.current) throw failure
+    }
   }
   const retry = () => {
     setError('')
@@ -55,7 +62,20 @@ const App = () => {
       setError(failure instanceof Error ? failure.message : String(failure))
     })
   }
-  useEffect(retry, [])
+  useEffect(() => {
+    retry()
+    return () => {
+      refresh.current++
+    }
+  }, [])
+  const selectTab = (next: string) => {
+    if (next === tab) return
+    setTab(next)
+    if (saving) return
+    void load().catch((failure: unknown) => {
+      setRefreshError(failure instanceof Error ? failure.message : String(failure))
+    })
+  }
   return (
     <main className="panel">
       <a className="skip-link" href="#workspace">
@@ -134,46 +154,78 @@ const App = () => {
           <span>读取服务配置…</span>
         </div>
       ) : (
-        <Tabs
-          id="workspace"
-          selectedKey={tab}
-          onSelectionChange={(key) => {
-            const next = String(key)
-            if (next === tab) return
-            setTab(next)
-            void load().catch((failure: unknown) => {
-              setRefreshError(failure instanceof Error ? failure.message : String(failure))
-            })
-          }}
-          className="workspace-tabs"
-        >
-          <Tabs.ListContainer>
-            <Tabs.List aria-label="音卡工作台">
-              <Tabs.Tab id="settings" aria-label="服务设置">
-                <Icon icon={settingsIcon} aria-hidden />
+        <div id="workspace" className="workspace-tabs">
+          <div
+            role="tablist"
+            aria-label="音卡工作台"
+            className="workspace-tablist"
+            onKeyDown={(event) => {
+              let next: string
+              switch (event.key) {
+                case 'ArrowLeft':
+                case 'ArrowRight':
+                  next = tab === 'settings' ? 'sign' : 'settings'
+                  break
+                case 'Home':
+                  next = 'settings'
+                  break
+                case 'End':
+                  next = 'sign'
+                  break
+                default:
+                  return
+              }
+              event.preventDefault()
+              event.currentTarget.querySelector<HTMLButtonElement>(`#tab-${next}`)?.focus()
+              selectTab(next)
+            }}
+          >
+            {[
+              {
+                id: 'settings',
+                label: '服务设置',
+                description: '账号、平台与响应规则',
+                icon: settingsIcon
+              },
+              {
+                id: 'sign',
+                label: '请求音卡',
+                description: '提交歌曲，查看签名结果',
+                icon: musicNotes
+              }
+            ].map(({ id, label, description, icon }) => (
+              <button
+                key={id}
+                id={`tab-${id}`}
+                type="button"
+                role="tab"
+                aria-label={label}
+                aria-selected={tab === id}
+                aria-controls={`panel-${id}`}
+                tabIndex={tab === id ? 0 : -1}
+                className="workspace-tab"
+                onClick={() => selectTab(id)}
+              >
+                <Icon icon={icon} aria-hidden />
                 <span className="workspace-tab-copy">
-                  <span>服务设置</span>
-                  <small>账号、平台与响应规则</small>
+                  <span>{label}</span>
+                  <small>{description}</small>
                 </span>
-                <Tabs.Indicator />
-              </Tabs.Tab>
-              <Tabs.Tab id="sign" aria-label="请求音卡">
-                <Icon icon={musicNotes} aria-hidden />
-                <span className="workspace-tab-copy">
-                  <span>请求音卡</span>
-                  <small>提交歌曲，查看签名结果</small>
-                </span>
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            </Tabs.List>
-          </Tabs.ListContainer>
-          <Tabs.Panel id="settings" shouldForceMount hidden={tab !== 'settings'}>
+              </button>
+            ))}
+          </div>
+          <div
+            id="panel-settings"
+            role="tabpanel"
+            aria-labelledby="tab-settings"
+            hidden={tab !== 'settings'}
+          >
             <Settings state={state} onSaved={load} busy={saving} setBusy={setSaving} />
-          </Tabs.Panel>
-          <Tabs.Panel id="sign" shouldForceMount hidden={tab !== 'sign'}>
+          </div>
+          <div id="panel-sign" role="tabpanel" aria-labelledby="tab-sign" hidden={tab !== 'sign'}>
             <Sign state={state} />
-          </Tabs.Panel>
-        </Tabs>
+          </div>
+        </div>
       )}
       <footer className="panel-footer">
         <span>music-card-sign</span>

@@ -366,7 +366,9 @@ for (const failure of ['timeout', 'submission', 'mismatch'] as const) {
     bot.pickFriend = (id) => ({
       share: async (content, platform) => {
         assert.equal(platform.appid, 102021671)
+        const title = failure === 'mismatch' ? '标题被服务端修改' : content.title
         echo = {
+          message_id: `signed:${failure}`,
           self_id: bot.uin,
           from_id: bot.uin,
           to_id: id,
@@ -378,9 +380,9 @@ for (const failure of ['timeout', 'submission', 'mismatch'] as const) {
               data: JSON.stringify({
                 app: 'com.tencent.tuwen.lua',
                 view: 'news',
-                prompt: '[分享]标题被服务端修改',
+                prompt: `[分享]${title}`,
                 meta: {
-                  news: { appid: 100446242, title: '标题被服务端修改', jumpUrl: content.url }
+                  news: { appid: 100446242, title, jumpUrl: content.url }
                 }
               })
             }
@@ -420,6 +422,22 @@ for (const failure of ['timeout', 'submission', 'mismatch'] as const) {
         message: [
           {
             type: 'json',
+            data: JSON.stringify({
+              view: 'news',
+              app: 'com.tencent.tuwen.lua',
+              prompt: '[分享]手工分享',
+              meta: {
+                news: { appid: 100446242, title: '手工分享', jumpUrl: 'https://example.com/song' }
+              }
+            })
+          }
+        ]
+      },
+      {
+        ...echo,
+        message: [
+          {
+            type: 'json',
             data: '{"view":"news","meta":{"news":{"appid":200079,"jumpUrl":"https://example.com/song"}}}'
           }
         ]
@@ -434,13 +452,14 @@ for (const failure of ['timeout', 'submission', 'mismatch'] as const) {
         ]
       }
     ]) {
+      event.message_id = undefined
       assert.equal(host.em('message.private.friend', event), event)
     }
-    assert.equal(reports.length, 8)
+    assert.equal(reports.length, 9)
     await instance.cleanup[0].dispose()
     assert.notEqual(host.em, originalEm)
     assert.equal(host.em('message.private.friend', echo), echo)
-    assert.equal(reports.length, 9, '卸载恢复本体上报方法')
+    assert.equal(reports.length, 10, '卸载恢复本体上报方法')
   })
 }
 

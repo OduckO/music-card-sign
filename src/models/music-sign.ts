@@ -428,7 +428,19 @@ export class MusicSigner {
   readonly submissions = new Map<string, Promise<MusicCard>>()
   readonly listeners = new Map<IcqqBot, Subscription>()
   readonly echoes = new Map<string, number>()
-  readonly submitted = new Map<string, number>()
+  readonly submitted = new Map<
+    string,
+    {
+      botId: string
+      targetId: string
+      appid: number
+      url: string
+      title: string
+      prompt: string
+      started: number
+      expires: number
+    }
+  >()
   readonly cacheWrites = new Map<string, { card: MusicCard; promise: Promise<void> }>()
   closed = false
   constructor({
@@ -643,9 +655,7 @@ export class MusicSigner {
     // 仅凭这些字段识别本次回包；其余字段不同的请求需串行，才能明确报告错误。
     const group = `${bot.uin}:${musicKey(requestFields(request))}`
     const previous = this.submissions.get(group)
-    const operation = previous
-      ? previous.catch(() => {}).then(() => this.send(bot, request, key, context))
-      : this.send(bot, request, key, context)
+    const operation = this.send(bot, request, key, context, previous)
     this.submissions.set(group, operation)
     try {
       return await operation
@@ -654,11 +664,17 @@ export class MusicSigner {
     }
   }
 
-  send(bot: IcqqBot, request: NormalizedRequest, key: string, context: string): Promise<MusicCard> {
+  send(
+    bot: IcqqBot,
+    request: NormalizedRequest,
+    key: string,
+    context: string,
+    previous?: Promise<MusicCard>
+  ): Promise<MusicCard> {
     if (this.closed) throw new MusicSignError('音卡签名服务已关闭', 503)
     const targetId = Number(this.targetId || bot.uin)
     const started = performance.now()
-    const subscription = this.listen(bot)
+    let subscription = previous ? undefined : this.listen(bot)
     const identity = musicKey(requestFields(request))
     const { promise, resolve, reject } = Promise.withResolvers<MusicCard>()
     const item: PendingRequest = {
@@ -668,8 +684,10 @@ export class MusicSigner {
         if (this.pending.get(key) !== item) return
         clearTimeout(item.timer)
         this.pending.delete(key)
-        subscription.requests.delete(identity)
-        if (!subscription.requests.size) this.unlisten(bot)
+        if (subscription) {
+          subscription.requests.delete(identity)
+          if (!subscription.requests.size) this.unlisten(bot)
+        }
         if (error) {
           this.onLog?.(
             'error',
@@ -685,22 +703,27 @@ export class MusicSigner {
         }
       }
     }
-    item.timer = setTimeout(
-      () =>
-        item.finish(
-          new MusicSignError(`等待 Bot=${bot.uin} 发给接收 QQ=${targetId} 的音卡 JSON 超时`, 504)
-        ),
-      this.timeoutMs
-    )
+    const expire = () =>
+      item.finish(
+        new MusicSignError(`等待 Bot=${bot.uin} 发给接收 QQ=${targetId} 的音卡 JSON 超时`, 504)
+      )
+    item.timer = setTimeout(expire, this.timeoutMs)
     this.pending.set(key, item)
-    subscription.requests.set(identity, item)
-    this.onLog?.(
-      'info',
-      `${context} 监听 SDK 私聊及 sync.message，等待发送同步 JSON ${this.timeoutMs} ms`
-    )
-    Promise.resolve()
+    subscription?.requests.set(identity, item)
+    ;(previous?.catch(() => {}) ?? Promise.resolve())
       .then(() => {
         if (this.closed || this.pending.get(key) !== item) return
+        const remaining = this.timeoutMs - (performance.now() - started)
+        if (remaining <= 0) return expire()
+        if (!subscription) {
+          subscription = this.listen(bot)
+          subscription.requests.set(identity, item)
+        }
+        item.started = Math.floor(Date.now() / 1000)
+        this.onLog?.(
+          'info',
+          `${context} 监听 SDK 私聊及 sync.message，等待发送同步 JSON ${Math.ceil(remaining)} ms（含排队）`
+        )
         const friend = bot.pickFriend(targetId)
         if (typeof friend?.share !== 'function')
           throw new MusicSignError('该账号没有原生 icqq share 能力', 503)
@@ -708,15 +731,24 @@ export class MusicSigner {
           'info',
           `${context} 提交分享，appid=${request.platform.appid}，歌曲=${request.content.title}`
         )
-        const echoKey = JSON.stringify([
-          String(bot.uin),
-          String(targetId),
-          request.platform.appid,
-          request.content.url
-        ])
-        const firstSubmission = this.submitted.get(echoKey) ?? item.started
+        const now = Date.now()
+        for (const [fingerprint, entry] of this.submitted) {
+          if (entry.expires > now) break
+          this.submitted.delete(fingerprint)
+        }
+        const echoKey = `${bot.uin}:${targetId}:${identity}`
+        const firstSubmission = this.submitted.get(echoKey)?.started ?? item.started
         this.submitted.delete(echoKey)
-        this.submitted.set(echoKey, firstSubmission)
+        this.submitted.set(echoKey, {
+          botId: String(bot.uin),
+          targetId: String(targetId),
+          appid: request.platform.appid,
+          url: request.content.url,
+          title: request.content.title,
+          prompt: request.content.content,
+          started: firstSubmission,
+          expires: now + this.timeoutMs + 30000
+        })
         // 保留有限的提交指纹以拦截超时后的回包，不保留 SDK、事件或卡片正文。
         if (this.submitted.size > 256) this.submitted.delete(this.submitted.keys().next().value!)
         return friend.share(request.content, request.platform)
@@ -748,21 +780,31 @@ export class MusicSigner {
       }
       this.echoes.delete(key)
     }
+    const now = Date.now()
+    for (const [fingerprint, entry] of this.submitted) {
+      if (entry.expires > now) break
+      this.submitted.delete(fingerprint)
+    }
     for (const card of receivedCards(event)) {
       const actual = musicFields(card)
-      const fingerprint = [String(event.self_id), String(event.to_id), actual.appid, actual.jumpUrl]
-      let submitted = this.submitted.get(JSON.stringify(fingerprint))
-      if (submitted === undefined && appIdMatches(card, actual.appid, platforms.default.appid)) {
-        fingerprint[2] = platforms.default.appid
-        submitted = this.submitted.get(JSON.stringify(fingerprint))
+      for (const entry of this.submitted.values()) {
+        if (
+          entry.botId !== String(event.self_id) ||
+          entry.targetId !== String(event.to_id) ||
+          !appIdMatches(card, actual.appid, entry.appid) ||
+          entry.url !== actual.jumpUrl ||
+          !textMatches(entry.title, actual.title) ||
+          !textMatches(entry.prompt, actual.prompt) ||
+          (event.time && event.time < entry.started)
+        )
+          continue
+        this.markEcho(event, Number(event.self_id), String(event.to_id))
+        this.onLog?.(
+          'info',
+          `Bot=${event.self_id} 接收 QQ=${event.to_id} 已拦截签名回包上报，appid=${actual.appid}，歌曲=${actual.title}`
+        )
+        return true
       }
-      if (submitted === undefined || (event.time && event.time < submitted)) continue
-      this.markEcho(event, Number(event.self_id), String(event.to_id))
-      this.onLog?.(
-        'info',
-        `Bot=${event.self_id} 接收 QQ=${event.to_id} 已拦截签名回包上报，appid=${actual.appid}，歌曲=${actual.title}`
-      )
-      return true
     }
     return false
   }
@@ -794,6 +836,11 @@ export class MusicSigner {
         if (event.self_id !== undefined && String(event.self_id) !== String(bot.uin)) return
         const from = event.from_id ?? event.user_id ?? event.sender?.user_id
         if (String(from) !== String(bot.uin) || String(event.to_id) !== targetId) return
+        const expires = this.echoes.get(`${bot.uin}:${targetId}:${event.message_id}`)
+        if (expires !== undefined && expires > Date.now()) {
+          signingEchoes.add(event)
+          return
+        }
         for (const card of receivedCards(event)) {
           const actual = musicFields(card)
           const candidates = [...subscription.requests.values()].filter(

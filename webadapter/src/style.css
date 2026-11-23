@@ -188,26 +188,19 @@ h1 {
 #workspace {
   scroll-margin-top: 24px;
 }
-.workspace-tabs > .tabs__list-container {
+.workspace-tablist {
   display: flex;
   width: 100%;
   margin-bottom: 20px;
-  background: transparent;
-  border-radius: 0;
-}
-.workspace-tabs .tabs__list-container__scroller {
-  width: 100%;
-  background: transparent;
-}
-.workspace-tabs .tabs__list {
-  width: 100%;
   background: #dfe7ec;
   gap: 6px;
   padding: 6px;
   border: 1px solid #c6d4df;
   border-radius: 20px;
 }
-.workspace-tabs .tabs__tab {
+.workspace-tab {
+  display: flex;
+  align-items: center;
   flex: 1;
   min-width: 0;
   justify-content: flex-start;
@@ -215,27 +208,35 @@ h1 {
   height: auto;
   min-height: 72px;
   padding: 14px 22px;
+  border: 0;
   border-radius: 14px;
+  background: transparent;
   color: var(--muted);
+  font-family: inherit;
   font-size: 14px;
   text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
 }
-.workspace-tabs .tabs__tab[data-selected='true'] {
-  color: var(--accent-foreground);
-}
-.workspace-tabs .tabs__tab[data-selected='true'] small {
-  color: #e0eaf1;
-}
-.workspace-tabs .tabs__tab[data-hovered='true']:not([data-selected='true']) {
-  background: #ffffff70;
-  color: var(--foreground);
-}
-.workspace-tabs .tabs__indicator {
-  border-radius: 14px;
+.workspace-tab[aria-selected='true'] {
   background: var(--accent);
+  color: var(--accent-foreground);
   box-shadow: 0 2px 5px #253a4b0d;
 }
-.workspace-tabs .tabs__tab svg {
+.workspace-tab[aria-selected='true'] small {
+  color: #e0eaf1;
+}
+@media (hover: hover) {
+  .workspace-tab:hover:not([aria-selected='true']) {
+    background: #ffffff70;
+    color: var(--foreground);
+  }
+}
+.workspace-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.workspace-tab svg {
   flex-shrink: 0;
   width: 24px;
   height: 24px;
@@ -267,7 +268,7 @@ h1 {
   gap: 24px;
   align-items: start;
 }
-.panel:has(.tabs__panel:not([hidden]) .settings-savebar) {
+.panel:has([role='tabpanel']:not([hidden]) .settings-savebar) {
   padding-bottom: max(150px, env(safe-area-inset-bottom));
 }
 .settings-sections {
@@ -1028,13 +1029,13 @@ pre {
   .workspace-tabs {
     margin-top: 22px;
   }
-  .workspace-tabs .tabs__tab {
+  .workspace-tab {
     justify-content: center;
     gap: 9px;
     min-height: 52px;
     padding: 12px 8px;
   }
-  .workspace-tabs .tabs__tab svg {
+  .workspace-tab svg {
     width: 20px;
     height: 20px;
   }
