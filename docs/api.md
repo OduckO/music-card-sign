@@ -58,7 +58,7 @@ QQ 可能转存封面，返回的 `preview` 会保留新地址。已知音乐域
 | `self_id`   | 否   | 指定生成音卡的 icqq 账号，优先于配置中的 `botId`              |
 | `_platform` | 否   | 显式指定音卡平台，优先于跳转链接识别及默认配置                |
 
-HTTP 请求按 `self_id`、配置 `botId`、唯一在线 icqq 账号的顺序选择账号。Handler 和命令还可使用当前事件账号，见 [开发指南](development.md#handler-接入)。
+HTTP 请求优先用 `self_id`，未传时用配置中的 `botId`。指定账号离线时，改用框架列表中第一个在线 icqq 账号；没有账号可代签时，返回 `503` 并注明离线的 QQ 号。两处都未指定时，只有一个在线 icqq 账号才会自动选择。Handler 和命令还可使用当前事件账号，见[开发指南](development.md#账号平台与发送目标)。
 
 ## ID 模式
 
