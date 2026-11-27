@@ -44,6 +44,8 @@ pnpm --dir plugins/music-card-sign install --ignore-workspace --prod
 
 只有一个 icqq 账号在线时，可以省略设置 Bot。默认测试歌曲是《晴天》；收到卡片和“音之测测通过”就表示生成与发送成功。
 
+指定的签名账号离线时，插件会用框架列表中第一个在线 icqq 账号代签，并在日志里列出两个 QQ 号。原账号重新上线后，下次签名会用回原号，不需要改设置。
+
 当前会话支持 ICQQ、OneBot v11、Milky。Milky 协议端需要支持 1.2 的 `light_app` 消息段。
 
 发给自己收不到回传时，可设置一个能与签名账号私聊的联系人：

@@ -188,7 +188,7 @@ export const Settings = ({
             onChange={(v) => patch('botId', v)}
             options={state.accounts}
             placeholder="自动选择，或填写 QQ 号"
-            description="从框架在线的 icqq 账号里选择；清空恢复自动选择。多个账号在线时需指定一个。"
+            description="指定账号离线时，由第一个在线 icqq 账号代签。留空时，若有多个在线账号，请指定一个。"
           />
           <AccountField
             label="接收联系人"

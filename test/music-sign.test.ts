@@ -1216,6 +1216,48 @@ test('多账号要求明确选择，没有在线 icqq 时明确失败', async (t
   await assert.rejects(offline.sign(input), /在线.*icqq/i)
 })
 
+test('指定账号离线时由首个在线账号代签，恢复上线后用回原号', async (t) => {
+  const preferred = new QQBoundary()
+  const backup = new QQBoundary()
+  backup.uin = 234567890
+  const other = new QQBoundary()
+  other.uin = 345678901
+  preferred.online = false
+  const warnings: string[] = []
+  const signer = new MusicSigner({
+    botId: String(preferred.uin),
+    getBots: () => [backup, preferred, other],
+    onLog: (level, message) => {
+      if (level === 'warn') warnings.push(message)
+    }
+  })
+  t.after(() => signer.close())
+  backup.onShare = () => backup.deliver(card())
+  preferred.onShare = () => preferred.deliver(card())
+  await signer.sign(input)
+  preferred.online = true
+  await signer.sign(input)
+  assert.deepEqual(backup.targets, [backup.uin])
+  assert.deepEqual(preferred.targets, [preferred.uin])
+  assert.deepEqual(other.targets, [])
+  assert.equal(warnings.length, 1)
+  assert.match(warnings[0], /123456789 不在线.*234567890/)
+})
+
+test('指定账号离线且无人可代签时，503 错误写明请求或配置指定的 QQ', async (t) => {
+  const signer = new MusicSigner({ botId: '123456789', getBots: () => [] })
+  t.after(() => signer.close())
+  for (const [request, id] of [
+    [input, '123456789'],
+    [{ ...input, self_id: '234567890' }, '234567890']
+  ] as const) {
+    await assert.rejects(signer.sign(request), {
+      status: 503,
+      message: `指定的 icqq 签名账号 ${id} 不在线，也没有其他在线 icqq 账号可代签`
+    })
+  }
+})
+
 test('捕获回包保留原始 JSON 文本编码', async (t) => {
   const bot = new QQBoundary()
   const signer = new MusicSigner({ getBots: () => [bot], timeoutMs: 80 })

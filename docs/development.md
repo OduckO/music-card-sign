@@ -43,7 +43,7 @@ export async function sendMusicCard(e: CustomEvent) {
 
 ### 账号、平台与发送目标
 
-签名账号依次选择：请求中的 `self_id` / `bot_id`、配置 `botId`、当前 ICQQ 事件账号、唯一在线 icqq 账号。OneBot v11 会话不会替换签名账号。
+请求中的 `self_id` / `bot_id` 优先于配置 `botId`。选定的账号离线时，临时用框架列表中第一个在线 icqq 账号代签。未指定账号时，优先用当前 ICQQ 会话的账号，否则要求只有一个 icqq 账号在线。
 
 平台按 [API 平台规则](api.md#自定义平台)选择。`type` 决定去哪查歌曲，`_platform` 决定用哪个应用签名。
 
